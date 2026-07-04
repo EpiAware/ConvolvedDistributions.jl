@@ -10,4 +10,9 @@ on:
 jobs:
   pre-commit:
     uses: EpiAware/.github/.github/workflows/format-check.yml@dc919e0d1674c16d1518df07eda5ee0be09b47e2
+    # Keep in step with the JuliaFormatter rev pinned in
+    # .pre-commit-config.yaml and test/formatter/Project.toml; the shared
+    # workflow default (2.5.5) formats some constructs differently.
+    with:
+      juliaformatter_version: '2.10.1'
     secrets: inherit  # pragma: allowlist secret

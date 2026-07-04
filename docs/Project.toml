@@ -6,11 +6,15 @@
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
 DocumenterVitepress = "4710194d-e776-4893-9690-8d956a29c365"
+EpiAwarePackageTools = "7aaea248-0d11-4a0d-a7dc-86da30abb951"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 ConvolvedDistributions = "f5b942c9-bc5b-4664-8486-7f531bb06742"
 
 [sources]
 ConvolvedDistributions = {path = ".."}
+# docs/make.jl drives the build through EpiAwarePackageTools.DocsBuild; until
+# the kit is registered it is pinned by git, mirroring test/Project.toml.
+EpiAwarePackageTools = {url = "https://github.com/EpiAware/EpiAwarePackageTools.jl", rev = "main"}
 
 [compat]
 Documenter = "1"
