@@ -10,18 +10,29 @@
 | [![cov ForwardDiff](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl/graph/badge.svg?flag=ad-forwarddiff)](https://app.codecov.io/gh/EpiAware/ConvolvedDistributions.jl?flags%5B0%5D=ad-forwarddiff) | [![cov ReverseDiff](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl/graph/badge.svg?flag=ad-reversediff)](https://app.codecov.io/gh/EpiAware/ConvolvedDistributions.jl?flags%5B0%5D=ad-reversediff) | [![cov Enzyme forward](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl/graph/badge.svg?flag=ad-enzyme-forward)](https://app.codecov.io/gh/EpiAware/ConvolvedDistributions.jl?flags%5B0%5D=ad-enzyme-forward) | [![cov Enzyme reverse](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl/graph/badge.svg?flag=ad-enzyme-reverse)](https://app.codecov.io/gh/EpiAware/ConvolvedDistributions.jl?flags%5B0%5D=ad-enzyme-reverse) | [![cov Mooncake reverse](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl/graph/badge.svg?flag=ad-mooncake-reverse)](https://app.codecov.io/gh/EpiAware/ConvolvedDistributions.jl?flags%5B0%5D=ad-mooncake-reverse) | [![cov Mooncake forward](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl/graph/badge.svg?flag=ad-mooncake-forward)](https://app.codecov.io/gh/EpiAware/ConvolvedDistributions.jl?flags%5B0%5D=ad-mooncake-forward) |
 <!-- badges:end -->
 
-_One-line description of ConvolvedDistributions._
+Raw-distribution convolution and shared numeric quadrature for any `Distributions.jl` distribution.
 
 ## Why ConvolvedDistributions?
 
-- _List the package's key features here._
+- `convolve_distributions` builds the distribution of a sum of independent delays (a convolution), with an analytic fast path (`Normal`+`Normal`, equal-scale `Gamma`, equal-rate `Exponential`) and an AD-safe Gauss-Legendre quadrature fallback for every other pair.
+- `difference` builds the `X - Y` dual, the signed gap between two independent events.
+- A pluggable `integrate` / `gl_integrate` layer with the lightweight fixed-node `GaussLegendre` default and an optional Integrals.jl backend.
+- Gradients flow through the component parameters on every supported AD backend (ForwardDiff, ReverseDiff, Enzyme, Mooncake).
 
 ## Getting started
 
 See [documentation](https://epiaware.org/ConvolvedDistributions.jl/stable/) for a full walkthrough.
 
 ```julia
-using ConvolvedDistributions
+using ConvolvedDistributions, Distributions
+
+# Sum of two independent delays
+d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(1.5, 0.5))
+cdf(d, 5.0)
+
+# Signed gap between two events
+z = difference(Normal(5.0, 1.0), Normal(2.0, 1.0))
+mean(z)
 ```
 
 ## Where to learn more
