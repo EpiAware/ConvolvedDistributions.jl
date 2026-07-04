@@ -1,0 +1,116 @@
+# Quantile (inverse CDF) for Convolved/Difference is provided by the
+# ConvolvedDistributionsOptimizationExt extension, so every testitem here
+# loads Optimization + OptimizationOptimJL to trigger it.
+
+@testitem "Convolved quantile inverts cdf" begin
+    using Distributions, Optimization, OptimizationOptimJL
+
+    # Numeric path: quantile is the cdf inverse.
+    # The optimiser minimises (cdf - p)^2, so cdf accuracy is ~1e-4.
+    d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    for p in (0.1, 0.25, 0.5, 0.75, 0.9)
+        q = quantile(d, p)
+        @test cdf(d, q) ≈ p atol=1e-3
+    end
+    @test quantile(d, 0.0) == minimum(d)
+    @test quantile(d, 1.0) == maximum(d)
+
+    # Analytic path agrees with the convolved reference quantile.
+    a = Normal(1.0, 2.0)
+    b = Normal(-0.5, 1.5)
+    da = convolve_distributions(a, b)
+    ref = convolve(a, b)
+    for p in (0.05, 0.2, 0.5, 0.8, 0.95)
+        @test quantile(da, p) ≈ quantile(ref, p) atol=1e-2
+    end
+
+    # NumericSolver forced on an analytic pair still inverts to the same
+    # quantile as the closed form.
+    dn = convolve_distributions(a, b; method = NumericSolver())
+    for p in (0.2, 0.5, 0.8)
+        @test quantile(dn, p) ≈ quantile(ref, p) atol=1e-2
+    end
+end
+
+@testitem "Difference quantile inverts cdf" begin
+    using Distributions, Optimization, OptimizationOptimJL
+
+    # Analytic path: Normal - Normal has the closed form
+    # Normal(μx - μy, sqrt(σx² + σy²)).
+    x = Normal(5.0, 1.5)
+    y = Normal(2.0, 2.0)
+    d = difference(x, y)
+    ref = Normal(3.0, sqrt(1.5^2 + 2.0^2))
+    for p in (0.05, 0.2, 0.5, 0.8, 0.95)
+        @test quantile(d, p) ≈ quantile(ref, p) atol=1e-2
+    end
+
+    # Median of a symmetric difference is 0 (analytic and numeric paths).
+    dsym = difference(Normal(1.0, 1.0), Normal(1.0, 1.0))
+    @test quantile(dsym, 0.5) ≈ 0.0 atol=1e-6
+    dsymn = difference(Gamma(2.0, 1.5), Gamma(2.0, 1.5))
+    @test quantile(dsymn, 0.5) ≈ 0.0 atol=1e-3
+
+    # Numeric path: quantile round-trips through the quadrature cdf.
+    dn = difference(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
+    for p in (0.1, 0.25, 0.5, 0.75, 0.9)
+        q = quantile(dn, p)
+        @test cdf(dn, q) ≈ p atol=1e-3
+    end
+end
+
+@testitem "Quantile boundary and argument validation" begin
+    using Distributions, Optimization, OptimizationOptimJL
+
+    # Bounded supports: p = 0 / 1 return the support ends exactly.
+    du = convolve_distributions(Uniform(0.0, 1.0), Uniform(0.0, 2.0))
+    @test quantile(du, 0.0) == 0.0
+    @test quantile(du, 1.0) == 3.0
+
+    dd = difference(Uniform(0.0, 1.0), Uniform(0.0, 2.0))
+    @test quantile(dd, 0.0) == -2.0
+    @test quantile(dd, 1.0) == 1.0
+
+    # Interior quantiles of the bounded cases round-trip too.
+    for p in (0.25, 0.5, 0.75)
+        @test cdf(du, quantile(du, p)) ≈ p atol=1e-3
+        @test cdf(dd, quantile(dd, p)) ≈ p atol=1e-3
+    end
+
+    # Out-of-range probabilities throw for both distributions.
+    for d in (du, dd)
+        @test_throws ArgumentError quantile(d, -0.1)
+        @test_throws ArgumentError quantile(d, 1.1)
+        @test_throws ArgumentError quantile(d, NaN)
+    end
+end
+
+@testitem "Truncated Convolved/Difference sample via quantile" begin
+    using Distributions, Optimization, OptimizationOptimJL
+    using Random, Statistics
+
+    rng = MersenneTwister(8675309)
+
+    # `truncated` derives its quantile and inverse-CDF sampler from the base
+    # `quantile`, so this exercises the rand path that routes through it.
+    dn = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    tn = truncated(dn, 1.0, 8.0)
+    for p in (0.25, 0.5, 0.75)
+        q = quantile(tn, p)
+        @test cdf(tn, q) ≈ p atol=1e-3
+    end
+
+    samples = rand(rng, tn, 50_000)
+    @test all(1.0 .<= samples .<= 8.0)
+    for x in (2.0, 4.0, 6.0)
+        @test mean(samples .<= x) ≈ cdf(tn, x) atol=1e-2
+    end
+    @test median(samples) ≈ quantile(tn, 0.5) atol=0.05
+
+    # Same for a truncated Difference on the numeric path.
+    dz = difference(Gamma(3.0, 1.0), Gamma(2.0, 1.0))
+    tz = truncated(dz, -2.0, 5.0)
+    zs = rand(rng, tz, 50_000)
+    @test all(-2.0 .<= zs .<= 5.0)
+    @test median(zs) ≈ quantile(tz, 0.5) atol=0.05
+end
