@@ -58,6 +58,11 @@ include("Convolved.jl")
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.
 include("Difference.jl")
 
+# `quantile` (inverse CDF) for Convolved/Difference lives in the
+# ConvolvedDistributionsOptimizationExt extension, loaded when both
+# Optimization.jl and OptimizationOptimJL.jl are present, so the core
+# package carries no solver dependency.
+
 # Public API (not exported) - Julia 1.11+.
 @static if VERSION >= v"1.11"
     include("public.jl")
