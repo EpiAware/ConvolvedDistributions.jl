@@ -29,7 +29,14 @@ const TUTORIAL_STUBS = Pair{String, String}[]
 
 # Regexes for URLs to skip during the (full-build) linkcheck, e.g. a page
 # published by a separate workflow that is not yet live.
-const LINKCHECK_IGNORE = Regex[]
+# - The stable docs URL 404s until the first tagged release deploys; drop
+#   the ignore after that.
+# - The Discussions link 404s until Discussions is enabled on the repo
+#   (owner-only toggle, tracked in #21); drop the ignore once enabled.
+const LINKCHECK_IGNORE = [
+    r"epiaware\.org/ConvolvedDistributions\.jl/stable",
+    r"github\.com/EpiAware/ConvolvedDistributions\.jl/discussions"
+]
 
 # README -> index.md link rewrites: `from => to` pairs applied line by line,
 # e.g. rewriting an absolute docs URL to an in-site `@ref` so links stay within
