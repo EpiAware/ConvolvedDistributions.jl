@@ -216,6 +216,19 @@ end
     @test rand(rng, d) isa Real
 end
 
+@testitem "Difference composes with truncated" begin
+    using Distributions
+
+    # truncated composes over a Difference (negative bounds allowed).
+    d = difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
+    td = truncated(d, -2.0, 5.0)
+
+    @test cdf(td, -3.0) == 0.0
+    @test cdf(td, 6.0) == 1.0
+    @test 0.0 < cdf(td, 1.0) < 1.0
+    @test pdf(td, 1.0) > 0
+end
+
 # The AD-safety of Difference (gradients flowing through both the minuend X and
 # the subtrahend Y parameters, on the numeric cross-correlation path) is covered
 # by the multi-backend AD suite in `test/ADFixtures`, which has the AD backends

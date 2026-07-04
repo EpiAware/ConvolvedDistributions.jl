@@ -420,6 +420,18 @@ end
     @test var(dn) ≈ var(d) + var(Exponential(2.0))
 end
 
+@testitem "Convolved composes with truncated" begin
+    using Distributions
+
+    d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    td = truncated(d, 1.0, 8.0)
+
+    @test cdf(td, 0.5) == 0.0
+    @test cdf(td, 9.0) == 1.0
+    @test 0.0 < cdf(td, 4.0) < 1.0
+    @test pdf(td, 4.0) > 0
+end
+
 @testitem "Convolved moments cross-check against sampling" begin
     using Distributions, Random, Statistics
 
