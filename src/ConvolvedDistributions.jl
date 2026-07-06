@@ -40,6 +40,12 @@ using SpecialFunctions: gamma_inc, loggamma, digamma
 
 import FastGaussQuadrature  # Gauss-Legendre nodes for the default solver
 
+# DocStringExtensions symbols for the @template conventions registered by
+# src/docstrings.jl (all module-scope using/import live in this file,
+# kit #105).
+using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
+                           TYPEDFIELDS, TYPEDSIGNATURES
+
 # Register the standard EpiAware docstring conventions before any docstrings
 # are defined (see src/docstrings.jl).
 include("docstrings.jl")
