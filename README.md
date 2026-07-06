@@ -14,31 +14,84 @@ Raw-distribution convolution and shared numeric quadrature for any `Distribution
 
 ## Why ConvolvedDistributions?
 
-- `convolve_distributions` builds the distribution of a sum of independent delays (a convolution), with an analytic fast path (`Normal`+`Normal`, equal-scale `Gamma`, equal-rate `Exponential`) and an AD-safe Gauss-Legendre quadrature fallback for every other pair.
-- `difference` builds the `X - Y` dual, the signed gap between two independent events.
-- A pluggable `integrate` / `gl_integrate` layer with the lightweight fixed-node `GaussLegendre` default and an optional Integrals.jl backend.
-- Gradients flow through the component parameters on every supported AD backend (ForwardDiff, ReverseDiff, Enzyme, Mooncake).
+- **Convolution of any pair**: `convolve_distributions` builds the distribution of a sum of independent delays (a convolution) from any two or more `Distributions.jl` distributions, not just pairs with a closed form.
+- **Analytic fast path**: closed-form convolutions (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`) are used where they exist, with an AD-safe Gauss-Legendre quadrature fallback for every other pair.
+- **Differences as well as sums**: `difference` builds the `X - Y` dual, the signed gap between two independent events.
+- **Pluggable integration**: a shared `integrate` / `gl_integrate` layer with a lightweight fixed-node `GaussLegendre` default and an optional [Integrals.jl](https://github.com/SciML/Integrals.jl) backend.
+- **Gradients everywhere**: gradients flow through the component parameters on every supported AD backend (ForwardDiff, ReverseDiff, Enzyme, Mooncake), so convolved distributions can be fitted with gradient-based samplers and optimisers.
 
 ## Getting started
 
-See [documentation](https://epiaware.org/ConvolvedDistributions.jl/stable/) for a full walkthrough.
+See the [Getting started documentation](https://epiaware.org/ConvolvedDistributions.jl/stable/getting-started/) for a full walkthrough.
+
+The following example convolves two delays, an incubation period and a reporting delay, and evaluates the resulting distribution:
 
 ```julia
 using ConvolvedDistributions, Distributions
 
 # Sum of two independent delays
-d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(1.5, 0.5))
-cdf(d, 5.0)
+incubation = Gamma(2.0, 1.0)
+reporting = LogNormal(1.0, 0.5)
+d = convolve_distributions(incubation, reporting)
 
-# Signed gap between two events
-z = difference(Normal(5.0, 1.0), Normal(2.0, 1.0))
-mean(z)
+(cdf(d, 5.0), pdf(d, 5.0))
 ```
+
+`difference` gives the signed gap between two independent events, for example the delay between two reporting streams:
+
+```julia
+z = difference(Normal(5.0, 1.0), Normal(2.0, 1.0))
+
+(mean(z), cdf(z, 0.0))
+```
+
+A `Convolved` distribution is a `UnivariateDistribution`, so it composes with `Distributions.truncated`.
+Right truncation is useful when scoring against data observed only up to a cutoff:
+
+```julia
+d_trunc = truncated(d; upper = 10.0)
+
+cdf(d_trunc, 5.0)
+```
+
+Loading the Optimization extension adds `quantile` support by numerically inverting the CDF:
+
+```julia
+using Optimization, OptimizationOptimJL
+
+quantile(d, 0.5)
+```
+
+## Relationship to Distributions.jl
+
+Distributions.jl ships a `convolve` function, but it only covers pairs with a closed-form result:
+
+| Aspect | Distributions.jl `convolve` | ConvolvedDistributions.jl `convolve_distributions` |
+|--------|-----------------------------|-----------------------------------------------------|
+| **Coverage** | Closed-form, same-family pairs only (e.g. `Normal` + `Normal`, equal-scale `Gamma`); errors otherwise | Any pair of univariate distributions |
+| **Method** | Returns the closed-form distribution | Analytic fast path where a closed form exists, AD-safe Gauss-Legendre quadrature fallback otherwise |
+| **Forms** | Two positional arguments | Nested, vector, tuple, and varargs forms for sums of many delays |
+| **Differences** | Not supported | `difference` builds the `X - Y` dual |
+| **Evaluation** | Whatever the returned distribution supports | Batched `cdf` / `pdf` / `logpdf` over vectors of points |
+| **Gradients** | Depend on the returned distribution | Flow through the component parameters on all supported AD backends |
+
+For example, `Distributions.convolve(Gamma(2, 1), LogNormal(0, 1))` throws a `MethodError` and `Distributions.convolve(Gamma(2, 1), Gamma(3, 2))` throws an `ArgumentError` because the scales differ, whereas `convolve_distributions` handles both via quadrature.
+When a closed form does exist, `convolve_distributions` uses it, so there is no cost to reaching for the more general function.
+
+## What packages work well with ConvolvedDistributions.jl?
+
+- [Distributions.jl](https://github.com/JuliaStats/Distributions.jl) provides the base functionality for working with distributions; every component and every result is a `UnivariateDistribution`.
+- [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl) adds censoring and truncation layers for epidemiological observation processes; this package was split out of it and the two compose.
+- [Turing.jl](https://github.com/TuringLang/Turing.jl) for Bayesian inference; the `cdf` / `pdf` / `logpdf` methods are AD-safe, so convolved distributions can be fitted with its samplers.
+- [Integrals.jl](https://github.com/SciML/Integrals.jl) as an optional quadrature backend via the package extension.
 
 ## Where to learn more
 
-- [GitHub Discussions](https://github.com/EpiAware/ConvolvedDistributions.jl/discussions)
-- [GitHub Repository](https://github.com/EpiAware/ConvolvedDistributions.jl)
+- Want to get started running code? Check out the [Getting started documentation](https://epiaware.org/ConvolvedDistributions.jl/stable/getting-started/).
+- Want to understand the API? Check out our [API reference](https://epiaware.org/ConvolvedDistributions.jl/stable/lib/public).
+- Want to chat with someone about `ConvolvedDistributions`? Post on our [GitHub Discussions](https://github.com/EpiAware/ConvolvedDistributions.jl/discussions).
+- Want to contribute to `ConvolvedDistributions`? Check the [open issues](https://github.com/EpiAware/ConvolvedDistributions.jl/issues) and the Contributing section below.
+- Want to see our code? Check out our [GitHub Repository](https://github.com/EpiAware/ConvolvedDistributions.jl).
 
 ## Contributing
 
