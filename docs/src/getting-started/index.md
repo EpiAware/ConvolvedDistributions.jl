@@ -68,9 +68,9 @@ mean(zs), cdf(zs, 0.0)
 
 ## Convolving a timeseries
 
-The same entry point applied to a numeric series does a different, related job: it discretises the delay to a PMF over the unit grid and causally convolves the series with it.
-With the series the expected events at times `0, 1, ..., t` (say infections), the result is the expected downstream counts at the same times — the renewal-style observation layer.
-The PMF masses depend differentiably on the delay parameters, so this composes with gradient-based fitting.
+Passing a numeric series as the second argument discretises the delay to a PMF over the unit grid and causally convolves the series with it.
+If the series holds the expected events at times `0, 1, ..., t` (say infections), the result is the expected downstream counts at the same times.
+This is the renewal-style observation layer, and the PMF masses depend differentiably on the delay parameters, so it composes with gradient-based fitting.
 
 ```@example getting-started
 infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
@@ -101,8 +101,9 @@ logpdf(td, 5.0)
 
 ## Quantiles and sampling truncated distributions
 
-There is no closed-form inverse CDF for a generic convolution, so `quantile` lives behind an extension: load Optimization.jl and OptimizationOptimJL.jl and the method appears (a Nelder-Mead inversion of `cdf`).
-This also unlocks `rand` on `truncated` wrappers, which routes through the base `quantile`.
+There is no closed-form inverse CDF for a generic convolution, so `quantile` lives in an extension that is loaded when both Optimization.jl and OptimizationOptimJL.jl are present.
+It finds the quantile by a Nelder-Mead inversion of `cdf`.
+Loading it also enables `rand` on `truncated` wrappers, which routes through the base `quantile`.
 
 ```@example getting-started
 using Optimization, OptimizationOptimJL
@@ -114,11 +115,13 @@ quantile(d, 0.5)     # median by inverse-CDF root-find
 length(rand(truncated(d, 0.0, 8.0), 100))
 ```
 
-Everything else on this page needs no extension: `rand` on a bare `Convolved`/`Difference` samples the components directly.
+Nothing else on this page needs the extension.
+`rand` on a bare `Convolved` or `Difference` samples the components directly.
 
 ## Gradients
 
-The `cdf`, `pdf`, and `logpdf` paths are AD-safe by construction: the quadrature uses fixed nodes, the window clamp is shielded from the tape, and the gamma CDF carries analytic derivative rules.
+The `cdf`, `pdf`, and `logpdf` paths are AD-safe by construction.
+The quadrature uses fixed nodes, the window clamp is shielded from the tape, and the gamma CDF carries analytic derivative rules.
 Gradients with respect to the component parameters are tested on ForwardDiff, ReverseDiff, Enzyme (forward and reverse), and Mooncake (forward and reverse) on every CI run; the per-backend badges in the [README](https://github.com/EpiAware/ConvolvedDistributions.jl#readme) track their status.
 
 ## Learning more
