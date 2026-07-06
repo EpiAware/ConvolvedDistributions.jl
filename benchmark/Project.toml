@@ -1,0 +1,36 @@
+# PACKAGE-OWNED — scaffold writes this once and never overwrites it.
+# The benchmark environment, so `julia --project=benchmark benchmark/run.jl`
+# resolves. Seeded with BenchmarkTools, the package, and the shared
+# EpiAwarePackageTools benchmark harness; the AD-backend deps drive the
+# gradient suite (`benchmark/src/ad_gradients.jl`) and
+# Optimization/OptimizationOptimJL load the quantile extension the
+# `quantile` benchmarks exercise. EpiAwarePackageTools is pinned by git via
+# `[sources]` until it is registered (mirror the test env's pin if you
+# switch to a path).
+[deps]
+ADFixtures = "58840592-22e4-44fc-b7f9-00f38b89c7a5"
+ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+ConvolvedDistributions = "f5b942c9-bc5b-4664-8486-7f531bb06742"
+DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+DifferentiationInterfaceTest = "a82114a7-5aa3-49a8-9643-716bb13727a3"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+EpiAwarePackageTools = "7aaea248-0d11-4a0d-a7dc-86da30abb951"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
+OptimizationOptimJL = "36348300-93cb-4f02-beb5-3c3902f8871e"
+ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
+
+[sources]
+ADFixtures = {path = "../test/ADFixtures"}
+ConvolvedDistributions = {path = ".."}
+# Until EpiAwarePackageTools is registered, it is pinned by git so the env
+# resolves out of the box. Switch to a local path to develop the kit
+# alongside this package.
+EpiAwarePackageTools = {url = "https://github.com/EpiAware/EpiAwarePackageTools.jl", rev = "main"}
+
+[compat]
+BenchmarkTools = "1"
+Distributions = "0.25"
