@@ -38,7 +38,7 @@ const TUTORIAL_STUBS = [
 # - The Discussions link 404s until Discussions is enabled on the repo
 #   (owner-only toggle, tracked in #21); drop the ignore once enabled.
 const LINKCHECK_IGNORE = [
-    r"epiaware\.org/ConvolvedDistributions\.jl/stable",
+    r"convolveddistributions\.epiaware\.org/stable",
     r"github\.com/EpiAware/ConvolvedDistributions\.jl/discussions"
 ]
 

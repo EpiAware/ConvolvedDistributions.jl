@@ -3,7 +3,7 @@
 <!-- badges:start -->
 | **Documentation** | **Build Status** | **Code Quality** | **License & DOI** | **Downloads** |
 |:-----------------:|:----------------:|:----------------:|:-----------------:|:-------------:|
-| [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://epiaware.org/ConvolvedDistributions.jl/stable/) [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://epiaware.org/ConvolvedDistributions.jl/dev/) | [![Test](https://github.com/EpiAware/ConvolvedDistributions.jl/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/EpiAware/ConvolvedDistributions.jl/actions/workflows/test.yaml) [![codecov](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl/graph/badge.svg)](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl) [![AD](https://github.com/EpiAware/ConvolvedDistributions.jl/actions/workflows/ad.yaml/badge.svg?branch=main)](https://github.com/EpiAware/ConvolvedDistributions.jl/actions/workflows/ad.yaml) | [![SciML Code Style](https://img.shields.io/static/v1?label=code%20style&message=SciML&color=9558b2&labelColor=389826)](https://github.com/SciML/SciMLStyle) [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl) [![JET](https://img.shields.io/badge/%E2%9C%88%EF%B8%8F%20tested%20with%20-%20JET.jl%20-%20red)](https://github.com/aviatesk/JET.jl) | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) | [![Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FConvolvedDistributions&query=total_requests&label=Downloads)](https://juliapkgstats.com/pkg/ConvolvedDistributions) [![Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Fmonthly_downloads%2FConvolvedDistributions&query=total_requests&suffix=%2Fmonth&label=Downloads)](https://juliapkgstats.com/pkg/ConvolvedDistributions) |
+| [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://convolveddistributions.epiaware.org/stable/) [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://convolveddistributions.epiaware.org/dev/) | [![Test](https://github.com/EpiAware/ConvolvedDistributions.jl/actions/workflows/test.yaml/badge.svg?branch=main)](https://github.com/EpiAware/ConvolvedDistributions.jl/actions/workflows/test.yaml) [![codecov](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl/graph/badge.svg)](https://codecov.io/gh/EpiAware/ConvolvedDistributions.jl) [![AD](https://github.com/EpiAware/ConvolvedDistributions.jl/actions/workflows/ad.yaml/badge.svg?branch=main)](https://github.com/EpiAware/ConvolvedDistributions.jl/actions/workflows/ad.yaml) | [![SciML Code Style](https://img.shields.io/static/v1?label=code%20style&message=SciML&color=9558b2&labelColor=389826)](https://github.com/SciML/SciMLStyle) [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl) [![JET](https://img.shields.io/badge/%E2%9C%88%EF%B8%8F%20tested%20with%20-%20JET.jl%20-%20red)](https://github.com/aviatesk/JET.jl) | [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) | [![Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FConvolvedDistributions&query=total_requests&label=Downloads)](https://juliapkgstats.com/pkg/ConvolvedDistributions) [![Downloads](https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Fmonthly_downloads%2FConvolvedDistributions&query=total_requests&suffix=%2Fmonth&label=Downloads)](https://juliapkgstats.com/pkg/ConvolvedDistributions) |
 
 | ForwardDiff | ReverseDiff (tape) | Enzyme forward | Enzyme reverse | Mooncake reverse | Mooncake forward |
 |:---:|:---:|:---:|:---:|:---:|:---:|
@@ -23,7 +23,7 @@ Raw-distribution convolution and shared numeric quadrature for any `Distribution
 
 ## Getting started
 
-See the [Getting started documentation](https://epiaware.org/ConvolvedDistributions.jl/stable/getting-started/) for a full walkthrough.
+See the [Getting started documentation](https://convolveddistributions.epiaware.org/stable/getting-started/) for a full walkthrough.
 
 The following example convolves two delays, an incubation period and a reporting delay, and evaluates the resulting distribution:
 
@@ -111,8 +111,8 @@ When a closed form does exist, `convolve_distributions` uses it, so there is no 
 
 ## Where to learn more
 
-- Want to get started running code? Check out the [Getting started documentation](https://epiaware.org/ConvolvedDistributions.jl/stable/getting-started/).
-- Want to understand the API? Check out our [API reference](https://epiaware.org/ConvolvedDistributions.jl/stable/lib/public).
+- Want to get started running code? Check out the [Getting started documentation](https://convolveddistributions.epiaware.org/stable/getting-started/).
+- Want to understand the API? Check out our [API reference](https://convolveddistributions.epiaware.org/stable/lib/public).
 - Want to chat with someone about `ConvolvedDistributions`? Post on our [GitHub Discussions](https://github.com/EpiAware/ConvolvedDistributions.jl/discussions).
 - Want to contribute to `ConvolvedDistributions`? Check the [open issues](https://github.com/EpiAware/ConvolvedDistributions.jl/issues) and the Contributing section below.
 - Want to see our code? Check out our [GitHub Repository](https://github.com/EpiAware/ConvolvedDistributions.jl).

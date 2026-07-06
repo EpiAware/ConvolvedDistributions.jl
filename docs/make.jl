@@ -45,7 +45,7 @@ build_docs(
     ConvolvedDistributions;
     repo = "EpiAware/ConvolvedDistributions.jl",
     authors = "Sam Abbott, EpiAware contributors",
-    deploy_url = nothing,
+    deploy_url = "convolveddistributions.epiaware.org",
     pages = pages,
     skip_notebooks = "--skip-notebooks" in ARGS ||
                      get(ENV, "SKIP_NOTEBOOKS", "false") == "true",
