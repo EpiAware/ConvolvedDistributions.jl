@@ -160,6 +160,22 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
         end,
         [3.0, 1.5, 2.0, 0.5], (Constant(obs),))
 
+    # Timeseries convolution: the series pushed through the discretised
+    # delay PMF (`convolve_distributions(delay, series)`). The masses are
+    # AD-safe CDF differences, so the gradient flows through the delay
+    # parameters via `_delay_pmf`; the linear causal convolution carries
+    # them through. The Gamma delay hits the `_gamma_cdf` AD-safe path,
+    # the Convolved delay the numeric quadrature CDF.
+    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+    _push!("Timeseries convolve Gamma delay",
+        (θ, s) -> sum(convolve_distributions(Gamma(θ[1], θ[2]), s)),
+        [2.0, 1.0], (Constant(series),))
+    _push!("Timeseries convolve Convolved Gamma+LogNormal delay",
+        (θ, s) -> sum(convolve_distributions(
+            convolve_distributions(
+                Gamma(θ[1], θ[2]), LogNormal(θ[3], θ[4])), s)),
+        [2.0, 1.0, 0.5, 0.4], (Constant(series),))
+
     return out
 end
 
