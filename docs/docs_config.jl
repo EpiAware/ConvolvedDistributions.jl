@@ -15,7 +15,9 @@ const LIGHT_TUTORIALS = String[]
 
 # Heavy tutorials (live MCMC fits, multi-backend AD, plotting) are each
 # executed once in a fresh subprocess so native/memory state cannot accumulate.
-const HEAVY_TUTORIALS = String[]
+const HEAVY_TUTORIALS = [
+    "visualising-convolutions.jl"
+]
 
 # Where the tutorial `.jl` sources and rendered `.md` pages live, relative to
 # `docs/src`.
@@ -25,7 +27,9 @@ const TUTORIALS_SUBDIR = joinpath("getting-started", "tutorials")
 # heading should preserve the tutorial's `@id` (e.g.
 # `"# [Title](@id my-anchor)"`) so cross-references from other pages still
 # resolve in a fast build.
-const TUTORIAL_STUBS = Pair{String, String}[]
+const TUTORIAL_STUBS = [
+    "visualising-convolutions.md" => "# [Visualising convolutions](@id visualising-convolutions)"
+]
 
 # Regexes for URLs to skip during the (full-build) linkcheck, e.g. a page
 # published by a separate workflow that is not yet live.

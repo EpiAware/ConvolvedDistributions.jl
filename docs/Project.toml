@@ -3,6 +3,10 @@
 # standard). Add doc-only deps (e.g. plotting, DocumenterCitations) here as the
 # docs grow. The package itself is pinned by path via `[sources]`.
 [deps]
+AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+ConvolvedDistributions = "f5b942c9-bc5b-4664-8486-7f531bb06742"
+DataFramesMeta = "1313f7d8-7da2-5740-9ea0-a2ca25f37964"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 DocumenterCitations = "daee34ce-89f3-4625-b898-19384cb65244"
@@ -11,7 +15,6 @@ EpiAwarePackageTools = "7aaea248-0d11-4a0d-a7dc-86da30abb951"
 Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 OptimizationOptimJL = "36348300-93cb-4f02-beb5-3c3902f8871e"
-ConvolvedDistributions = "f5b942c9-bc5b-4664-8486-7f531bb06742"
 
 [sources]
 ConvolvedDistributions = {path = ".."}
@@ -20,6 +23,9 @@ ConvolvedDistributions = {path = ".."}
 EpiAwarePackageTools = {url = "https://github.com/EpiAware/EpiAwarePackageTools.jl", rev = "main"}
 
 [compat]
+AlgebraOfGraphics = "0.13"
+CairoMakie = "0.15"
+DataFramesMeta = "0.15"
 Distributions = "0.25"
 Documenter = "1"
 DocumenterCitations = "1"
