@@ -28,9 +28,14 @@
 # through `_cdf_ad_safe` so `Dual`/tracked CDF values survive (no `Float64`
 # caching that would break AD).
 function _delay_pmf(delay::UnivariateDistribution, maxlag::Integer, interval)
+    # Float the grid step so the CDF arguments are floats even for an
+    # integer `interval`: the AD-safe Gamma CDF rules attach a `Float64`
+    # tangent to the evaluation point, which Mooncake cannot pair with an
+    # `Int` primal.
+    step = float(interval)
     return map(0:maxlag) do k
-        _cdf_ad_safe(delay, (k + 1) * interval) -
-        _cdf_ad_safe(delay, k * interval)
+        _cdf_ad_safe(delay, (k + 1) * step) -
+        _cdf_ad_safe(delay, k * step)
     end
 end
 
