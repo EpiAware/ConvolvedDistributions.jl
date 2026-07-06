@@ -66,6 +66,17 @@ zs = difference(Normal(1.0, 1.0), Normal(1.0, 1.0))
 mean(zs), cdf(zs, 0.0)
 ```
 
+## Convolving a timeseries
+
+The same entry point applied to a numeric series does a different, related job: it discretises the delay to a PMF over the unit grid and causally convolves the series with it.
+With the series the expected events at times `0, 1, ..., t` (say infections), the result is the expected downstream counts at the same times — the renewal-style observation layer.
+The PMF masses depend differentiably on the delay parameters, so this composes with gradient-based fitting.
+
+```@example getting-started
+infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+convolve_distributions(d, infections)
+```
+
 ## Choosing the solver
 
 Both constructors take a `method` keyword.
