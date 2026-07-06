@@ -57,6 +57,9 @@ include("Convolved.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.
 include("Difference.jl")
+# The timeseries form `convolve_distributions(delay, series)`: a numeric
+# series convolved with the discretised delay PMF (issue #6).
+include("convolve_with_vector.jl")
 
 # `quantile` (inverse CDF) for Convolved/Difference lives in the
 # ConvolvedDistributionsOptimizationExt extension, loaded when both
