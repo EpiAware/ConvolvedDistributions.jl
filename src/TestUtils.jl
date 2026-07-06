@@ -7,8 +7,17 @@ Interface-contract verifiers for the package's abstract family.
 `CensoredDistributions.TestUtils`) so a downstream author adding a new
 algebraic combination can verify it against the
 [`AbstractCombinedDistribution`](@ref) contract without copying test
-code. Public but not exported; call as
-`ConvolvedDistributions.TestUtils.test_combined_interface(d)`.
+code. Public but not exported.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+using ConvolvedDistributions.TestUtils: test_combined_interface
+
+d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+test_combined_interface(d; x = 3.0);
+nothing # hide
+```
 """
 module TestUtils
 
