@@ -1,8 +1,13 @@
 # Public API declarations for Julia 1.11+ (public but not exported). These form
 # the surface ComposedDistributions re-exports downstream, so keep it clean.
 
-# Convolution / difference distribution types.
-public Convolved
+# Convolution / difference distribution types, and the multi-base
+# algebraic-combination family supertype they subtype.
+public Convolved, AbstractCombinedDistribution
+
+# Interface-contract verifiers (`TestUtils.test_combined_interface`,
+# `TestUtils.test_abstract_membership`) for downstream family members.
+public TestUtils
 
 # Solver-method supertype. `AnalyticalSolver` and `NumericSolver` are exported
 # in the main module.

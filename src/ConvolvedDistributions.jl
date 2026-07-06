@@ -53,6 +53,9 @@ export AnalyticalSolver, NumericSolver
 include("gamma_ad.jl")
 include("integration.jl")
 include("solvers.jl")
+# The abstract family supertype `Convolved`/`Difference` subtype, carrying
+# the documented interface contract (verified by `TestUtils`).
+include("interface.jl")
 include("Convolved.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.
@@ -65,6 +68,10 @@ include("convolve_with_vector.jl")
 # ConvolvedDistributionsOptimizationExt extension, loaded when both
 # Optimization.jl and OptimizationOptimJL.jl are present, so the core
 # package carries no solver dependency.
+
+# Interface-contract verifiers, shipped so downstream family members can
+# self-verify (mirrors CensoredDistributions.TestUtils).
+include("TestUtils.jl")
 
 # Public API (not exported) - Julia 1.11+.
 @static if VERSION >= v"1.11"
