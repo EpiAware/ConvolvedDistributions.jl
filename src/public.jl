@@ -18,3 +18,9 @@ public AbstractSolverMethod
 # `Integrals.GaussLegendre` when both are loaded; the Integrals.jl extension
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
+
+# AD-safe CDF-family helpers (src/gamma_ad.jl). ComposedDistributions imports
+# `_ccdf_ad_safe` / `_logccdf_ad_safe` and adds methods for its racing-hazard
+# composers, so the pair is a deliberate, semver-covered surface despite the
+# underscore names (kept for parity with the CensoredDistributions source).
+public _ccdf_ad_safe, _logccdf_ad_safe

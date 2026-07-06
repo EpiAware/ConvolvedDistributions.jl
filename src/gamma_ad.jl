@@ -129,11 +129,30 @@ function _cdf_ad_safe(dist::Gamma, u::Real)
 end
 
 @doc """
-AD-safe `logccdf(dist, u)` companion to [`_logcdf_ad_safe`](@ref): the log
-survival ``\\log(1 - F(u))``. The `Gamma` method routes through the AD-safe
-``F`` so a survival term differentiates w.r.t. the Gamma shape/scale (the stock
-`logccdf(::Gamma)` calls `_gammalogccdf`, which has no `ForwardDiff.Dual` shape
-method and errors).
+AD-safe `logccdf(dist, u)`: the log survival ``\\log(1 - F(u))``.
+
+`_logccdf_ad_safe` is the log-survival companion to
+[`_logcdf_ad_safe`](@ref). Generic dispatch falls through to
+`Distributions.logccdf`; the `Gamma` method routes through the AD-safe
+``F`` so a survival term differentiates w.r.t. the Gamma shape/scale
+(the stock `logccdf(::Gamma)` calls `_gammalogccdf`, which has no
+`ForwardDiff.Dual` shape method and errors).
+
+Public (not exported): ComposedDistributions.jl imports it and adds
+methods for its racing-hazard composers, so this is a supported
+downstream extension point.
+
+# Arguments
+- `dist`: the distribution whose log survival is evaluated.
+- `u`: the evaluation point.
+
+# Examples
+```@example
+using ConvolvedDistributions: _logccdf_ad_safe
+using Distributions
+
+_logccdf_ad_safe(Gamma(2.0, 1.0), 3.0)
+```
 """
 _logccdf_ad_safe(dist::UnivariateDistribution, u::Real) = logccdf(dist, u)
 
@@ -143,8 +162,28 @@ function _logccdf_ad_safe(dist::Gamma, u::Real)
 end
 
 @doc """
-AD-safe `ccdf(dist, u)` companion to [`_cdf_ad_safe`](@ref): the survival
-``1 - F(u)``. Routes `Gamma` through the AD-safe ``F``.
+AD-safe `ccdf(dist, u)`: the survival ``1 - F(u)``.
+
+`_ccdf_ad_safe` is the survival companion to `_cdf_ad_safe`. Generic
+dispatch falls through to `Distributions.ccdf`; the `Gamma` method
+routes through the AD-safe ``F`` so the survival differentiates w.r.t.
+the Gamma shape/scale.
+
+Public (not exported): ComposedDistributions.jl imports it and adds
+methods for its racing-hazard composers, so this is a supported
+downstream extension point.
+
+# Arguments
+- `dist`: the distribution whose survival is evaluated.
+- `u`: the evaluation point.
+
+# Examples
+```@example
+using ConvolvedDistributions: _ccdf_ad_safe
+using Distributions
+
+_ccdf_ad_safe(Gamma(2.0, 1.0), 3.0)
+```
 """
 _ccdf_ad_safe(dist::UnivariateDistribution, u::Real) = ccdf(dist, u)
 

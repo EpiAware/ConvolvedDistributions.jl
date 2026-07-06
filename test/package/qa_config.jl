@@ -41,5 +41,23 @@ const QA_CONFIG = (
     #      prefixes = ("MyPkg", "SomeTrigger"),
     #      expect_phantoms = false,    # true if a third party adds phantoms
     #      broken = false)             # true to quarantine a known ambiguity
-    extensions = ()
+    # Only extensions whose triggers are main-test-env deps are listed; the
+    # Enzyme/Mooncake/ReverseDiff extensions are exercised by the dedicated
+    # AD harness (test/ad), which proves gradient correctness directly.
+    extensions = (
+        # The partial-Dual `_gamma_cdf` overload set: the unparametrised
+        # `Dual` slots keep the "at least one Dual" space unambiguous
+        # (a shared-tag parametrisation leaves the mixed-tag intersections
+        # uncovered and flags all six partial pairs).
+        (; name = :ConvolvedDistributionsForwardDiffExt,
+            triggers = ("ForwardDiff",),
+            prefixes = ("ConvolvedDistributions", "ForwardDiff",
+                "Distributions")),
+        (; name = :ConvolvedDistributionsIntegralsExt,
+            triggers = ("Integrals",),
+            prefixes = ("ConvolvedDistributions", "Integrals")),
+        (; name = :ConvolvedDistributionsOptimizationExt,
+            triggers = ("Optimization", "OptimizationOptimJL"),
+            prefixes = ("ConvolvedDistributions",))
+    )
 )

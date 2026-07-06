@@ -34,8 +34,12 @@ function _delay_pmf(delay::UnivariateDistribution, maxlag::Integer, interval)
     # `Int` primal.
     step = float(interval)
     return map(0:maxlag) do k
-        _cdf_ad_safe(delay, (k + 1) * step) -
-        _cdf_ad_safe(delay, k * step)
+        # Clamp at zero: numeric-CDF noise can make the difference of two
+        # near-equal tail values fractionally negative, and a mass must not
+        # be (matches the CensoredDistributions interval-mass behaviour).
+        mass = _cdf_ad_safe(delay, (k + 1) * step) -
+               _cdf_ad_safe(delay, k * step)
+        max(mass, zero(mass))
     end
 end
 

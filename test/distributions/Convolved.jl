@@ -117,35 +117,6 @@ end
     end
 end
 
-@testitem "Convolved deprecated force_numeric still selects the path" begin
-    using Distributions
-
-    a = Normal(1.0, 2.0)
-    b = Normal(-0.5, 1.5)
-
-    # `force_numeric` is deprecated in favour of `method`, but must keep
-    # working: `force_numeric = true` maps to NumericSolver (bypasses the
-    # analytic specialisation) and `false` to AnalyticalSolver. The depwarn
-    # only surfaces with `--depwarn=yes`, so behaviour is asserted directly.
-    dn = convolve_distributions(a, b; force_numeric = true)
-    @test ConvolvedDistributions._maybe_analytic(dn) === nothing
-    @test dn.method isa NumericSolver
-
-    da = convolve_distributions(a, b; force_numeric = false)
-    @test ConvolvedDistributions._maybe_analytic(da) !== nothing
-    @test da.method isa AnalyticalSolver
-
-    # Passing both `method` and `force_numeric` is an error.
-    @test_throws ArgumentError convolve_distributions(
-        a, b; method = NumericSolver(), force_numeric = true)
-
-    # Old and new routes give identical densities.
-    for x in range(-3.0, 8.0; length = 6)
-        @test cdf(dn, x) ≈ cdf(
-            convolve_distributions(a, b; method = NumericSolver()), x)
-    end
-end
-
 @testitem "Convolved unsupported analytic pairs use numeric path" begin
     using Distributions, Random, Statistics
 

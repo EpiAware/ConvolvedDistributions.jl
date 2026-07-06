@@ -84,7 +84,6 @@ distribution.
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the default)
   or [`NumericSolver`](@ref). `NumericSolver` forces numeric quadrature
   even when an analytic convolution is available.
-- `force_numeric`: Deprecated. Pass `method = NumericSolver()` instead.
 
 # Examples
 ```@example
@@ -109,55 +108,24 @@ cdf_numeric = cdf(dn, 2.0)
 "
 function convolve_distributions(
         components::AbstractVector{<:UnivariateDistribution};
-        method::Union{AbstractSolverMethod, Nothing} = nothing,
-        force_numeric = nothing)
+        method::AbstractSolverMethod = AnalyticalSolver())
     length(components) >= 2 ||
         throw(ArgumentError("convolve_distributions needs at least two components"))
-    return Convolved(Tuple(components);
-        method = _resolve_convolved_method(method, force_numeric))
+    return Convolved(Tuple(components); method = method)
 end
 
 function convolve_distributions(
         c1::UnivariateDistribution, c2::UnivariateDistribution,
         rest::UnivariateDistribution...;
-        method::Union{AbstractSolverMethod, Nothing} = nothing,
-        force_numeric = nothing)
-    return Convolved((c1, c2, rest...);
-        method = _resolve_convolved_method(method, force_numeric))
+        method::AbstractSolverMethod = AnalyticalSolver())
+    return Convolved((c1, c2, rest...); method = method)
 end
 
 function convolve_distributions(components::Tuple;
-        method::Union{AbstractSolverMethod, Nothing} = nothing,
-        force_numeric = nothing)
+        method::AbstractSolverMethod = AnalyticalSolver())
     length(components) >= 2 ||
         throw(ArgumentError("convolve_distributions needs at least two components"))
-    return Convolved(components;
-        method = _resolve_convolved_method(method, force_numeric))
-end
-
-# Resolve the `Convolved` solver method from the keyword arguments. An
-# explicit `method` takes precedence; the default (no method, no
-# `force_numeric`) is `AnalyticalSolver()`; the deprecated `force_numeric`
-# path maps the `Bool` onto a method and warns. A `Convolved` runs its own
-# fixed-node quadrature, so the solver field of the returned method is
-# unused and the default-constructed quadrature is fine.
-_resolve_convolved_method(::Nothing, ::Nothing) = AnalyticalSolver()
-function _resolve_convolved_method(
-        method::AbstractSolverMethod, ::Nothing)
-    return method
-end
-function _resolve_convolved_method(::Nothing, force_numeric::Bool)
-    Base.depwarn(
-        "`force_numeric` is deprecated; pass `method = NumericSolver()` to " *
-        "force numeric quadrature or `method = AnalyticalSolver()` for the " *
-        "analytic convolution path.",
-        :convolve_distributions)
-    return force_numeric ? NumericSolver() : AnalyticalSolver()
-end
-function _resolve_convolved_method(
-        ::AbstractSolverMethod, ::Bool)
-    throw(ArgumentError(
-        "pass either `method` or the deprecated `force_numeric`, not both"))
+    return Convolved(components; method = method)
 end
 
 # ---------------------------------------------------------------------------
