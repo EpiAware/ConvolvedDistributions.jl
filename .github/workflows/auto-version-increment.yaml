@@ -46,5 +46,8 @@ jobs:
         with:
           increment-type: patch
           pr-title-prefix: "chore: auto-increment version"
+          # The action's substituted default is the bare org, which GitHub
+          # cannot assign to a PR (EpiAwarePackageTools#122).
+          assignee: seabbs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
