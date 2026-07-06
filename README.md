@@ -63,6 +63,29 @@ using Optimization, OptimizationOptimJL
 quantile(d, 0.5)
 ```
 
+The components and their sum can be compared visually, here with [AlgebraOfGraphics.jl](https://github.com/MakieOrg/AlgebraOfGraphics.jl):
+
+```julia
+using CairoMakie, AlgebraOfGraphics, DataFramesMeta
+
+CairoMakie.activate!(type = "png", px_per_unit = 2)
+
+x = 0.0:0.1:15.0
+df = vcat(
+    DataFrame(x = x, density = pdf.(incubation, x),
+        Distribution = "Incubation (Gamma)"),
+    DataFrame(x = x, density = pdf.(reporting, x),
+        Distribution = "Reporting (LogNormal)"),
+    DataFrame(x = x, density = pdf(d, collect(x)),
+        Distribution = "Convolved sum")
+)
+draw(
+    data(df) *
+    mapping(:x, :density, color = :Distribution) *
+    visual(Lines, linewidth = 2)
+)
+```
+
 ## Relationship to Distributions.jl
 
 Distributions.jl ships a `convolve` function, but it only covers pairs with a closed-form result:
