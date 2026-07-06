@@ -93,11 +93,14 @@ logpdf(td, 5.0)
 There is no closed-form inverse CDF for a generic convolution, so `quantile` lives behind an extension: load Optimization.jl and OptimizationOptimJL.jl and the method appears (a Nelder-Mead inversion of `cdf`).
 This also unlocks `rand` on `truncated` wrappers, which routes through the base `quantile`.
 
-```julia
+```@example getting-started
 using Optimization, OptimizationOptimJL
 
 quantile(d, 0.5)     # median by inverse-CDF root-find
-rand(truncated(d, 0.0, 8.0), 100)
+```
+
+```@example getting-started
+length(rand(truncated(d, 0.0, 8.0), 100))
 ```
 
 Everything else on this page needs no extension: `rand` on a bare `Convolved`/`Difference` samples the components directly.
