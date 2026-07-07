@@ -9,10 +9,10 @@
     test_abstract_membership()
 
     test_combined_interface(
-        convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4));
+        convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4));
         x = 3.0)
     test_combined_interface(
-        convolve_distributions(Normal(0.0, 1.0), Normal(1.0, 2.0));
+        convolved(Normal(0.0, 1.0), Normal(1.0, 2.0));
         name = "Convolved (analytic)", x = 1.0)
     test_combined_interface(
         difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)); x = 0.5)

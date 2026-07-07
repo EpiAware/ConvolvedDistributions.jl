@@ -99,12 +99,12 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
     # path. Literal constructors keep Enzyme forward working.
     _push!("Convolved Normal+Normal analytical",
         (θ, obs) -> sum(
-            x -> logpdf(convolve_distributions(
+            x -> logpdf(convolved(
                     Normal(θ[1], θ[2]), Normal(0.0, 1.0)), x), obs),
         [1.0, 2.0], (Constant(obs),))
     _push!("Convolved Gamma+LogNormal numerical",
         (θ, obs) -> sum(
-            x -> logpdf(convolve_distributions(
+            x -> logpdf(convolved(
                     Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4)), x), obs),
         [2.0, 1.0], (Constant(obs),))
     # Gamma as the INTEGRATION (last) component. The numeric quadrature clamps
@@ -117,7 +117,7 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
     # component, not just `rest`.
     _push!("Convolved LogNormal+Gamma numerical",
         (θ, obs) -> sum(
-            x -> logpdf(convolve_distributions(
+            x -> logpdf(convolved(
                     LogNormal(0.5, 0.4), Gamma(θ[1], θ[2])), x), obs),
         [2.0, 1.0], (Constant(obs),))
     # Convolved analytic moments: mean/var are the sums of the component
@@ -125,7 +125,7 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
     # `mean`/`var`. The `obs` context is unused but keeps the scenario shape
     # uniform.
     _push!("Convolved Gamma+Normal mean+var moments",
-        (θ, _obs) -> let d = convolve_distributions(
+        (θ, _obs) -> let d = convolved(
                 Gamma(θ[1], θ[2]), Normal(θ[3], θ[4]))
             mean(d) + var(d)
         end,
@@ -161,18 +161,18 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
         [3.0, 1.5, 2.0, 0.5], (Constant(obs),))
 
     # Timeseries convolution: the series pushed through the discretised
-    # delay PMF (`convolve_distributions(delay, series)`). The masses are
+    # delay PMF (`convolve_series(delay, series)`). The masses are
     # AD-safe CDF differences, so the gradient flows through the delay
     # parameters via `_delay_pmf`; the linear causal convolution carries
     # them through. The Gamma delay hits the `_gamma_cdf` AD-safe path,
     # the Convolved delay the numeric quadrature CDF.
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
     _push!("Timeseries convolve Gamma delay",
-        (θ, s) -> sum(convolve_distributions(Gamma(θ[1], θ[2]), s)),
+        (θ, s) -> sum(convolve_series(Gamma(θ[1], θ[2]), s)),
         [2.0, 1.0], (Constant(series),))
     _push!("Timeseries convolve Convolved Gamma+LogNormal delay",
-        (θ, s) -> sum(convolve_distributions(
-            convolve_distributions(
+        (θ, s) -> sum(convolve_series(
+            convolved(
                 Gamma(θ[1], θ[2]), LogNormal(θ[3], θ[4])), s)),
         [2.0, 1.0, 0.5, 0.4], (Constant(series),))
 

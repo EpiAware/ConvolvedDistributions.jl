@@ -8,9 +8,9 @@
 SUITE["Quantile"] = BenchmarkGroup()
 
 let
-    conv_analytic = convolve_distributions(
+    conv_analytic = convolved(
         Normal(1.0, 0.5), Normal(0.5, 1.0))
-    conv_numeric = convolve_distributions(
+    conv_numeric = convolved(
         Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     diff_numeric = difference(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 

@@ -1,18 +1,17 @@
 # ============================================================================
-# convolve_distributions(delay, series): timeseries delay convolution
+# convolve_series(delay, series): timeseries delay convolution
 # ============================================================================
 #
-# A `convolve_distributions` method whose second argument is a numeric
-# timeseries vector convolves that series with the discretised delay PMF of a
-# distribution. With `series` the expected events at times `0..t` (e.g.
-# infections), the result is the expected downstream event counts at the same
-# times: the EpiNow2-style latent / renewal observation layer.
+# `convolve_series` convolves a numeric timeseries with the discretised
+# delay PMF of a distribution. With `series` the expected events at times
+# `0..t` (e.g. infections), the result is the expected downstream event
+# counts at the same times: the EpiNow2-style latent / renewal observation
+# layer.
 #
-# This reuses the existing distribution-level `convolve_distributions`: the
-# second positional argument is `AbstractVector{<:Real}` (a numeric series),
-# distinct from the `AbstractVector{<:UnivariateDistribution}` / tuple /
-# two-distribution forms, so the timeseries method and the distribution-args
-# forms never collide.
+# It has its own verb (rather than a `convolved` method) because it returns
+# a numeric series, not a distribution: `convolved` is kept strictly for
+# the participle idiom of lazy distribution construction, like `truncated`
+# and `censored`.
 #
 # AD-safety. The vector convolution is linear and the PMF depends
 # differentiably on the delay parameters (the interval masses route through
@@ -64,33 +63,27 @@ function _causal_convolve(series::AbstractVector, pmf::AbstractVector)
     return out
 end
 
-# --- public API: the convolve_distributions timeseries method --------------
+# --- public API: the timeseries convolution verb ---------------------------
 
 @doc "
 
 Convolve a timeseries with the discretised delay PMF of a distribution.
 
-`convolve_distributions(delay, series)`, where `series` is a numeric
-timeseries vector, discretises `delay` to a PMF over the unit grid and
-returns the causal discrete convolution of `series` with that PMF,
-truncated to the `series` window. With `series` the expected events at
-times `0, 1, ..., t` (e.g. infections), the result is the expected
-downstream event counts at the same times (the EpiNow2-style latent /
-renewal observation layer).
+`convolve_series(delay, series)` discretises `delay` to a PMF over the
+unit grid and returns the causal discrete convolution of `series` with
+that PMF, truncated to the `series` window. With `series` the expected
+events at times `0, 1, ..., t` (e.g. infections), the result is the
+expected downstream event counts at the same times (the EpiNow2-style
+latent / renewal observation layer).
 
 The PMF masses are the raw CDF differences ``F(k + 1) - F(k)`` over the
 grid (no renormalisation), so delay mass beyond the series window — and
 any mass below zero — is truncated. The masses depend differentiably on
 the delay parameters, so gradients flow under the supported AD backends.
 
-This method does a DIFFERENT operation from the distribution-level
-`convolve_distributions(dists...)`. That form convolves DISTRIBUTIONS
-together to produce a single [`Convolved`](@ref) distribution (the sum of
-independent delays). This form convolves a NUMERIC SERIES with a delay
-PMF to produce a count series. They share the name but never collide: the
-numeric-vector second argument (`AbstractVector{<:Real}`) selects this
-method, distinct from the `AbstractVector{<:UnivariateDistribution}` /
-tuple / two-distribution forms.
+Unlike [`convolved`](@ref), which combines distributions into a single
+[`Convolved`](@ref) distribution, this returns a numeric series; the
+separate verb keeps `convolved` strictly for distribution construction.
 
 # Arguments
 - `delay`: the delay distribution (any `UnivariateDistribution`,
@@ -109,15 +102,16 @@ tuple / two-distribution forms.
 ```@example
 using ConvolvedDistributions, Distributions
 
-delay = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+delay = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-expected_counts = convolve_distributions(delay, infections)
+expected_counts = convolve_series(delay, infections)
 ```
 
 # See also
-- [`Convolved`](@ref): the distribution-level convolution
+- [`convolved`](@ref): the distribution-level convolution
+- [`Convolved`](@ref): the distribution type
 "
-function convolve_distributions(
+function convolve_series(
         delay::UnivariateDistribution, series::AbstractVector{<:Real};
         interval = 1)
     # The causal convolution shifts the series by integer SERIES steps, so

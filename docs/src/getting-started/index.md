@@ -17,14 +17,14 @@ Once registered this becomes `Pkg.add("ConvolvedDistributions")`.
 
 ## Convolving distributions
 
-`convolve_distributions` returns the distribution of the sum of independent components.
+`convolved` returns the distribution of the sum of independent components.
 For pairs with a known closed form (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`) it delegates to the analytic result; any other pair uses the numeric quadrature fallback.
 
 ```@example getting-started
 using ConvolvedDistributions, Distributions
 
 # An incubation period plus a reporting delay, say.
-d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 
 cdf(d, 5.0)
 ```
@@ -38,7 +38,7 @@ pdf(d, 5.0), mean(d), var(d)
 More than two components can be passed as varargs, a tuple, or a vector, and `Convolved` distributions nest.
 
 ```@example getting-started
-d3 = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4),
+d3 = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4),
     Exponential(2.0))
 mean(d3)
 ```
@@ -68,13 +68,13 @@ mean(zs), cdf(zs, 0.0)
 
 ## Convolving a timeseries
 
-Passing a numeric series as the second argument discretises the delay to a PMF over the unit grid and causally convolves the series with it.
+`convolve_series` discretises the delay to a PMF over the unit grid and causally convolves a numeric series with it.
 If the series holds the expected events at times `0, 1, ..., t` (say infections), the result is the expected downstream counts at the same times.
 This is the renewal-style observation layer, and the PMF masses depend differentiably on the delay parameters, so it composes with gradient-based fitting.
 
 ```@example getting-started
 infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-convolve_distributions(d, infections)
+convolve_series(d, infections)
 ```
 
 ## Choosing the solver
@@ -83,8 +83,8 @@ Both constructors take a `method` keyword.
 The default `AnalyticalSolver()` uses the closed form when one exists and falls back to quadrature; `NumericSolver()` forces the quadrature path, which is mainly useful for testing and for comparing the two.
 
 ```@example getting-started
-da = convolve_distributions(Normal(0.0, 1.0), Normal(1.0, 2.0))
-dn = convolve_distributions(Normal(0.0, 1.0), Normal(1.0, 2.0);
+da = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
+dn = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0);
     method = NumericSolver())
 cdf(da, 2.0), cdf(dn, 2.0)
 ```

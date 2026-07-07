@@ -30,11 +30,11 @@ CairoMakie.activate!(type = "png", px_per_unit = 2)
 # ## Two components and their sum
 #
 # We use a Gamma incubation period and a LogNormal reporting delay, a pair with no closed-form convolution, so the density comes from the quadrature path.
-# [`convolve_distributions`](@ref) returns the distribution of the sum, and the batched `pdf` method evaluates a whole grid with a single quadrature solve.
+# [`convolved`](@ref) returns the distribution of the sum, and the batched `pdf` method evaluates a whole grid with a single quadrature solve.
 
 incubation = Gamma(2.0, 1.0)
 reporting = LogNormal(1.0, 0.5)
-d = convolve_distributions(incubation, reporting)
+d = convolved(incubation, reporting)
 
 x = 0.0:0.05:15.0
 components_df = vcat(
@@ -80,8 +80,8 @@ cdf(z_dist, 0.0)
 # Passing [`NumericSolver`](@ref) forces the quadrature path on the same pair, which lets us check the numeric machinery against the exact answer.
 
 pair = (Gamma(2.0, 1.0), Gamma(3.0, 1.0))
-d_analytic = convolve_distributions(pair...)
-d_numeric = convolve_distributions(pair...; method = NumericSolver())
+d_analytic = convolved(pair...)
+d_numeric = convolved(pair...; method = NumericSolver())
 
 xs = 0.0:0.1:20.0
 solver_df = vcat(
@@ -136,12 +136,12 @@ draw(
 
 # ## Timeseries convolution
 #
-# The timeseries form `convolve_distributions(delay, series)` discretises the delay to a PMF on the unit grid and convolves a numeric series with it.
+# The timeseries form `convolve_series(delay, series)` discretises the delay to a PMF on the unit grid and convolves a numeric series with it.
 # With the series an expected infection curve, the result is the expected downstream count curve, the renewal-style observation layer.
 
 t = 0:40
 infections = 100 .* exp.(-((t .- 12.0) .^ 2) ./ 30.0)
-expected = convolve_distributions(d, infections)
+expected = convolve_series(d, infections)
 
 timeseries_df = vcat(
     DataFrame(t = t, count = infections, Series = "Infections"),

@@ -12,7 +12,7 @@ The suite (`benchmark/benchmarks.jl`) covers:
 - `Baseline`: the bare Gamma and Normal components, the floor everything else is read against.
 - `Convolved`: densities and CDFs on both backends — the analytic Normal+Normal pair (closed form, should sit near the baseline) and the numeric Gamma+LogNormal pair (Gauss-Legendre quadrature). The `batched` rows use the vector methods that share quadrature nodes across evaluation points; their gap to the scalar `logpdf broadcast` row over the same 100 points is the headline number for the numeric backend.
 - `Difference`: the `Z = X - Y` dual on the same analytic/numeric split. Difference has no batched methods, so evaluation rows broadcast the scalar path.
-- `Timeseries`: `convolve_distributions(delay, series)`, with the delay PMF discretised from a Gamma and from a numeric `Convolved` delay.
+- `Timeseries`: `convolve_series(delay, series)`, with the delay PMF discretised from a Gamma and from a numeric `Convolved` delay.
 - `Quantile`: the Optimization-extension inverse CDF (Nelder-Mead over `cdf`); the numeric variants pay one quadrature CDF per optimiser iteration and are the slowest rows in the suite.
 - `AD gradients`: `DifferentiationInterface.gradient` of every `test/ADFixtures` scenario across the ForwardDiff, ReverseDiff, Mooncake and Enzyme backends, sharing the fixtures that drive the AD test suite.
 

@@ -48,7 +48,7 @@ Difference/
   numeric/             (same operations)
 
 Timeseries/
-  Gamma delay          (convolve_distributions(delay, series))
+  Gamma delay          (convolve_series(delay, series))
   Convolved delay
 
 Quantile/

@@ -1,4 +1,4 @@
-# Tests for the timeseries form `convolve_distributions(delay, series)`:
+# Tests for the timeseries form `convolve_series(delay, series)`:
 # convolve a numeric series with the discretised delay PMF of a
 # distribution (issue #6).
 
@@ -31,14 +31,14 @@ end
 
     # A plain delay distribution.
     leaf = Gamma(2.0, 1.0)
-    out = convolve_distributions(leaf, series)
+    out = convolve_series(leaf, series)
     @test out isa AbstractVector
     @test length(out) == length(series)
     @test out ≈ reference_convolution(leaf, series)
 
     # A Convolved total delay: the same discretise-then-convolve contract.
-    total = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
-    @test convolve_distributions(total, series) ≈
+    total = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    @test convolve_series(total, series) ≈
           reference_convolution(total, series)
 end
 
@@ -52,7 +52,7 @@ end
     p3 = exp(-2.0) - exp(-3.0)
     series = [1.0, 2.0, 3.0]
 
-    out = convolve_distributions(Exponential(1.0), series)
+    out = convolve_series(Exponential(1.0), series)
     @test out[1] ≈ p1 * 1.0
     @test out[2] ≈ p1 * 2.0 + p2 * 1.0
     @test out[3] ≈ p1 * 3.0 + p2 * 2.0 + p3 * 1.0
@@ -64,11 +64,11 @@ end
 
     # All mass in [0, 1): lag 0, identity up to a negligible tail.
     zero_lag = LogNormal(log(0.5), 0.01)
-    @test convolve_distributions(zero_lag, series) ≈ series atol=1e-8
+    @test convolve_series(zero_lag, series) ≈ series atol=1e-8
 
     # All mass in [2, 3): the series shifted forward by two steps.
     two_lag = Normal(2.5, 0.01)
-    shifted = convolve_distributions(two_lag, series)
+    shifted = convolve_series(two_lag, series)
     @test shifted[1:2] ≈ zeros(2) atol=1e-8
     @test shifted[3:end] ≈ series[1:(end - 2)] atol=1e-8
 end
@@ -82,7 +82,7 @@ end
     # By linearity, each series entry contributes its value times the
     # delay mass that lands inside the window; the remainder is the
     # truncated tail beyond the series end.
-    out = convolve_distributions(delay, series)
+    out = convolve_series(delay, series)
     expected = sum(series[i] * cdf(delay, n - i + 1) for i in 1:n)
     @test sum(out) ≈ expected
     @test sum(out) <= sum(series)
@@ -93,19 +93,19 @@ end
 
     # The numeric-vector second argument selects the timeseries method,
     # including for integer series (promoted to float output).
-    @test convolve_distributions(Gamma(2.0, 1.0), [0.0, 1.0, 2.0]) isa
+    @test convolve_series(Gamma(2.0, 1.0), [0.0, 1.0, 2.0]) isa
           AbstractVector{Float64}
-    @test convolve_distributions(Gamma(2.0, 1.0), [0, 1, 2]) isa
+    @test convolve_series(Gamma(2.0, 1.0), [0, 1, 2]) isa
           AbstractVector{Float64}
 
     # The distribution-args forms still build a Convolved unambiguously.
-    two = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    two = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     @test two isa ConvolvedDistributions.Convolved
 
-    vec = convolve_distributions([Gamma(2.0, 1.0), LogNormal(0.5, 0.4)])
+    vec = convolved([Gamma(2.0, 1.0), LogNormal(0.5, 0.4)])
     @test vec isa ConvolvedDistributions.Convolved
 
-    tup = convolve_distributions((Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
+    tup = convolved((Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
     @test tup isa ConvolvedDistributions.Convolved
 end
 
@@ -118,12 +118,12 @@ end
     # so a PMF grid step other than 1 conflates the discretisation width
     # with the series time-step. Reject it rather than silently
     # mis-aligning.
-    @test_throws ArgumentError convolve_distributions(leaf, series;
+    @test_throws ArgumentError convolve_series(leaf, series;
         interval = 0.5)
-    @test_throws ArgumentError convolve_distributions(leaf, series;
+    @test_throws ArgumentError convolve_series(leaf, series;
         interval = 2.0)
 
     # The unit-spaced default is unchanged.
-    @test convolve_distributions(leaf, series; interval = 1) ≈
-          convolve_distributions(leaf, series)
+    @test convolve_series(leaf, series; interval = 1) ≈
+          convolve_series(leaf, series)
 end

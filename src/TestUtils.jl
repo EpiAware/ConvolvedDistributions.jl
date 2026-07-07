@@ -14,7 +14,7 @@ code. Public but not exported.
 using ConvolvedDistributions, Distributions
 using ConvolvedDistributions.TestUtils: test_combined_interface
 
-d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 test_combined_interface(d; x = 3.0);
 nothing # hide
 ```

@@ -132,7 +132,7 @@ julia> ]
 julia> using ConvolvedDistributions, Distributions
 
 # Start using the package
-julia> d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+julia> d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 julia> cdf(d, 5.0)
 julia> z = difference(Normal(5.0, 1.0), Normal(2.0, 1.0))
 julia> mean(z)
@@ -161,7 +161,7 @@ julia> using ConvolvedDistributions  # Load package (reloads automatically with 
 
 # Make changes to source code - they reload automatically
 # Test changes interactively
-julia> convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+julia> convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 ```
 
 ### Running tests

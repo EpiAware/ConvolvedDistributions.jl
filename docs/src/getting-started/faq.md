@@ -10,20 +10,20 @@ Each constructor takes distributions and returns a distribution:
 ```@example faq
 using ConvolvedDistributions, Distributions
 
-d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 z = difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
 
 cdf(d, 5.0), cdf(z, 0.0)
 ```
 
-`convolve_distributions` accepts two or more components as varargs, a tuple, or a vector, and the results nest, so a `Convolved` can itself be a component.
+`convolved` accepts two or more components as varargs, a tuple, or a vector, and the results nest, so a `Convolved` can itself be a component.
 
-## When should I use `convolve_distributions` rather than `Distributions.convolve`?
+## When should I use `convolved` rather than `Distributions.convolve`?
 
 `Distributions.convolve` only handles pairs with a closed-form result (for example `Normal` + `Normal`, or two `Gamma`s with equal scale) and errors on anything else.
-`convolve_distributions` works for any pair of univariate distributions: it delegates to the closed form when one exists and falls back to AD-safe numeric quadrature otherwise.
+`convolved` works for any pair of univariate distributions: it delegates to the closed form when one exists and falls back to AD-safe numeric quadrature otherwise.
 It also takes more than two components, keeps exact analytic moments, and stays differentiable with respect to the component parameters.
-If you only ever combine an analytic pair and want the closed-form type back directly, `Distributions.convolve` is fine; for anything else use `convolve_distributions`.
+If you only ever combine an analytic pair and want the closed-form type back directly, `Distributions.convolve` is fine; for anything else use `convolved`.
 
 ## Why does `quantile` need the Optimization extension?
 
@@ -48,8 +48,8 @@ The default `AnalyticalSolver()` uses the closed form when `Distributions.convol
 Results agree to quadrature accuracy, so forcing the numeric path is mainly useful for testing, debugging, and comparing the two:
 
 ```@example faq
-da = convolve_distributions(Normal(0.0, 1.0), Normal(1.0, 2.0))
-dn = convolve_distributions(Normal(0.0, 1.0), Normal(1.0, 2.0);
+da = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
+dn = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0);
     method = NumericSolver())
 cdf(da, 2.0), cdf(dn, 2.0)
 ```
@@ -64,17 +64,17 @@ Tightening the shared-window construction is tracked in [issue #29](https://gith
 
 ## How does the timeseries form differ from the distribution form?
 
-They share a name but do different jobs.
-The distribution form, `convolve_distributions(dists...)`, combines distributions into a single `Convolved` distribution (the sum of independent delays).
-The timeseries form, `convolve_distributions(delay, series)` with `series` a numeric vector, discretises the delay to a PMF over the unit grid and returns the causal discrete convolution of the series with that PMF:
+They do different jobs and have separate names.
+The distribution form, `convolved(dists...)`, combines distributions into a single `Convolved` distribution (the sum of independent delays).
+The timeseries form, `convolve_series(delay, series)` with `series` a numeric vector, discretises the delay to a PMF over the unit grid and returns the causal discrete convolution of the series with that PMF:
 
 ```@example faq
 infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-convolve_distributions(d, infections)
+convolve_series(d, infections)
 ```
 
 With `series` the expected events at times `0, 1, ..., t` (say infections), the result is the expected downstream counts at the same times, the renewal-style observation layer.
-The numeric-vector second argument selects this method, so the two forms never collide.
+The separate verb reflects the different return type: `convolved` always returns a distribution, `convolve_series` always returns a numeric series.
 The PMF masses depend differentiably on the delay parameters, so the timeseries form composes with gradient-based fitting.
 
 ## Can I use this with automatic differentiation?

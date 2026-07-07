@@ -13,7 +13,7 @@ backend. Operates on any `Distributions.UnivariateDistribution`; no censoring.
 using ConvolvedDistributions, Distributions
 
 # Sum of two independent delays
-d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(1.5, 0.5))
+d = convolved(Gamma(2.0, 1.0), LogNormal(1.5, 0.5))
 cdf(d, 5.0)
 
 # Signed gap between two events
@@ -51,7 +51,7 @@ using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
 include("docstrings.jl")
 
 # Public convolution constructor and its dual difference constructor.
-export convolve_distributions, Difference, difference
+export convolved, convolve_series, Difference, difference
 
 # Solver methods for choosing the analytic-vs-numeric backend.
 export AnalyticalSolver, NumericSolver
@@ -66,7 +66,7 @@ include("Convolved.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.
 include("Difference.jl")
-# The timeseries form `convolve_distributions(delay, series)`: a numeric
+# The timeseries form `convolve_series(delay, series)`: a numeric
 # series convolved with the discretised delay PMF (issue #6).
 include("convolve_with_vector.jl")
 

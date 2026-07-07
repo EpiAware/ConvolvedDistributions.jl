@@ -7,7 +7,7 @@
 
     # Numeric path: quantile is the cdf inverse.
     # The optimiser minimises (cdf - p)^2, so cdf accuracy is ~1e-4.
-    d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     for p in (0.1, 0.25, 0.5, 0.75, 0.9)
         q = quantile(d, p)
         @test cdf(d, q) ≈ p atol=1e-3
@@ -18,7 +18,7 @@
     # Analytic path agrees with the convolved reference quantile.
     a = Normal(1.0, 2.0)
     b = Normal(-0.5, 1.5)
-    da = convolve_distributions(a, b)
+    da = convolved(a, b)
     ref = convolve(a, b)
     for p in (0.05, 0.2, 0.5, 0.8, 0.95)
         @test quantile(da, p) ≈ quantile(ref, p) atol=1e-2
@@ -26,7 +26,7 @@
 
     # NumericSolver forced on an analytic pair still inverts to the same
     # quantile as the closed form.
-    dn = convolve_distributions(a, b; method = NumericSolver())
+    dn = convolved(a, b; method = NumericSolver())
     for p in (0.2, 0.5, 0.8)
         @test quantile(dn, p) ≈ quantile(ref, p) atol=1e-2
     end
@@ -63,7 +63,7 @@ end
     using Distributions, Optimization, OptimizationOptimJL
 
     # Bounded supports: p = 0 / 1 return the support ends exactly.
-    du = convolve_distributions(Uniform(0.0, 1.0), Uniform(0.0, 2.0))
+    du = convolved(Uniform(0.0, 1.0), Uniform(0.0, 2.0))
     @test quantile(du, 0.0) == 0.0
     @test quantile(du, 1.0) == 3.0
 
@@ -93,7 +93,7 @@ end
 
     # `truncated` derives its quantile and inverse-CDF sampler from the base
     # `quantile`, so this exercises the rand path that routes through it.
-    dn = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    dn = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     tn = truncated(dn, 1.0, 8.0)
     for p in (0.25, 0.5, 0.75)
         q = quantile(tn, p)

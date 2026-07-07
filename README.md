@@ -14,10 +14,10 @@ Raw-distribution convolution and shared numeric quadrature for any `Distribution
 
 ## Why ConvolvedDistributions?
 
-- **Convolution of any pair**: `convolve_distributions` builds the distribution of a sum of independent delays (a convolution) from any two or more `Distributions.jl` distributions, not just pairs with a closed form.
+- **Convolution of any pair**: `convolved` builds the distribution of a sum of independent delays (a convolution) from any two or more `Distributions.jl` distributions, not just pairs with a closed form.
 - **Analytic fast path**: closed-form convolutions (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`) are used where they exist, with an AD-safe Gauss-Legendre quadrature fallback for every other pair.
 - **Differences as well as sums**: `difference` builds the `X - Y` dual, the signed gap between two independent events.
-- **Timeseries convolution**: `convolve_distributions(delay, series)` convolves a numeric series (e.g. expected infections over time) with the discretised delay PMF to give expected downstream counts, the renewal-style observation layer. Gradients flow through the delay parameters.
+- **Timeseries convolution**: `convolve_series(delay, series)` convolves a numeric series (e.g. expected infections over time) with the discretised delay PMF to give expected downstream counts, the renewal-style observation layer. Gradients flow through the delay parameters.
 - **Pluggable integration**: a shared `integrate` / `gl_integrate` layer with a lightweight fixed-node `GaussLegendre` default and an optional [Integrals.jl](https://github.com/SciML/Integrals.jl) backend.
 - **Gradients everywhere**: gradients flow through the component parameters on every supported AD backend (ForwardDiff, ReverseDiff, Enzyme, Mooncake), so convolved distributions can be fitted with gradient-based samplers and optimisers.
 
@@ -33,7 +33,7 @@ using ConvolvedDistributions, Distributions
 # Sum of two independent delays
 incubation = Gamma(2.0, 1.0)
 reporting = LogNormal(1.0, 0.5)
-d = convolve_distributions(incubation, reporting)
+d = convolved(incubation, reporting)
 
 (cdf(d, 5.0), pdf(d, 5.0))
 ```
@@ -90,7 +90,7 @@ draw(
 
 Distributions.jl ships a `convolve` function, but it only covers pairs with a closed-form result:
 
-| Aspect | Distributions.jl `convolve` | ConvolvedDistributions.jl `convolve_distributions` |
+| Aspect | Distributions.jl `convolve` | ConvolvedDistributions.jl `convolved` |
 |--------|-----------------------------|-----------------------------------------------------|
 | **Coverage** | Closed-form, same-family pairs only (e.g. `Normal` + `Normal`, equal-scale `Gamma`); errors otherwise | Any pair of univariate distributions |
 | **Method** | Returns the closed-form distribution | Analytic fast path where a closed form exists, AD-safe Gauss-Legendre quadrature fallback otherwise |
@@ -99,8 +99,8 @@ Distributions.jl ships a `convolve` function, but it only covers pairs with a cl
 | **Evaluation** | Whatever the returned distribution supports | Batched `cdf` / `pdf` / `logpdf` over vectors of points |
 | **Gradients** | Depend on the returned distribution | Flow through the component parameters on all supported AD backends |
 
-For example, `Distributions.convolve(Gamma(2, 1), LogNormal(0, 1))` throws a `MethodError` and `Distributions.convolve(Gamma(2, 1), Gamma(3, 2))` throws an `ArgumentError` because the scales differ, whereas `convolve_distributions` handles both via quadrature.
-When a closed form does exist, `convolve_distributions` uses it, so there is no cost to reaching for the more general function.
+For example, `Distributions.convolve(Gamma(2, 1), LogNormal(0, 1))` throws a `MethodError` and `Distributions.convolve(Gamma(2, 1), Gamma(3, 2))` throws an `ArgumentError` because the scales differ, whereas `convolved` handles both via quadrature.
+When a closed form does exist, `convolved` uses it, so there is no cost to reaching for the more general function.
 
 ## What packages work well with ConvolvedDistributions.jl?
 

@@ -21,7 +21,7 @@ end
     using Distributions
     using Integrals: Integrals, IntegralProblem, solve
 
-    # Convolution numeric path: compare the package's `convolve_distributions`
+    # Convolution numeric path: compare the package's `convolved`
     # CDF against an independent Integrals.jl GaussLegendre solve of the
     # same convolution integral.
     function reference_conv_cdf(c1, c2, x; n = 192)
@@ -38,7 +38,7 @@ end
 
     c1 = Gamma(2.0, 1.0)
     c2 = LogNormal(0.5, 0.4)
-    dc = convolve_distributions(c1, c2)
+    dc = convolved(c1, c2)
     for x in (1.0, 2.0, 3.0, 5.0)
         @test cdf(dc, x) ≈ reference_conv_cdf(c1, c2, x) atol=1e-13
     end
@@ -56,7 +56,7 @@ end
     end
 end
 
-@testitem "convolve_distributions agrees across integration solvers" begin
+@testitem "convolved agrees across integration solvers" begin
     using Distributions
     using Integrals: QuadGKJL, IntegralProblem, solve
 
@@ -64,7 +64,7 @@ end
     # Integrals.jl QuadGKJL reference agree on the convolution CDF.
     c1 = Gamma(2.0, 1.5)
     c2 = LogNormal(0.5, 0.4)
-    d = convolve_distributions(c1, c2)
+    d = convolved(c1, c2)
 
     function quadgk_conv_cdf(c1, c2, x)
         lower = max(minimum(c2), x - maximum(c1))
