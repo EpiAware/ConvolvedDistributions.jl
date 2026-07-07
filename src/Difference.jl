@@ -226,7 +226,7 @@ function _difference_numeric_pdf(d::Difference, z::Real)
     upper <= lower && return zero(float(typeof(z)))
 
     result = gl_integrate(
-        y -> pdf(d.x, z + y) * pdf(d.y, y), lower, upper)
+        y -> _pdf_ad_safe(d.x, z + y) * _pdf_ad_safe(d.y, y), lower, upper)
     return max(result, zero(result))
 end
 
@@ -241,7 +241,7 @@ function _difference_numeric_cdf(d::Difference, z::Real)
     upper <= lower && return zero(float(typeof(z)))
 
     result = gl_integrate(
-        y -> _cdf_ad_safe(d.x, z + y) * pdf(d.y, y), lower, upper)
+        y -> _cdf_ad_safe(d.x, z + y) * _pdf_ad_safe(d.y, y), lower, upper)
     return clamp(result, zero(result), one(result))
 end
 

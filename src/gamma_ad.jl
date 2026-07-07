@@ -190,3 +190,13 @@ _ccdf_ad_safe(dist::UnivariateDistribution, u::Real) = ccdf(dist, u)
 function _ccdf_ad_safe(dist::Gamma, u::Real)
     return 1 - _gamma_cdf(shape(dist), scale(dist), u)
 end
+
+@doc """
+AD-safe `pdf(dist, t)` for the component density inside the numeric
+convolution and difference quadratures. Mirrors [`_cdf_ad_safe`](@ref)
+as the extension hook for component densities: generic dispatch falls
+through to `Distributions.pdf`, and a downstream extension can add a
+method for a component whose stock `pdf` routes through functions that
+are not differentiable under the supported AD backends.
+"""
+_pdf_ad_safe(dist::UnivariateDistribution, t::Real) = pdf(dist, t)

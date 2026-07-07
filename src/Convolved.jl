@@ -348,7 +348,7 @@ _convolution_pdf(d::Convolved, x::Real) = _convolved_numeric_pdf(d, x)
 function _convolved_quadrature(
         last_comp, rest, kernel::F, x::Real, lower, upper) where {F}
     return gl_integrate(
-        t -> kernel(rest, x - t) * pdf(last_comp, t), lower, upper)
+        t -> kernel(rest, x - t) * _pdf_ad_safe(last_comp, t), lower, upper)
 end
 
 # Vector-valued companion: one quadrature pass for a batch of points. Each
@@ -359,7 +359,7 @@ function _convolved_quadrature_batched(
         last_comp, rest, kernel::F,
         x::AbstractVector{<:Real}, lower, upper) where {F}
     if upper <= lower
-        z = zero(kernel(rest, first(x) - lower) * pdf(last_comp, lower))
+        z = zero(kernel(rest, first(x) - lower) * _pdf_ad_safe(last_comp, lower))
         return fill(z, length(x))
     end
     h = (upper - lower) / 2
@@ -368,11 +368,11 @@ function _convolved_quadrature_batched(
 
     @inbounds begin
         t1 = m + h * n[1]
-        ft1 = pdf(last_comp, t1)
+        ft1 = _pdf_ad_safe(last_comp, t1)
         acc = [w[1] * kernel(rest, xi - t1) * ft1 for xi in x]
         for i in 2:length(n)
             ti = m + h * n[i]
-            fti = pdf(last_comp, ti)
+            fti = _pdf_ad_safe(last_comp, ti)
             for j in eachindex(x)
                 acc[j] += w[i] * kernel(rest, x[j] - ti) * fti
             end
