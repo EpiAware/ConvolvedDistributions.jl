@@ -19,8 +19,10 @@ public AbstractSolverMethod
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
 
-# AD-safe CDF-family helpers (src/gamma_ad.jl). ComposedDistributions imports
-# `_ccdf_ad_safe` / `_logccdf_ad_safe` and adds methods for its racing-hazard
-# composers, so the pair is a deliberate, semver-covered surface despite the
-# underscore names (kept for parity with the CensoredDistributions source).
-public _ccdf_ad_safe, _logccdf_ad_safe
+# AD-safe CDF/PDF-family helpers (src/gamma_ad.jl). ComposedDistributions
+# imports `_ccdf_ad_safe` / `_logccdf_ad_safe` (racing-hazard composers) and
+# ModifiedDistributions hooks `_pdf_ad_safe` (component densities in the
+# quadrature), so the trio is a deliberate, semver-covered surface despite
+# the underscore names (kept for parity with the CensoredDistributions
+# source).
+public _ccdf_ad_safe, _logccdf_ad_safe, _pdf_ad_safe

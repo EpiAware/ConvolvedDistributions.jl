@@ -538,6 +538,13 @@ end
 Compute the CDF for a vector of evaluation points using a single
 quadrature solve (the integrand returns a vector).
 
+The batch shares one quadrature window across all points while the
+scalar path picks a per-point window, so the two paths can differ
+within quadrature accuracy: batched CDF values agree with the scalar
+path to ~1e-6, and the derived batched densities to ~1e-3 in the tails
+of wide batches. Use one path consistently when comparing log densities
+(see the FAQ).
+
 See also: [`cdf`](@ref)
 "
 function cdf(d::Convolved, x::AbstractVector{<:Real})
@@ -638,6 +645,10 @@ end
 
 Compute log densities for a vector of points, reusing the batched PDF
 solve for the numeric path.
+
+The shared quadrature window means batched log densities can differ from
+the scalar path by up to ~2e-3 in the tails of wide batches (the batched
+CDF agrees to ~1e-6). Score a model through one path consistently.
 
 See also: [`logpdf`](@ref), [`pdf`](@ref)
 "

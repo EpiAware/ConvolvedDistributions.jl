@@ -192,11 +192,29 @@ function _ccdf_ad_safe(dist::Gamma, u::Real)
 end
 
 @doc """
-AD-safe `pdf(dist, t)` for the component density inside the numeric
-convolution and difference quadratures. Mirrors [`_cdf_ad_safe`](@ref)
-as the extension hook for component densities: generic dispatch falls
-through to `Distributions.pdf`, and a downstream extension can add a
-method for a component whose stock `pdf` routes through functions that
-are not differentiable under the supported AD backends.
+AD-safe `pdf(dist, t)` for the component density inside the quadratures.
+
+`_pdf_ad_safe` is the density companion to `_cdf_ad_safe`: the numeric
+convolution and difference integrands evaluate component densities
+through it. Generic dispatch falls through to `Distributions.pdf`, and a
+downstream extension can add a method for a component whose stock `pdf`
+routes through functions that are not differentiable under the supported
+AD backends.
+
+Public (not exported): ModifiedDistributions.jl hooks it so its modified
+components stay differentiable inside the quadrature, the same pattern
+as [`_ccdf_ad_safe`](@ref).
+
+# Arguments
+- `dist`: the component distribution whose density is evaluated.
+- `t`: the evaluation point.
+
+# Examples
+```@example
+using ConvolvedDistributions: _pdf_ad_safe
+using Distributions
+
+_pdf_ad_safe(Gamma(2.0, 1.0), 3.0)
+```
 """
 _pdf_ad_safe(dist::UnivariateDistribution, t::Real) = pdf(dist, t)

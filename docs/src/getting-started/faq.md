@@ -54,6 +54,14 @@ dn = convolve_distributions(Normal(0.0, 1.0), Normal(1.0, 2.0);
 cdf(da, 2.0), cdf(dn, 2.0)
 ```
 
+## Why do batched and scalar log densities differ slightly?
+
+Evaluating `cdf`, `pdf`, or `logpdf` over a vector shares one quadrature window across the whole batch, which is what makes the batched path cheap.
+The scalar path picks a per-point window instead, so on the numeric path the two can differ within quadrature accuracy: batched CDF values agree with the scalar path to around `1e-6`, and log densities to around `2e-3` in the tails of wide batches.
+Neither path is wrong; they are two quadrature approximations of the same integral.
+For model fitting, score through one path consistently (a whole-vector likelihood or a pointwise one, not a mixture) so the target density is stable.
+Tightening the shared-window construction is tracked in [issue #29](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/29).
+
 ## How does the timeseries form differ from the distribution form?
 
 They share a name but do different jobs.
