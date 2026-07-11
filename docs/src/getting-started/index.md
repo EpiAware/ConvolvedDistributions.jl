@@ -6,14 +6,13 @@ This page walks through the main entry points; the [Public API](@ref public-api)
 
 ## Installation
 
-`ConvolvedDistributions` is not yet registered, so install it from GitHub:
+Once the initial registration in the Julia General Registry completes, `Pkg.add("ConvolvedDistributions")` installs the package.
+Until then, or for the development version, install it from GitHub:
 
 ```julia
 using Pkg
 Pkg.add(url = "https://github.com/EpiAware/ConvolvedDistributions.jl")
 ```
-
-Once registered this becomes `Pkg.add("ConvolvedDistributions")`.
 
 ## Convolving distributions
 
@@ -35,13 +34,26 @@ Densities and moments work the same way; the mean and variance are exact compone
 pdf(d, 5.0), mean(d), var(d)
 ```
 
-More than two components can be passed as varargs, a tuple, or a vector, and `Convolved` distributions nest.
+More than two components can be passed as varargs, a tuple, or a vector.
 
 ```@example getting-started
 d3 = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4),
     Exponential(2.0))
 mean(d3)
 ```
+
+## Composing convolutions
+
+The result of `convolved` is itself a `UnivariateDistribution`, so it can be a component of another call.
+Here `d` (the incubation plus reporting delay from above) is convolved with a further processing delay, and the nested distribution matches the flat three-component one.
+
+```@example getting-started
+total = convolved(d, Exponential(2.0))
+mean(total), mean(d3), cdf(total, 8.0), cdf(d3, 8.0)
+```
+
+Nesting is how a multi-stage delay built in one part of a model is reused in another without unpacking its components.
+The [Visualising convolutions](@ref visualising-convolutions) tutorial plots a nested convolution against its flat equivalent.
 
 Evaluating `cdf` or `pdf` over a vector of points shares one quadrature window solve across the batch, which is much cheaper than mapping the scalar call.
 
@@ -64,6 +76,14 @@ A symmetric difference is centred on zero:
 ```@example getting-started
 zs = difference(Normal(1.0, 1.0), Normal(1.0, 1.0))
 mean(zs), cdf(zs, 0.0)
+```
+
+Either side can itself be a `Convolved`, so the signed gap between a multi-stage delay and a single delay is one call.
+Here `cdf(gap, 0.0)` is the probability that the two-stage delay `d` is shorter than the single delay.
+
+```@example getting-started
+gap = difference(d, Gamma(2.5, 1.0))
+mean(gap), cdf(gap, 0.0)
 ```
 
 ## Convolving a timeseries

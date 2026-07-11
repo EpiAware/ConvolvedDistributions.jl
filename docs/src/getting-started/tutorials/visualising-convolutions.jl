@@ -11,9 +11,10 @@
 #
 # 1. Overlay two component densities with their convolved density.
 # 2. Plot the density of the [`difference`](@ref) of the same pair across zero.
-# 3. Compare the analytic and numeric solver CDFs and plot their residual.
-# 4. Compare a right-truncated convolution with the untruncated density.
-# 5. Convolve a synthetic infection curve into an expected count curve.
+# 3. Nest one convolution inside another and check it against the flat form.
+# 4. Compare the analytic and numeric solver CDFs and plot their residual.
+# 5. Compare a right-truncated convolution with the untruncated density.
+# 6. Convolve a synthetic infection curve into an expected count curve.
 #
 # ### What might I need to know before starting
 #
@@ -73,6 +74,54 @@ draw(
 # The mass below zero is the probability that the reporting delay is shorter than the incubation period.
 
 cdf(z_dist, 0.0)
+
+# ## Composing on multiple distributions
+#
+# A [`Convolved`](@ref) distribution is itself a `UnivariateDistribution`, so it can be a component of another [`convolved`](@ref) call, or one side of a [`difference`](@ref).
+# Here the two-stage delay `d` gains an Exponential processing stage, built once by nesting (`convolved(d, processing)`) and once flat from the three leaves.
+
+processing = Exponential(2.0)
+total_nested = convolved(d, processing)
+total_flat = convolved(incubation, reporting, processing)
+
+xn = 0.0:0.25:20.0
+nested_df = vcat(
+    DataFrame(x = xn, density = pdf(d, collect(xn)),
+        Distribution = "Two-stage delay"),
+    DataFrame(x = xn, density = pdf(total_nested, collect(xn)),
+        Distribution = "Nested three-stage"),
+    DataFrame(x = xn, density = pdf(total_flat, collect(xn)),
+        Distribution = "Flat three-stage")
+)
+draw(
+    data(nested_df) *
+    mapping(:x, :density,
+        color = :Distribution, linestyle = :Distribution) *
+    visual(Lines, linewidth = 2);
+    axis = (xlabel = "Delay (days)", ylabel = "Density")
+)
+
+# The nested and flat densities coincide, and adding the third stage shifts and widens the two-stage density.
+# The quadrature folds the flat component tuple recursively, so the two forms evaluate the same integral; the moments are exact component sums either way.
+
+mean(total_nested), mean(total_flat)
+
+# The same composition applies to differences: the signed gap between the two-stage delay and a single Gamma delay is one call, with the `Convolved` as the minuend.
+
+gap = difference(d, Gamma(2.5, 1.0))
+zg = -8.0:0.25:12.0
+gap_df = DataFrame(z = zg, density = pdf.(gap, zg))
+draw(
+    data(gap_df) *
+    mapping(:z, :density) *
+    visual(Lines, linewidth = 2);
+    axis = (xlabel = "Two-stage delay - single delay (days)",
+        ylabel = "Density")
+)
+
+# The mass below zero is the probability that the two-stage delay resolves before the single delay.
+
+cdf(gap, 0.0)
 
 # ## Analytic and numeric solvers agree
 #
@@ -161,6 +210,7 @@ draw(
 #
 # - Convolving two delays shifts and widens the density; the batched `pdf` and `cdf` methods evaluate a grid in one quadrature solve.
 # - [`difference`](@ref) has two-sided support and its mass below zero is directly interpretable as an ordering probability.
+# - Combinations compose: a [`Convolved`](@ref) can be a component of another convolution or one side of a difference, and a nested convolution matches its flat equivalent.
 # - Forcing the [`NumericSolver`](@ref) on an analytic pair reproduces the closed-form CDF to a few parts in a million.
 # - `truncated` composes with a [`Convolved`](@ref) distribution for scoring under right truncation.
 # - The timeseries form turns an infection curve into an expected count curve through the discretised delay PMF.
