@@ -652,13 +652,17 @@ function _convolved_numeric_cdf_batched(d::Convolved, x::AbstractVector{<:Real})
     raw = _convolved_quadrature_composite(
         last_comp, rest, _convolution_cdf, x, wins, L, U)
 
+    # `eltype(d)` stays `Float64` when the component parameters carry AD
+    # tracers (Duals, tracked reals), so promote with the quadrature
+    # result type before the clamp/convert (#43).
+    Tr = promote_type(T, eltype(raw))
     return map(zip(x, raw, wins)) do (xi, ri, wi)
         if xi <= dmin
-            zero(T)
+            zero(Tr)
         elseif xi >= dmax
-            one(T)
+            one(Tr)
         else
-            clamp(T(wi[3] + ri), zero(T), one(T))
+            clamp(Tr(wi[3] + ri), zero(Tr), one(Tr))
         end
     end
 end
@@ -684,8 +688,11 @@ function _convolved_numeric_pdf_batched(d::Convolved, x::AbstractVector{<:Real})
     raw = _convolved_quadrature_composite(
         last_comp, rest, _convolution_pdf, x, wins, L, U)
 
+    # Promote with the quadrature result type: `eltype(d)` misses
+    # AD tracers on the component parameters (#43).
+    Tr = promote_type(T, eltype(raw))
     return map(zip(x, raw)) do (xi, ri)
-        (xi <= dmin || xi >= dmax) ? zero(T) : max(T(ri), zero(T))
+        (xi <= dmin || xi >= dmax) ? zero(Tr) : max(Tr(ri), zero(Tr))
     end
 end
 
@@ -723,8 +730,10 @@ function logpdf(d::Convolved, x::AbstractVector{<:Real})
         return map(xi -> logpdf(analytic, xi), x)
     end
 
-    T = promote_type(eltype(x), float(eltype(d)))
     pdfs = _convolved_numeric_pdf_batched(d, x)
+    # Promote with the batched-PDF result type: `eltype(d)` misses
+    # AD tracers on the component parameters (#43).
+    T = promote_type(eltype(x), float(eltype(d)), eltype(pdfs))
 
     return map(zip(x, pdfs)) do (xi, p)
         if !insupport(d, xi)
