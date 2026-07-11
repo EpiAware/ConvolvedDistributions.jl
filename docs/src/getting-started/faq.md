@@ -35,8 +35,7 @@ The [Getting started](@ref getting-started) walkthrough and the [Visualising con
 
 ## Why is the package called ConvolvedDistributions when it also has `difference`?
 
-Because every member of the family is a convolution in the generalised sense.
-For independent variables, the distribution of `X op Y` is the pushforward of the product measure under `op`: for `+` that is the classical convolution, for `-` it is the convolution with the reflected variable (a cross-correlation), and future members like the maximum or minimum of independent variables are max-convolutions in the sense of Urbanik's generalised convolutions.
+Every member is a convolution in the generalised sense: the distribution of `X op Y` for independent variables is the classical convolution for sums, the reflected convolution for differences, and the corresponding generalised convolution for other operations (products, maxima).
 The family supertype is [`AbstractConvolvedDistribution`](@ref ConvolvedDistributions.AbstractConvolvedDistribution) to match.
 
 ## When should I use `convolved` rather than `Distributions.convolve`?
