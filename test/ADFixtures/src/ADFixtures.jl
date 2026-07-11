@@ -2,10 +2,10 @@
     ADFixtures
 
 Shared AD gradient scenarios and backend metadata for ConvolvedDistributions.
-Used by `test/ad/runtests.jl`. Covers the `Convolved` and `Difference`
-densities and moments on both the analytic and numeric (Gauss-Legendre
-quadrature) paths, across the ForwardDiff / ReverseDiff / Enzyme / Mooncake
-backend matrix.
+Used by `test/ad/runtests.jl`. Covers the `Convolved`, `Difference`, and
+`Product` densities and moments on both the analytic and numeric
+(Gauss-Legendre quadrature) paths, across the ForwardDiff / ReverseDiff /
+Enzyme / Mooncake backend matrix.
 
 The reference gradient is computed with `ForwardDiff`. It propagates its
 Dual numbers through the package's own densities and matches the reverse
@@ -160,6 +160,37 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             mean(d) + var(d)
         end,
         [3.0, 1.5, 2.0, 0.5], (Constant(obs),))
+
+    # Product (Z = X * Y), the Mellin-convolution member (non-negative
+    # supports). The analytic LogNormal*LogNormal pair differentiates
+    # through the closed-form product; the Gamma/LogNormal pairs exercise
+    # the numeric Mellin quadrature. Two pairs cover gradients through
+    # the multiplicand X and the multiplier Y: Y is the integration
+    # component, whose zero lower support end and unbounded upper end are
+    # both clamped to extreme quantiles of the differentiated component,
+    # so the window clamp must stay off the AD path (`_window_quantile`
+    # shields, as for Difference).
+    _push!("Product LogNormal*LogNormal analytical",
+        (θ, obs) -> sum(
+            z -> logpdf(product(
+                    LogNormal(θ[1], θ[2]), LogNormal(0.5, 0.4)), z), obs),
+        [1.0, 0.3], (Constant(obs),))
+    _push!("Product Gamma*LogNormal numerical wrt X",
+        (θ, obs) -> sum(
+            z -> logpdf(product(
+                    Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4)), z), obs),
+        [3.0, 1.0], (Constant(obs),))
+    _push!("Product LogNormal*Gamma numerical wrt Y",
+        (θ, obs) -> sum(
+            z -> logpdf(product(
+                    LogNormal(0.5, 0.4), Gamma(θ[1], θ[2])), z), obs),
+        [3.0, 1.0], (Constant(obs),))
+    _push!("Product Gamma*LogNormal mean+var moments",
+        (θ, _obs) -> let d = product(
+                Gamma(θ[1], θ[2]), LogNormal(θ[3], θ[4]))
+            mean(d) + var(d)
+        end,
+        [3.0, 1.5, 0.5, 0.4], (Constant(obs),))
 
     # Timeseries convolution. A continuous delay is discretised
     # explicitly with `discretise_pmf` (interval-censored-secondary
