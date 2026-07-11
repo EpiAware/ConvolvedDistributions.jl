@@ -225,3 +225,46 @@ end
     @test convolve_series(leaf, series; interval = 1) ≈
           convolve_series(leaf, series)
 end
+
+@testitem "PMF surfaces guard indexing, emptiness, and broadcast" begin
+    using Distributions
+
+    # A minimal zero-based AbstractVector: the @inbounds kernels assume
+    # 1-based indexing, so offset axes must be rejected loudly rather
+    # than silently shifting masses or reading out of bounds.
+    struct ZeroBased{T} <: AbstractVector{T}
+        v::Vector{T}
+    end
+    Base.size(z::ZeroBased) = size(z.v)
+    function Base.axes(z::ZeroBased)
+        (Base.IdentityUnitRange(0:(length(z.v) - 1)),)
+    end
+    Base.getindex(z::ZeroBased, i::Int) = z.v[i + 1]
+
+    series = [0.0, 1.0, 3.0, 6.0]
+    pmf = [0.5, 0.3, 0.2]
+    @test_throws ArgumentError convolve_series(ZeroBased(pmf), series)
+    @test_throws ArgumentError convolve_series(pmf, ZeroBased(series))
+    @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
+        ZeroBased(pmf), 1.0)
+
+    # An empty PMF is a construction bug, not a zero signal: both the
+    # raw-vector path and the DelayPMF constructor reject it.
+    @test_throws ArgumentError convolve_series(Float64[], series)
+    @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
+        Float64[], 1.0)
+
+    # discretise_pmf validates the interval up front with its own name,
+    # before any CDF work.
+    err = try
+        discretise_pmf(Gamma(2.0, 1.0), 10; interval = 0.0)
+    catch e
+        e
+    end
+    @test err isa ArgumentError
+    @test occursin("discretise_pmf", err.msg)
+
+    # `pdf.(pmf, lags)` broadcasts the PMF as a scalar.
+    built = discretise_pmf(Gamma(2.0, 1.0), 5)
+    @test pdf.(built, 0:3) == [pdf(built, l) for l in 0:3]
+end

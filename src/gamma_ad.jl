@@ -142,8 +142,10 @@ termination remain differentiable under reverse-mode AD. The numeric
 CDF kernel also evaluates integration components through this hook, so
 a component type with a non-AD-safe `cdf` needs a method here.
 
-Public (not exported): ModifiedDistributions.jl adds methods for its
-modified components, the same pattern as [`_pdf_ad_safe`](@ref).
+Public (not exported): a wrapper package adds methods for component
+types whose stock `cdf` is not AD-safe, the same pattern as
+[`_pdf_ad_safe`](@ref) (ModifiedDistributions.jl's in-flight extension
+is the motivating consumer).
 
 # Arguments
 - `dist`: the distribution whose CDF is evaluated.

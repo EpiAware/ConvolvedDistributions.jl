@@ -49,6 +49,9 @@ end
 # lag `k` carries `series[i - k]` forward to time `i`. The accumulator element
 # type is seeded from the product so `Dual`/tracked numbers propagate.
 function _causal_convolve(series::AbstractVector, pmf::AbstractVector)
+    # The @inbounds loop below indexes both vectors from 1; offset axes
+    # would silently shift every mass and read past the end.
+    Base.require_one_based_indexing(series, pmf)
     n = length(series)
     T = promote_type(eltype(series), eltype(pmf))
     out = zeros(T, n)
@@ -145,7 +148,8 @@ Convolve a timeseries with a caller-supplied discretised delay PMF.
 
 `convolve_series(pmf, series)` returns the causal discrete convolution
 of `series` with the probability masses `pmf`, truncated to the `series`
-window: `out[i] = sum(pmf[k + 1] * series[i - k] for k in 0:(i - 1))`.
+window:
+`out[i] = sum(pmf[k + 1] * series[i - k] for k in 0:(min(length(pmf), i) - 1))`.
 `pmf[k + 1]` is read as the delay mass at integer lag `k` on the same
 unit grid as `series`.
 
@@ -181,6 +185,11 @@ expected_counts = convolve_series(pmf, infections)
 "
 function convolve_series(
         pmf::AbstractVector{<:Real}, series::AbstractVector{<:Real})
+    # Mirror the DelayPMF constructor: an empty PMF is a construction
+    # bug upstream, not a zero signal — reject it rather than silently
+    # returning an all-zero series.
+    isempty(pmf) &&
+        throw(ArgumentError("convolve_series needs at least one PMF mass"))
     return _causal_convolve(series, pmf)
 end
 
@@ -225,6 +234,9 @@ struct DelayPMF{V <: AbstractVector, I <: Real}
 
     function DelayPMF(masses::V, interval::I) where {
             V <: AbstractVector, I <: Real}
+        # `pdf(pmf, lag)` reads `masses[lag + 1]` under @inbounds, so
+        # offset axes would shift every lag and read out of bounds.
+        Base.require_one_based_indexing(masses)
         length(masses) >= 1 ||
             throw(ArgumentError("DelayPMF needs at least one mass"))
         interval > 0 ||
@@ -237,6 +249,10 @@ end
 # integer lag the PMF carries a mass for.
 Base.length(pmf::DelayPMF) = length(pmf.masses)
 _maxlag(pmf::DelayPMF) = length(pmf.masses) - 1
+
+# Broadcast as a scalar so the idiomatic `pdf.(pmf, lags)` works instead
+# of the broadcast machinery trying to iterate the PMF.
+Base.broadcastable(pmf::DelayPMF) = Ref(pmf)
 
 @doc "
 
@@ -253,10 +269,10 @@ avoids rediscretising the delay per series or per record.
 The masses are exactly those the rebuild-every-time
 [`convolve_series(delay, series)`](@ref convolve_series) path computes
 (raw CDF differences clamped at zero, never renormalised), so a
-prebuilt PMF gives numerically identical results. The masses keep the delay's parameter
-type, so the discretisation differentiates w.r.t. the delay parameters;
-a parameter change is handled by calling `discretise_pmf` again (there
-is no stale cache).
+prebuilt PMF gives numerically identical results. The masses keep the
+delay's parameter type, so the discretisation differentiates w.r.t. the
+delay parameters; a parameter change is handled by calling
+`discretise_pmf` again (there is no stale cache).
 
 # Arguments
 - `delay`: the delay distribution to discretise (any
@@ -291,6 +307,12 @@ function discretise_pmf(delay::UnivariateDistribution, maxlag::Integer;
         interval::Real = 1.0)
     maxlag >= 0 ||
         throw(ArgumentError("maxlag must be non-negative, got $(maxlag)"))
+    # Validate up front: otherwise all O(maxlag) CDF work runs before the
+    # DelayPMF constructor rejects the interval with a message naming the
+    # type rather than this function.
+    interval > 0 ||
+        throw(ArgumentError(
+            "discretise_pmf interval must be positive, got $(interval)"))
     return DelayPMF(_delay_pmf(delay, maxlag, interval), interval)
 end
 

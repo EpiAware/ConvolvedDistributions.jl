@@ -17,8 +17,14 @@ const QA_CONFIG = (
     aqua = (;),
 
     # ExplicitImports `ignore`: symbols an extension legitimately imports
-    # non-publicly. Tuple of Symbols, e.g. (:_internal_helper,).
-    ei_ignore = (),
+    # non-publicly. When another quality item (extension-ambiguity) has
+    # already loaded ForwardDiffExt into the session, the public-imports
+    # walk inspects the extension too, which imports its own parent's
+    # internals plus ForwardDiff's Dual plumbing — the standard extension
+    # pattern (kit-check order dependence; see EpiAwarePackageTools
+    # issue on deterministic ExplicitImports scope).
+    ei_ignore = (:Dual, :value, :partials, :_gamma_cdf,
+        :_gamma_cdf_value_and_partials, :_primal),
 
     # Docstring `crossref_ignore`: upstream names docstrings link to via
     # `[`name`](@ref)`, e.g. (:pdf, :cdf, :logpdf).
