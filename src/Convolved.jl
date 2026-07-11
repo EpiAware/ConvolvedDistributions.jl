@@ -410,8 +410,11 @@ end
 # spectrally — this is what removes the old shared-window tail error
 # (issue #29). The panel grid is primal (see `_window_union`); the
 # corrections keep the live endpoints, so gradient flow through the
-# window bounds matches the scalar path. The accumulator's element type
-# is seeded from the integrand so `Dual`s propagate.
+# window bounds matches the scalar path. The per-point assembly is a
+# functional `map` with a scalar accumulator seeded from the integrand,
+# so tracer element types (`Dual`s, tracked reals) propagate and no
+# tracked storage is mutated — `fill` of a ReverseDiff `TrackedReal`
+# yields a `TrackedArray`, whose `setindex!` throws (issue #44).
 function _convolved_quadrature_composite(
         last_comp, rest, kernel::F, x::AbstractVector{<:Real},
         wins, L::Float64, U::Float64) where {F}
@@ -429,34 +432,32 @@ function _convolved_quadrature_composite(
           for k in 1:np, p in 1:_COMPOSITE_PANELS]
 
     z = zero(kernel(rest, first(x) - Tc[1, 1]) * Wc[1, 1])
-    out = fill(z, length(x))
-    for j in eachindex(x)
+    return map(eachindex(x)) do j
         wl, wu = wins[j][1], wins[j][2]
-        wu > wl || continue
+        wu > wl || return z
         wlp = Float64(_primal(wl))
         wup = Float64(_primal(wu))
         ilo = searchsortedfirst(bounds, wlp)
         ihi = searchsortedlast(bounds, wup)
-        integrand = let xj = x[j]
-            t -> kernel(rest, xj - t) * _pdf_ad_safe(last_comp, t)
-        end
+        xj = x[j]
+        integrand = t -> kernel(rest, xj - t) * _pdf_ad_safe(last_comp, t)
         if ilo > ihi
             # Window inside one panel: a single small solve.
-            out[j] += gl_integrate(integrand, wl, wu, _COMPOSITE_GL)
-            continue
+            return z + gl_integrate(integrand, wl, wu, _COMPOSITE_GL)
         end
+        acc = z
         @inbounds for p in ilo:(ihi - 1), k in 1:np
 
-            out[j] += Wc[k, p] * kernel(rest, x[j] - Tc[k, p])
+            acc += Wc[k, p] * kernel(rest, xj - Tc[k, p])
         end
         if wlp < bounds[ilo]
-            out[j] += gl_integrate(integrand, wl, bounds[ilo], _COMPOSITE_GL)
+            acc += gl_integrate(integrand, wl, bounds[ilo], _COMPOSITE_GL)
         end
         if wup > bounds[ihi]
-            out[j] += gl_integrate(integrand, bounds[ihi], wu, _COMPOSITE_GL)
+            acc += gl_integrate(integrand, bounds[ihi], wu, _COMPOSITE_GL)
         end
+        return acc
     end
-    return out
 end
 
 # Numeric convolution CDF.
