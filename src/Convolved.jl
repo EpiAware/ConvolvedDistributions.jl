@@ -337,8 +337,8 @@ _convolution_pdf(d::Convolved, x::Real) = _convolved_numeric_pdf(d, x)
 # `src/integration.jl`: the `_CONVOLVED_GL` rule (192 nodes, see there for
 # the node-count rationale) and `gl_integrate`. Holding the rule directly
 # and reducing inline keeps the path AD-safe (the accumulator type is
-# seeded from the integrand). The batched companion below reuses the same
-# nodes/weights for a one-pass vector solve.
+# seeded from the integrand). The batched companion below shares a
+# composite panel grid across the points instead.
 
 # Scalar convolution quadrature:
 #   ∫ kernel(rest, x - t) · f_C(t) dt   over t ∈ [lower, upper],
@@ -351,34 +351,112 @@ function _convolved_quadrature(
         t -> kernel(rest, x - t) * _pdf_ad_safe(last_comp, t), lower, upper)
 end
 
-# Vector-valued companion: one quadrature pass for a batch of points. Each
-# node's `f_C(t)` factor is evaluated once and reused across every point,
-# and the accumulator vector's element type is seeded from the first
-# node's contribution so `Dual`s propagate (mirroring `_gl_reduce`).
-function _convolved_quadrature_batched(
-        last_comp, rest, kernel::F,
-        x::AbstractVector{<:Real}, lower, upper) where {F}
-    if upper <= lower
-        z = zero(kernel(rest, first(x) - lower) * _pdf_ad_safe(last_comp, lower))
-        return fill(z, length(x))
-    end
-    h = (upper - lower) / 2
-    m = (lower + upper) / 2
-    n, w = _CONVOLVED_GL.nodes, _CONVOLVED_GL.weights
+# Per-point PDF integration window, shared by the scalar and batched
+# paths: the integration component's support intersected with the range
+# where `x - t` lands in the support of `rest`, then clamped finite.
+# Returns a degenerate `(lower, lower)` window when it is empty.
+function _pdf_point_window(last_comp, rest, x::Real)
+    lower = _max2(minimum(last_comp), x - maximum(rest))
+    upper = _min2(maximum(last_comp), x - minimum(rest))
+    upper <= lower && return (lower, lower)
+    return _finite_window(last_comp, lower, upper)
+end
 
-    @inbounds begin
-        t1 = m + h * n[1]
-        ft1 = _pdf_ad_safe(last_comp, t1)
-        acc = [w[1] * kernel(rest, xi - t1) * ft1 for xi in x]
-        for i in 2:length(n)
-            ti = m + h * n[i]
-            fti = _pdf_ad_safe(last_comp, ti)
-            for j in eachindex(x)
-                acc[j] += w[i] * kernel(rest, x[j] - ti) * fti
-            end
+# Per-point CDF integration window plus the saturated constant, shared by
+# the scalar and batched paths: F_R(x - t) = 1 below `cut = x - max(R)`,
+# so the mass of C below the cut is a constant term and the quadrature
+# only covers the transition region (see `_convolved_numeric_cdf`).
+function _cdf_point_window(last_comp, rest, x::Real)
+    cmin = minimum(last_comp)
+    cut = x - maximum(rest)
+    lower = _max2(cmin, cut)
+    upper = _min2(maximum(last_comp), x - minimum(rest))
+    saturated = cut > cmin ? _cdf_ad_safe(last_comp, cut) :
+                zero(float(typeof(x)))
+    upper <= lower && return lower, lower, saturated
+    lower, upper = _finite_window(last_comp, lower, upper)
+    return lower, upper, saturated
+end
+
+# Union of the non-empty per-point windows, as AD-stripped (primal)
+# `Float64`s: the batched panel grid laid over it is a quadrature
+# hyperparameter, like the window clamp, so it stays off the AD tape.
+# Any NaN endpoint (a NaN evaluation point) poisons the union so the
+# caller falls back to per-point scalar solves.
+function _window_union(wins)
+    L, U = Inf, -Inf
+    for w in wins
+        wl = Float64(_primal(w[1]))
+        wu = Float64(_primal(w[2]))
+        (isnan(wl) || isnan(wu)) && return (NaN, NaN)
+        wu > wl || continue
+        L = _min2(L, wl)
+        U = _max2(U, wu)
+    end
+    return L, U
+end
+
+# Batched composite quadrature: the raw per-point integrals
+#   ∫ kernel(rest, x_j - t) · f_C(t) dt   over t ∈ [lower_j, upper_j],
+# each over its own scalar-path window `wins[j]`, in one shared pass.
+#
+# The union window `[L, U]` is split into `_COMPOSITE_PANELS` equal
+# panels whose nodes and `f_C(t)` factors are evaluated once and reused
+# across every point; each point then sums the panels inside its own
+# window plus small end-correction integrals from its live window
+# endpoints to the panel grid. Every integrand kink (a support edge of
+# `rest`) sits on a window endpoint, i.e. on a correction boundary, so
+# each integrated piece is smooth and the small per-panel rule converges
+# spectrally — this is what removes the old shared-window tail error
+# (issue #29). The panel grid is primal (see `_window_union`); the
+# corrections keep the live endpoints, so gradient flow through the
+# window bounds matches the scalar path. The accumulator's element type
+# is seeded from the integrand so `Dual`s propagate.
+function _convolved_quadrature_composite(
+        last_comp, rest, kernel::F, x::AbstractVector{<:Real},
+        wins, L::Float64, U::Float64) where {F}
+    np = length(_COMPOSITE_GL.nodes)
+    nd, wts = _COMPOSITE_GL.nodes, _COMPOSITE_GL.weights
+    bounds = range(L, U; length = _COMPOSITE_PANELS + 1)
+    hp = step(bounds) / 2
+
+    # Shared panel nodes and f_C-weighted quadrature weights; the
+    # comprehensions seed the element types from the values so component
+    # `Dual`s propagate.
+    Tc = [(bounds[p] + bounds[p + 1]) / 2 + hp * nd[k]
+          for k in 1:np, p in 1:_COMPOSITE_PANELS]
+    Wc = [hp * wts[k] * _pdf_ad_safe(last_comp, Tc[k, p])
+          for k in 1:np, p in 1:_COMPOSITE_PANELS]
+
+    z = zero(kernel(rest, first(x) - Tc[1, 1]) * Wc[1, 1])
+    out = fill(z, length(x))
+    for j in eachindex(x)
+        wl, wu = wins[j][1], wins[j][2]
+        wu > wl || continue
+        wlp = Float64(_primal(wl))
+        wup = Float64(_primal(wu))
+        ilo = searchsortedfirst(bounds, wlp)
+        ihi = searchsortedlast(bounds, wup)
+        integrand = let xj = x[j]
+            t -> kernel(rest, xj - t) * _pdf_ad_safe(last_comp, t)
+        end
+        if ilo > ihi
+            # Window inside one panel: a single small solve.
+            out[j] += gl_integrate(integrand, wl, wu, _COMPOSITE_GL)
+            continue
+        end
+        @inbounds for p in ilo:(ihi - 1), k in 1:np
+
+            out[j] += Wc[k, p] * kernel(rest, x[j] - Tc[k, p])
+        end
+        if wlp < bounds[ilo]
+            out[j] += gl_integrate(integrand, wl, bounds[ilo], _COMPOSITE_GL)
+        end
+        if wup > bounds[ihi]
+            out[j] += gl_integrate(integrand, bounds[ihi], wu, _COMPOSITE_GL)
         end
     end
-    return h .* acc
+    return out
 end
 
 # Numeric convolution CDF.
@@ -400,19 +478,14 @@ function _convolved_numeric_cdf(d::Convolved, x::Real)
     last_comp = d.components[end]
     rest = _rest_distribution(d.components[1:(end - 1)])
 
-    cmin = minimum(last_comp)
-    cut = x - maximum(rest)              # t below this: F_R(x - t) = 1
-    lower = _max2(cmin, cut)
-    upper = _min2(maximum(last_comp), x - minimum(rest))
-
-    # Mass of C below the saturated cut (where F_R = 1). Guard the
-    # support boundary, where cdf at minimum is 0 by construction.
-    saturated = cut > cmin ? _cdf_ad_safe(last_comp, cut) :
-                zero(float(typeof(x)))
+    # Window over the transition region of F_R plus the mass of C below
+    # it (where F_R = 1); see `_cdf_point_window`. Dropping the
+    # saturated term would lose that mass — wrong for bounded
+    # components (Uniform).
+    lower, upper, saturated = _cdf_point_window(last_comp, rest, x)
 
     upper <= lower && return clamp(saturated, zero(saturated), one(saturated))
 
-    lower, upper = _finite_window(last_comp, lower, upper)
     result = saturated +
              _convolved_quadrature(
         last_comp, rest, _convolution_cdf, x, lower, upper)
@@ -432,12 +505,10 @@ function _convolved_numeric_pdf(d::Convolved, x::Real)
     last_comp = d.components[end]
     rest = _rest_distribution(d.components[1:(end - 1)])
 
-    lower = _max2(minimum(last_comp), x - maximum(rest))
-    upper = _min2(maximum(last_comp), x - minimum(rest))
+    lower, upper = _pdf_point_window(last_comp, rest, x)
 
     upper <= lower && return zero(float(typeof(x)))
 
-    lower, upper = _finite_window(last_comp, lower, upper)
     result = _convolved_quadrature(
         last_comp, rest, _convolution_pdf, x, lower, upper)
     return max(result, zero(result))
@@ -535,15 +606,14 @@ end
 
 @doc "
 
-Compute the CDF for a vector of evaluation points using a single
-quadrature solve (the integrand returns a vector).
+Compute the CDF for a vector of evaluation points in one batched
+composite-quadrature pass.
 
-The batch shares one quadrature window across all points while the
-scalar path picks a per-point window, so the two paths can differ
-within quadrature accuracy: batched CDF values agree with the scalar
-path to ~1e-6, and the derived batched densities to ~1e-3 in the tails
-of wide batches. Use one path consistently when comparing log densities
-(see the FAQ).
+Each point is integrated over the same window the scalar path picks,
+on a shared panel grid whose nodes and integration-component density
+are evaluated once and reused across points, plus small per-point
+end-correction integrals. Batched and scalar results therefore agree
+to well within ~1e-8 (typically near machine precision); see the FAQ.
 
 See also: [`cdf`](@ref)
 "
@@ -555,52 +625,44 @@ function cdf(d::Convolved, x::AbstractVector{<:Real})
     return _convolved_numeric_cdf_batched(d, x)
 end
 
-# Batched numeric CDF: one Gauss-Legendre solve for all points via the
-# shared `_convolved_quadrature_batched` scaffold.
-#
-# Same decomposition as the scalar path:
-#   F_X(x_i) = F_C(lower) + ∫_{lower}^{upper} F_R(x_i - t) f_C(t) dt
-# where `lower` is the shared window start. F_C(lower) is the mass of the
-# integration component C below the window (where F_R(x_i - t) = 1 for
-# every point, since x_i ≥ min(x)); the integral then picks up each
-# point's transition region, with F_R returning 1 between `lower` and
-# x_i - max(R). The saturated constant is shared across points.
+# Batched numeric CDF via the composite panel grid: each point keeps the
+# scalar path's decomposition
+#   F_X(x_i) = F_C(cut_i) + ∫_{lower_i}^{upper_i} F_R(x_i - t) f_C(t) dt
+# with its own window and saturated constant (see `_cdf_point_window`),
+# while the quadrature shares panel nodes and f_C evaluations across the
+# batch (see `_convolved_quadrature_composite`).
 function _convolved_numeric_cdf_batched(d::Convolved, x::AbstractVector{<:Real})
     T = promote_type(eltype(x), float(eltype(d)))
     last_comp = d.components[end]
     rest = _rest_distribution(d.components[1:(end - 1)])
 
-    cmin = minimum(last_comp)
     dmin = minimum(d)
     dmax = maximum(d)
 
-    # Shared integration window: component support intersected with the
-    # reachable range across all points.
-    lower = max(cmin, minimum(x) - maximum(rest))
-    upper = min(maximum(last_comp), maximum(x) - minimum(rest))
+    wins = map(xi -> _cdf_point_window(last_comp, rest, xi), x)
+    L, U = _window_union(wins)
 
-    if !(upper > lower) || !isfinite(lower) || !isfinite(upper)
-        # Degenerate shared window: fall back to per-point scalar solves.
+    if !(U > L) || !isfinite(L) || !isfinite(U)
+        # Degenerate union window: fall back to per-point scalar solves.
         return map(xi -> _convolved_numeric_cdf(d, T(xi)), x)
     end
 
-    saturated = lower > cmin ? T(_cdf_ad_safe(last_comp, lower)) : zero(T)
-    raw = _convolved_quadrature_batched(
-        last_comp, rest, _convolution_cdf, x, lower, upper)
+    raw = _convolved_quadrature_composite(
+        last_comp, rest, _convolution_cdf, x, wins, L, U)
 
-    return map(zip(x, raw)) do (xi, ri)
+    return map(zip(x, raw, wins)) do (xi, ri, wi)
         if xi <= dmin
             zero(T)
         elseif xi >= dmax
             one(T)
         else
-            clamp(saturated + T(ri), zero(T), one(T))
+            clamp(T(wi[3] + ri), zero(T), one(T))
         end
     end
 end
 
-# Batched numeric PDF: one Gauss-Legendre solve for all points via the
-# shared scaffold. No saturated constant (f_R vanishes outside support).
+# Batched numeric PDF via the composite panel grid. No saturated
+# constant (f_R vanishes outside support).
 function _convolved_numeric_pdf_batched(d::Convolved, x::AbstractVector{<:Real})
     T = promote_type(eltype(x), float(eltype(d)))
     last_comp = d.components[end]
@@ -609,17 +671,16 @@ function _convolved_numeric_pdf_batched(d::Convolved, x::AbstractVector{<:Real})
     dmin = minimum(d)
     dmax = maximum(d)
 
-    # Shared integration window covering every point's transition region.
-    lower = max(minimum(last_comp), minimum(x) - maximum(rest))
-    upper = min(maximum(last_comp), maximum(x) - minimum(rest))
+    wins = map(xi -> _pdf_point_window(last_comp, rest, xi), x)
+    L, U = _window_union(wins)
 
-    if !(upper > lower) || !isfinite(lower) || !isfinite(upper)
-        # Degenerate shared window: fall back to per-point scalar solves.
+    if !(U > L) || !isfinite(L) || !isfinite(U)
+        # Degenerate union window: fall back to per-point scalar solves.
         return map(xi -> _convolved_numeric_pdf(d, T(xi)), x)
     end
 
-    raw = _convolved_quadrature_batched(
-        last_comp, rest, _convolution_pdf, x, lower, upper)
+    raw = _convolved_quadrature_composite(
+        last_comp, rest, _convolution_pdf, x, wins, L, U)
 
     return map(zip(x, raw)) do (xi, ri)
         (xi <= dmin || xi >= dmax) ? zero(T) : max(T(ri), zero(T))
@@ -628,8 +689,8 @@ end
 
 @doc "
 
-Compute densities for a vector of points using a single quadrature solve
-(the integrand returns a vector).
+Compute densities for a vector of points in one batched
+composite-quadrature pass (see the batched [`cdf`](@ref) method).
 
 See also: [`pdf`](@ref)
 "
@@ -646,9 +707,10 @@ end
 Compute log densities for a vector of points, reusing the batched PDF
 solve for the numeric path.
 
-The shared quadrature window means batched log densities can differ from
-the scalar path by up to ~2e-3 in the tails of wide batches (the batched
-CDF agrees to ~1e-6). Score a model through one path consistently.
+Each point is integrated over the same window the scalar path picks
+(shared composite panels plus per-point end corrections), so batched
+and scalar log densities agree to well within ~1e-8 even for wide
+batches (typically near machine precision).
 
 See also: [`logpdf`](@ref), [`pdf`](@ref)
 "

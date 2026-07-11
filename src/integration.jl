@@ -55,20 +55,29 @@ end
 
 _GL(n::Int) = _GL(FastGaussQuadrature.gausslegendre(n)...)
 
-# Number of Gauss-Legendre nodes for the convolution quadrature. The
-# batched path integrates every point over one shared window, so a small
-# point whose natural window is much tighter than the shared one is
-# resolved by only the nodes that fall in its sub-range; a peaked
-# component density (e.g. LogNormal) makes this the accuracy-limiting
-# case. n = 192 brings the batched-vs-scalar gap on a typical batch to
-# ~5e-4 (n = 64 left it at ~4e-3) and shrinks it ~15x on a deliberately
-# wide batch. Cost is roughly linear in the node count and still small
-# for these smooth, density-weighted integrands. The scalar path stays
-# the accurate reference; raise this if a batch spans an extreme range.
+# Number of Gauss-Legendre nodes for the scalar convolution quadrature.
+# Each scalar evaluation integrates over its own per-point window, whose
+# only integrand kinks sit at the window endpoints, so the rule converges
+# spectrally: n = 192 is accurate to ~1e-13 on the smooth,
+# density-weighted integrands used here and the scalar path is the
+# accuracy reference for the batched composite path below.
 const _CONVOLVED_NODES = 192
 
 # Default rule for the convolution quadrature, built once at load.
 const _CONVOLVED_GL = _GL(_CONVOLVED_NODES)
+
+# Composite grid for the batched convolution quadrature: the shared
+# window is split into `_COMPOSITE_PANELS` equal panels, each integrated
+# with the `_COMPOSITE_GL` rule, plus per-point end-correction integrals
+# on the same rule. Every point's integrand kinks land on a panel or
+# correction boundary, so each piece is smooth and the small rule
+# converges spectrally: 16 panels x 16 nodes keep the batched-vs-scalar
+# gap below ~1e-8 even for batches spanning a 40x range (measured
+# ~7e-11), at roughly the cost of the old single shared-window solve.
+const _COMPOSITE_PANELS = 16
+
+# Per-panel (and per-correction) rule for the batched composite path.
+const _COMPOSITE_GL = _GL(16)
 
 # Number of Gauss-Legendre nodes for the default solver used by the solver
 # types (analytic/numeric quadrature fallback).
