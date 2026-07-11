@@ -505,6 +505,33 @@ end
     @test isapprox(var(xs), var(d); rtol = 0.02)
 end
 
+@testitem "Convolved heavy-tailed integration component (#49)" begin
+    using Distributions
+
+    # A heavy-tailed integration component stretches the quadrature
+    # window to its 1 - 1e-8 quantile (~4.5e3 for LogNormal(0, 1.5))
+    # while the integrand's mass sits near O(1), so a single fixed-node
+    # window starves the transition region of nodes (issue #49).
+    # References computed once with adaptive quadrature (QuadGK via
+    # Integrals.jl, reltol = 1e-13) of
+    #   F_S(s) = ∫_0^s F_X(s - t) f_Y(t) dt,
+    #   f_S(s) = ∫_0^s f_X(s - t) f_Y(t) dt
+    # for X = Gamma(2, 1), Y = LogNormal(0, 1.5), and hard-coded.
+    d = convolved(Gamma(2.0, 1.0), LogNormal(0.0, 1.5))
+
+    @test cdf(d, 3.0) ≈ 0.455300951911572 atol=1e-9
+    @test cdf(d, 10.0) ≈ 0.912194823510679 atol=1e-9
+    @test pdf(d, 3.0) ≈ 0.180646198535104 atol=1e-9
+    @test pdf(d, 10.0) ≈ 0.0147490090653485 atol=1e-9
+
+    # The batched composite path shares its panel grid across points, so
+    # it needs mass-following panels for the same reason.
+    refs_cdf = [0.455300951911572, 0.912194823510679]
+    refs_pdf = [0.180646198535104, 0.0147490090653485]
+    @test cdf(d, [3.0, 10.0]) ≈ refs_cdf atol=1e-8
+    @test pdf(d, [3.0, 10.0]) ≈ refs_pdf atol=1e-8
+end
+
 # The AD-safety of the Convolved moments and densities (gradients flowing
 # through the component parameters) is covered by the multi-backend AD suite in
 # `test/ADFixtures`, which has the AD backends as dependencies; the main test

@@ -299,6 +299,30 @@ end
     @test pdf(td, 1.0) > 0
 end
 
+@testitem "Difference heavy-tailed subtrahend accuracy (#49)" begin
+    using Distributions
+
+    # A heavy-tailed subtrahend stretches the Y integration window to
+    # its 1 - 1e-8 quantile (~4.5e3 for LogNormal(0, 1.5)) while the
+    # integrand's mass sits near O(1), so a single fixed-node window
+    # starves the mass region of nodes (issue #49). References computed
+    # once with adaptive quadrature (QuadGK via Integrals.jl,
+    # reltol = 1e-13) of
+    #   F_D(z) = ∫_0^∞ F_X(z + y) f_Y(y) dy,
+    #   f_D(z) = ∫_0^∞ f_X(z + y) f_Y(y) dy
+    # for X = Gamma(2, 1), Y = LogNormal(0, 1.5), and hard-coded. As a
+    # cross-check, F_D(0) equals the Product reference F_Z(1) exactly:
+    # LogNormal(0, σ) is invariant under y ↦ 1/y, so P(X ≤ Y) = P(XY ≤ 1).
+    # The CDF tolerance sits just above the 1e-8 window truncation (the
+    # clamp trims that much of Y's upper tail, where F_X(z + y) ≈ 1).
+    d = difference(Gamma(2.0, 1.0), LogNormal(0.0, 1.5))
+
+    @test cdf(d, 0.0) ≈ 0.39674977955541 atol=5e-8
+    @test cdf(d, 1.0) ≈ 0.631761989136144 atol=5e-8
+    @test pdf(d, 0.0) ≈ 0.205525747410054 atol=1e-9
+    @test pdf(d, 1.0) ≈ 0.221923353983705 atol=1e-9
+end
+
 # The AD-safety of Difference (gradients flowing through both the minuend X and
 # the subtrahend Y parameters, on the numeric cross-correlation path) is covered
 # by the multi-backend AD suite in `test/ADFixtures`, which has the AD backends

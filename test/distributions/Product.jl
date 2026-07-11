@@ -334,6 +334,27 @@ end
     @test pdf(td, 4.0) > 0
 end
 
+@testitem "Product heavy-tailed multiplier accuracy (#49)" begin
+    using Distributions
+
+    # The issue #49 case: a heavy-tailed multiplier stretches the Y
+    # integration window to its 1 - 1e-8 quantile (~4.5e3 for
+    # LogNormal(0, 1.5)) while the integrand's transition sits near
+    # O(1), so a single fixed-node window starved the transition of
+    # nodes (measured abs err ~1.4e-2 at z = 1, ~9e-4 at z = 5).
+    # References computed once with adaptive quadrature (QuadGK via
+    # Integrals.jl, reltol = 1e-13) of
+    #   F_Z(z) = ∫_0^∞ F_X(z / y) f_Y(y) dy,
+    #   f_Z(z) = ∫_0^∞ f_X(z / y) f_Y(y) / y dy
+    # for X = Gamma(2, 1), Y = LogNormal(0, 1.5), and hard-coded.
+    d = product(Gamma(2.0, 1.0), LogNormal(0.0, 1.5))
+
+    @test cdf(d, 1.0) ≈ 0.39674977955541 atol=1e-9
+    @test cdf(d, 5.0) ≈ 0.756121355787196 atol=1e-9
+    @test pdf(d, 1.0) ≈ 0.226346442279101 atol=1e-9
+    @test pdf(d, 5.0) ≈ 0.0376154454208233 atol=1e-9
+end
+
 # The AD-safety of Product (gradients flowing through both components'
 # parameters, on the numeric Mellin quadrature path) is covered by the
 # multi-backend AD suite in `test/ADFixtures`, which has the AD backends
