@@ -105,6 +105,44 @@ end
     @test_throws ArgumentError quantile(dp, 1.1)
 end
 
+@testitem "Quantile is accurate in far tails" begin
+    using Distributions, Optimization, OptimizationOptimJL
+
+    # A squared cdf residual is nearly flat in q in the far tails, so a
+    # probability-space tolerance can be met while q is far off (#48).
+    # These checks pin q itself against closed forms.
+
+    # Analytic path: LogNormal * LogNormal has the closed form
+    # LogNormal(μx + μy, sqrt(σx² + σy²)).
+    x = LogNormal(0.5, 0.4)
+    y = LogNormal(1.0, 0.3)
+    dp = product(x, y)
+    refp = LogNormal(1.5, sqrt(0.4^2 + 0.3^2))
+    for p in (0.001, 0.01, 0.99, 0.999)
+        @test quantile(dp, p) ≈ quantile(refp, p) rtol=1e-3
+    end
+
+    # Numeric path: an analytic Normal pair forced through NumericSolver
+    # against the closed-form convolution. The quadrature cdf tail error
+    # is ~1e-8, so rtol 1e-3 in q is honest.
+    a = Normal(1.0, 2.0)
+    b = Normal(-0.5, 1.5)
+    dn = convolved(a, b; method = NumericSolver())
+    refn = convolve(a, b)
+    for p in (0.001, 0.01, 0.99, 0.999)
+        @test quantile(dn, p) ≈ quantile(refn, p) rtol=1e-3
+    end
+
+    # Difference support is all of R, so the lower tail sits at negative
+    # q; Normal - Normal has the closed form
+    # Normal(μx - μy, sqrt(σx² + σy²)).
+    dd = difference(Normal(5.0, 1.5), Normal(2.0, 2.0))
+    refd = Normal(3.0, sqrt(1.5^2 + 2.0^2))
+    for p in (0.001, 0.01, 0.99, 0.999)
+        @test quantile(dd, p) ≈ quantile(refd, p) rtol=1e-3
+    end
+end
+
 @testitem "Quantile boundary and argument validation" begin
     using Distributions, Optimization, OptimizationOptimJL
 
