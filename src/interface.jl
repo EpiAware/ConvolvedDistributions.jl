@@ -5,16 +5,18 @@
 # Mirrors the CensoredDistributions.jl family model: related concrete types
 # share one supertype, and the documented interface contract plus any shared
 # behaviour hang off the abstract. This package has a single family — the
-# algebraic combinations `Convolved` and `Difference` — so one abstract type
-# carries the contract that a future member (e.g. a min/max order statistic)
-# implements and `TestUtils.test_convolved_interface` verifies.
+# algebraic combinations `Convolved`, `Difference`, and `Product` — so one
+# abstract type carries the contract that a future member (e.g. a min/max
+# order statistic) implements and `TestUtils.test_convolved_interface`
+# verifies.
 
 @doc "
 
 Supertype of the distributions of `X op Y` for independent components —
 the generalised convolutions. [`Convolved`](@ref) is the classical sum,
-[`Difference`](@ref) the reflected form (`Z = X - Y`); further
-operations (products, order statistics) fit the same family.
+[`Difference`](@ref) the reflected form (`Z = X - Y`), and
+[`Product`](@ref) the Mellin form (`Z = X * Y`); further operations
+(order statistics) fit the same family.
 
 Parametric on variate form and value support (`Distribution{F, S}`), so
 the univariate members keep their `UnivariateDistribution{Continuous}`

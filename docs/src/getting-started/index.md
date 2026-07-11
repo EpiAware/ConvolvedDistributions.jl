@@ -1,6 +1,6 @@
 # [Getting started](@id getting-started)
 
-`ConvolvedDistributions` builds the distribution of a sum (`X + Y`, a convolution) or a signed gap (`X - Y`) of independent random variables, for any pair of `Distributions.jl` univariate distributions.
+`ConvolvedDistributions` builds the distribution of a sum (`X + Y`, a convolution), a signed gap (`X - Y`), or a product (`X * Y`) of independent random variables, for any pair of `Distributions.jl` univariate distributions.
 Closed forms are used where they exist and an AD-safe Gauss-Legendre quadrature everywhere else, so the results can be scored, truncated, and differentiated inside a fitting loop.
 This page walks through the main entry points; the [Public API](@ref public-api) has the full interface.
 
@@ -78,6 +78,24 @@ gap = difference(d, Gamma(2.5, 1.0))
 mean(gap), cdf(gap, 0.0)
 ```
 
+## Products
+
+`product` builds the multiplicative member: the distribution of `Z = X * Y` for independent `X` and `Y`, as when a delay is stretched by an independent multiplicative factor.
+`LogNormal` * `LogNormal` uses the closed form (the log-parameters add); everything else uses the numeric Mellin quadrature.
+Both components must have non-negative support; sign-crossing supports throw an error and are future work.
+
+```@example getting-started
+w = product(Gamma(3.0, 1.0), LogNormal(0.0, 0.3))
+mean(w), cdf(w, 3.0)
+```
+
+The mean and variance are the exact independent-product moments, and a `Convolved` (or another combination) can itself be a component, so a multi-stage delay scaled by a factor is one call.
+
+```@example getting-started
+scaled = product(d, LogNormal(0.0, 0.2))
+mean(scaled), mean(d)
+```
+
 ## Convolving a timeseries
 
 `convolve_series` causally convolves a numeric series with a delay PMF on the unit lag grid.
@@ -114,7 +132,7 @@ cdf(da, 2.0), cdf(dn, 2.0)
 
 ## Truncation and scoring
 
-`Convolved` and `Difference` compose with `Distributions.truncated`, so right-truncated (or doubly truncated) scoring works out of the box.
+`Convolved`, `Difference`, and `Product` compose with `Distributions.truncated`, so right-truncated (or doubly truncated) scoring works out of the box.
 This is the usual pattern for fitting delay data observed up to a cut-off.
 
 ```@example getting-started
@@ -139,7 +157,7 @@ length(rand(truncated(d, 0.0, 8.0), 100))
 ```
 
 Nothing else on this page needs the extension.
-`rand` on a bare `Convolved` or `Difference` samples the components directly.
+`rand` on a bare `Convolved`, `Difference`, or `Product` samples the components directly.
 
 ## Gradients
 

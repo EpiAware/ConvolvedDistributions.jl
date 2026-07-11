@@ -19,7 +19,7 @@ Load it alongside Distributions.jl:
 using ConvolvedDistributions, Distributions
 ```
 
-`quantile` for `Convolved` and `Difference`, and `rand` on their `truncated` wrappers, live in a package extension.
+`quantile` for `Convolved`, `Difference`, and `Product`, and `rand` on their `truncated` wrappers, live in a package extension.
 Load Optimization.jl and OptimizationOptimJL.jl to activate it:
 
 ```julia

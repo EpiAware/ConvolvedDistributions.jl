@@ -59,6 +59,52 @@ end
     end
 end
 
+@testitem "Product quantile inverts cdf" begin
+    using Distributions, Optimization, OptimizationOptimJL
+
+    # Analytic path: LogNormal * LogNormal has the closed form
+    # LogNormal(μx + μy, sqrt(σx² + σy²)).
+    x = LogNormal(0.5, 0.4)
+    y = LogNormal(1.0, 0.3)
+    d = product(x, y)
+    ref = LogNormal(1.5, sqrt(0.4^2 + 0.3^2))
+    for p in (0.05, 0.2, 0.5, 0.8, 0.95)
+        @test quantile(d, p) ≈ quantile(ref, p) atol=1e-2
+    end
+
+    # Numeric path: quantile round-trips through the quadrature cdf.
+    dn = product(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
+    for p in (0.1, 0.25, 0.5, 0.75, 0.9)
+        q = quantile(dn, p)
+        @test cdf(dn, q) ≈ p atol=1e-3
+    end
+
+    # Singular multiplier density (Gamma shape < 1): a biased cdf would
+    # self-consistently pass a round-trip, so check the median against
+    # fixed-seed Monte Carlo (SE ~ 1.4e-3; the pre-survival-form cdf
+    # bias of ~1e-2 shifted the median by ~1.9e-2 and fails 8e-3).
+    using Random, Statistics
+    rng = MersenneTwister(2024)
+    xs = LogNormal(0.5, 0.4)
+    ys = Gamma(0.5, 1.0)
+    ds = product(xs, ys)
+    samples = [rand(rng, xs) * rand(rng, ys) for _ in 1:400_000]
+    @test quantile(ds, 0.5) ≈ Statistics.quantile(samples, 0.5) atol=8e-3
+    for p in (0.25, 0.5, 0.75)
+        @test cdf(ds, quantile(ds, p)) ≈ p atol=1e-3
+    end
+
+    # Bounded supports: p = 0 / 1 return the support ends exactly.
+    dp = product(Uniform(1.0, 2.0), Uniform(3.0, 4.0))
+    @test quantile(dp, 0.0) == 3.0
+    @test quantile(dp, 1.0) == 8.0
+    for p in (0.25, 0.5, 0.75)
+        @test cdf(dp, quantile(dp, p)) ≈ p atol=1e-3
+    end
+    @test_throws ArgumentError quantile(dp, -0.1)
+    @test_throws ArgumentError quantile(dp, 1.1)
+end
+
 @testitem "Quantile boundary and argument validation" begin
     using Distributions, Optimization, OptimizationOptimJL
 

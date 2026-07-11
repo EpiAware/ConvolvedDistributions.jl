@@ -3,11 +3,11 @@
 # Benchmark suite definition. Build a BenchmarkTools `BenchmarkGroup` named
 # `SUITE`; the managed `run.jl` / `compare.jl` consume it.
 #
-# The suite benchmarks the package's real hot paths: `Convolved` and
-# `Difference` densities and CDFs on both the analytic and the numeric
-# Gauss-Legendre quadrature backends (scalar broadcast vs the batched
-# vector methods that share quadrature nodes across evaluation points),
-# the timeseries convolution, and `quantile` via the Optimization
+# The suite benchmarks the package's real hot paths: `Convolved`,
+# `Difference`, and `Product` densities and CDFs on both the analytic and
+# the numeric Gauss-Legendre quadrature backends (scalar broadcast vs the
+# batched vector methods that share quadrature nodes across evaluation
+# points), the timeseries convolution, and `quantile` via the Optimization
 # extension. Groups follow the CensoredDistributions.jl convention:
 # `SUITE[<group>][<variant>][<operation>]`.
 
@@ -33,6 +33,7 @@ const TEST_PS = collect(range(0.05, 0.95, length = 20))
 include("src/baseline.jl")
 include("src/convolved.jl")
 include("src/difference.jl")
+include("src/product.jl")
 include("src/timeseries.jl")
 include("src/quantile.jl")
 include("src/ad_gradients.jl")

@@ -1,6 +1,6 @@
 # Solver-method types shared by the convolution distributions.
 #
-# `Convolved` and `Difference` are parameterised on a solver method that
+# `Convolved`, `Difference`, and `Product` are parameterised on a solver method that
 # selects the CDF/PDF backend: prefer an analytic form where one exists, or
 # force the numeric Gauss-Legendre quadrature. The default constructors wrap
 # the package's lightweight `GaussLegendre` solver.

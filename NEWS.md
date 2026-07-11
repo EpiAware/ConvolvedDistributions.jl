@@ -7,6 +7,7 @@ Breaking changes relative to 0.1.0, with migration notes:
 
 Additions and improvements:
 
+- `product(x, y)` (public type `Product`) adds the Mellin convolution `Z = X * Y` for independent components with non-negative support: `LogNormal * LogNormal` closed form, AD-safe Mellin quadrature otherwise, exact independent-product moments, and `quantile` via the Optimization extension. Sign-crossing supports throw and are future work.
 - `discretise_pmf(delay, maxlag; interval)` builds a reusable public `DelayPMF` (raw CDF-difference masses, clamped at zero, never renormalised) with `pdf(pmf, lag)` mass reads, and `convolve_series` accepts a `DelayPMF` or any raw PMF vector, with masses used exactly as given. A `DelayPMF` carries its grid width: the series is read at steps of `pmf.interval`, so weekly-binned masses convolve weekly series.
 - Batched numeric `cdf`/`pdf`/`logpdf` now integrate every point over its own scalar-path window on a shared composite panel grid: batched and scalar log densities agree to well within `1e-8` (typically near machine precision; previously up to ~`2e-3` in wide-batch tails) while the batched path remains 1.6-2.2x faster than broadcasting (#29).
 - The AD-safe component hooks `_cdf_ad_safe`, `_logcdf_ad_safe`, and `_pdf_ad_safe` are public, joining `_ccdf_ad_safe`/`_logccdf_ad_safe`, so wrapper packages can make their component types differentiable inside the quadrature.

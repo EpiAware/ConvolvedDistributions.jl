@@ -48,6 +48,11 @@ Difference/
                         logpdf/cdf broadcast, rand, mean)
   numeric/             (same operations)
 
+Product/
+  analytic/            (construction, logpdf/cdf scalar,
+                        logpdf/cdf broadcast, rand, mean)
+  numeric/             (same operations)
+
 Timeseries/
   Gamma delay          (convolve_series(discretise_pmf(delay, m), series))
   Convolved delay
@@ -57,6 +62,7 @@ Quantile/
   Convolved analytic/  (median, grid)
   Convolved numeric/   (median)
   Difference numeric/  (median)
+  Product numeric/     (median)
 
 AD gradients/
   <every test/ADFixtures scenario>/
@@ -66,7 +72,7 @@ AD gradients/
 
 ## Analytic vs numeric
 
-`convolved` and `difference` use a closed form where one exists (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`; `Normal` - `Normal`) and AD-safe Gauss-Legendre quadrature otherwise.
+`convolved`, `difference`, and `product` use a closed form where one exists (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`; `Normal` - `Normal`; `LogNormal` * `LogNormal`) and AD-safe Gauss-Legendre quadrature otherwise.
 The analytic rows should sit near the `Baseline` floor; the gap between the numeric rows and their analytic counterparts is the cost of the quadrature backend.
 The `batched` rows share the composite quadrature grid across evaluation points; their gap to the `logpdf broadcast` row over the same points is the headline batching win.
 Pass `method = NumericSolver()` to force the numeric path.

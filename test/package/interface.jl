@@ -19,4 +19,11 @@
     test_convolved_interface(
         difference(Normal(1.0, 1.0), Normal(0.0, 1.0));
         name = "Difference (analytic)", x = 0.5)
+    test_convolved_interface(
+        product(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)); x = 4.0)
+    test_convolved_interface(
+        product(LogNormal(0.5, 0.4), LogNormal(0.0, 0.3));
+        name = "Product (analytic)", x = 2.0)
+    @test ConvolvedDistributions.Product <:
+          ConvolvedDistributions.AbstractConvolvedDistribution
 end

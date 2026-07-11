@@ -1,9 +1,11 @@
 # Public API declarations for Julia 1.11+ (public but not exported). These form
 # the surface ComposedDistributions re-exports downstream, so keep it clean.
 
-# Convolution / difference distribution types, and the multi-base
-# algebraic-combination family supertype they subtype.
-public Convolved, AbstractConvolvedDistribution
+# Convolution / difference / product distribution types, and the multi-base
+# algebraic-combination family supertype they subtype. `Product` is public,
+# not exported, so it never clashes with Distributions' deprecated exported
+# `Product`; construct via the exported `product` verb.
+public Convolved, Product, AbstractConvolvedDistribution
 
 # The build-once discretised delay PMF type behind the exported
 # `discretise_pmf` constructor (`convolve_series`/`pdf` reuse it).

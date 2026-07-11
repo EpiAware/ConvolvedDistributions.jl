@@ -47,6 +47,11 @@ Difference/
                         logpdf/cdf broadcast, rand, mean)
   numeric/             (same operations)
 
+Product/
+  analytic/            (construction, logpdf/cdf scalar,
+                        logpdf/cdf broadcast, rand, mean)
+  numeric/             (same operations)
+
 Timeseries/
   Gamma delay          (convolve_series(discretise_pmf(delay, m), series))
   Convolved delay
@@ -56,6 +61,7 @@ Quantile/
   Convolved analytic/  (median, grid)
   Convolved numeric/   (median)
   Difference numeric/  (median)
+  Product numeric/     (median)
 
 AD gradients/
   <scenario>/          (one leaf per AD backend)

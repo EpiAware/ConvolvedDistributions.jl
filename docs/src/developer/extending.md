@@ -1,8 +1,9 @@
 # [Adding a new combination](@id extending)
 
 A combined distribution is a type built from two or more base distributions joined by an algebraic operation.
-The package ships two members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`) and [`Difference`](@ref) (`Z = X - Y`), and the family is designed to grow (a min or max order statistic is the natural next member).
+The package ships three members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`), [`Difference`](@ref) (`Z = X - Y`), and [`Product`](@ref ConvolvedDistributions.Product) (`Z = X * Y`, the Mellin convolution), and the family is designed to grow (a min or max order statistic is the natural next member).
 This page documents the contract a new member implements and the conventions the built-in members follow, using them as worked examples.
+`Product` was added by following this page, so it doubles as a worked end-to-end example: `src/Product.jl` for the type and numeric path, the Optimization extension for `quantile`, `test/distributions/Product.jl` and the `test/ADFixtures` scenarios for the verification surface.
 
 ## The family supertype
 
@@ -27,7 +28,7 @@ The documented interface contract on the abstract type requires of a concrete su
 
 ## Conventions the built-ins follow
 
-Beyond the minimal contract, `Convolved` and `Difference` share conventions a new member should copy so the family behaves uniformly.
+Beyond the minimal contract, `Convolved`, `Difference`, and `Product` share conventions a new member should copy so the family behaves uniformly.
 
 **A solver-method field.**
 Each type carries a `method::AbstractSolverMethod` field, defaulting to `AnalyticalSolver()`.
@@ -147,13 +148,16 @@ A downstream package defining its own member calls `test_convolved_interface` on
 
 ## Checklist
 
-- [ ] Struct subtyping `AbstractConvolvedDistribution{Univariate, Continuous}` with a validated inner constructor
-- [ ] Lowercase constructor verb as the user-facing entry point
+- [ ] Struct subtyping `AbstractConvolvedDistribution{Univariate, Continuous}` with a validated inner constructor (throw an `ArgumentError` naming the restriction for out-of-scope components, as `Product` does for sign-crossing supports)
+- [ ] Lowercase constructor verb as the user-facing entry point; check the verb and type names against `names(Base)` and `names(Distributions)` first (`Product` is public-not-exported because Distributions exports a deprecated `Product`)
 - [ ] The contract: `params`, finite in-support `logpdf`, `Base.show`
-- [ ] Support (`minimum`/`maximum`/`insupport`), `rand`, `Base.eltype`
-- [ ] Analytic fast path by dispatch plus an AD-safe numeric fallback, with clamped `cdf`/`pdf`
+- [ ] Support (`minimum`/`maximum`/`insupport`), `rand`, `sampler`, `Base.eltype`
+- [ ] Analytic fast path by dispatch plus an AD-safe numeric fallback, with clamped `cdf`/`pdf` and the full log family (`logcdf`, `ccdf`, `logccdf` via `log1mexp`)
+- [ ] Include the new file after `src/Convolved.jl`, which owns the shared window helpers (`_window_quantile`, `_CONVOLVED_TAIL`, `_min2`/`_max2`)
 - [ ] Exact analytic moments where the operation admits them
 - [ ] `quantile` method in the Optimization extension if inverse-CDF support is wanted
 - [ ] Docstrings in the house style (`@doc` blocks, `# Examples`, `# See also`)
 - [ ] Export the verb; mark the type `public` in `src/public.jl`
-- [ ] Tests under `test/distributions/`, `test_convolved_interface` coverage, membership in `src/TestUtils.jl`, and an ADFixtures gradient scenario
+- [ ] Tests under `test/distributions/`, `test_convolved_interface` coverage in `test/package/interface.jl`, membership in `src/TestUtils.jl`, and ADFixtures gradient scenarios (numeric path w.r.t. each component, moments)
+- [ ] Update the member lists in the prose surfaces: this page, the abstract-type docstring, the module docstring, the getting-started walkthrough and FAQ, the README why-bullets, and a NEWS bullet
+- [ ] Benchmark rows under `benchmark/src/` wired into `benchmark/benchmarks.jl` and the suite tree in `docs/benchmarks.md`
