@@ -190,18 +190,6 @@ function convolve_series(
         "for day-binned primaries, then convolve_series(pmf, series)."))
 end
 
-# The shared unit-grid guard: the causal convolution shifts by integer
-# series steps, so any PMF grid width other than the (unit) series
-# time-step silently mis-aligns the result. Reject it instead.
-function _check_unit_interval(interval)
-    isone(interval) || throw(ArgumentError(
-        "interval must be 1: the series is unit-spaced and the causal " *
-        "convolution shifts by integer series steps, so a PMF grid width " *
-        "other than 1 conflates the discretisation width with the series " *
-        "time-step. Got interval = $(interval)."))
-    return nothing
-end
-
 @doc "
 
 Convolve a timeseries with a caller-supplied discretised delay PMF.
@@ -351,9 +339,10 @@ the delay parameters; a parameter change is handled by calling
   `maxlag + 1` entries.
 
 # Keyword Arguments
-- `interval`: the discretisation grid width (default `1.0`). Only a
-  unit grid can be pushed through [`convolve_series`](@ref); other
-  widths are for lag lookups.
+- `interval`: the discretisation grid width (default `1.0`). The width
+  travels with the [`DelayPMF`](@ref): [`convolve_series`](@ref) reads
+  the series on the PMF's own grid, and `pdf(pmf, k)` is the mass on
+  `[k * interval, (k + 1) * interval)`.
 
 # Examples
 ```@example
@@ -390,19 +379,22 @@ end
 Convolve a timeseries with a precomputed [`DelayPMF`](@ref), reusing
 the build-once masses.
 
-`convolve_series(pmf, series)` is the same causal, window-truncated
-convolution as [`convolve_series(delay, series)`](@ref convolve_series)
-but takes a PMF discretised once via [`discretise_pmf`](@ref) instead
-of rebuilding it, so the result is numerically identical to the
-rebuild path for the same `delay`. The PMF must be on the unit grid
-(`interval == 1`); other grid widths are rejected with an
-`ArgumentError` since the causal convolution shifts by integer series
-steps.
+`convolve_series(pmf, series)` is the causal, window-truncated
+convolution of `series` with a PMF discretised once via
+[`discretise_pmf`](@ref) instead of rebuilt per call, so the result is
+numerically identical to discretising and convolving in one step. The
+series is interpreted on the PMF's own grid: entry `i` of `series` is
+the value at time `(i - 1) * pmf.interval`, and lag `k` shifts by `k`
+grid steps of that width. The grid width therefore comes from the
+discretisation the caller chose — a weekly-binned PMF convolves a
+weekly series — and no separate step argument exists to conflict with
+it.
 
 # Arguments
-- `pmf`: a precomputed [`DelayPMF`](@ref) on the unit grid.
-- `series`: the input timeseries (expected events at unit-spaced times
-  from 0).
+- `pmf`: a precomputed [`DelayPMF`](@ref); its `interval` is the grid
+  the series is read on.
+- `series`: the input timeseries, sampled at steps of `pmf.interval`
+  from time 0.
 
 # Examples
 ```@example
@@ -417,7 +409,9 @@ expected_counts = convolve_series(pmf, infections)
 - [`discretise_pmf`](@ref): build the PMF once
 "
 function convolve_series(pmf::DelayPMF, series::AbstractVector{<:Real})
-    _check_unit_interval(pmf.interval)
+    # The grid width comes from the PMF itself: the series is read on
+    # steps of `pmf.interval`, so every regular grid is coherent and no
+    # unit-width restriction applies.
     return convolve_series(pmf.masses, series)
 end
 

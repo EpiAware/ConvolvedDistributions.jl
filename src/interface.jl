@@ -7,13 +7,21 @@
 # behaviour hang off the abstract. This package has a single family — the
 # algebraic combinations `Convolved` and `Difference` — so one abstract type
 # carries the contract that a future member (e.g. a min/max order statistic)
-# implements and `TestUtils.test_combined_interface` verifies.
+# implements and `TestUtils.test_convolved_interface` verifies.
 
 @doc "
 
 Supertype of the multi-base algebraic combinations: [`Convolved`](@ref)
 (the sum of independent components) and [`Difference`](@ref) (`Z = X - Y`).
 These combine two or more base distributions by an algebraic operation.
+
+Every member is a convolution in the generalised sense — the
+distribution of `X op Y` for independent components is the pushforward
+of the product measure under `op`, which for `+` is the classical
+convolution, for `-` the convolution with the reflected variable, and
+for future members like `max`/`min` the max-convolution of the Urbanik
+generalised-convolution family — hence the family and package name.
+
 Parametric on variate form and value support for symmetry with the wider
 EpiAware family model (`Distribution{F, S}`), so the univariate members
 keep their `UnivariateDistribution{Continuous}` supertype and existing
@@ -26,8 +34,8 @@ Required of a concrete subtype:
 - `Base.show(io, d)`.
 
 Verify a subtype with
-`ConvolvedDistributions.TestUtils.test_combined_interface`, and family
+`ConvolvedDistributions.TestUtils.test_convolved_interface`, and family
 membership with `ConvolvedDistributions.TestUtils.test_abstract_membership`.
 "
-abstract type AbstractCombinedDistribution{F <: Distributions.VariateForm,
+abstract type AbstractConvolvedDistribution{F <: Distributions.VariateForm,
     S <: Distributions.ValueSupport} <: Distributions.Distribution{F, S} end

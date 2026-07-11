@@ -46,7 +46,7 @@ for validation and debugging.
 - [`convolved`](@ref): Constructor function
 """
 struct Convolved{C <: Tuple, M <: AbstractSolverMethod} <:
-       AbstractCombinedDistribution{Distributions.Univariate, Continuous}
+       AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
     "Tuple of independent component distributions to be summed."
     components::C
     "Solver method choosing the analytic vs numeric quadrature backend."

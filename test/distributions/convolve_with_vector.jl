@@ -266,13 +266,19 @@ end
     @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
         [1.0], 0.0)
 
-    # A non-unit grid builds (for lag lookups) but is rejected by the
-    # series convolution: the causal convolution shifts by integer series
-    # steps, so only a unit PMF grid stays aligned with the series step.
+    # A non-unit grid convolves on its own grid: the DelayPMF carries
+    # the width and the series is read at steps of that width (a
+    # half-day PMF convolves a half-day series). Lag k is the mass on
+    # [k * interval, (k + 1) * interval), so the result equals the raw
+    # masses pushed through the grid-agnostic vector method.
     pmf_half = discretise_pmf(delay, 5; interval = 0.5)
     @test pmf_half.interval == 0.5
     @test pdf(pmf_half, 0) ≈ cdf(delay, 0.5)
-    @test_throws ArgumentError convolve_series(pmf_half, [1.0, 2.0])
+    half_series = [1.0, 2.0, 4.0, 3.0]
+    @test convolve_series(pmf_half, half_series) ==
+          convolve_series(pmf_half.masses, half_series)
+    @test convolve_series(pmf_half, half_series)[2] ≈
+          pdf(pmf_half, 0) * half_series[2] + pdf(pmf_half, 1) * half_series[1]
 end
 
 @testitem "gradients flow through the discretisation and the discrete PMF" begin

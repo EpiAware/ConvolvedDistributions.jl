@@ -33,6 +33,12 @@ mean(nested) ≈ mean(flat), cdf(nested, 8.0) ≈ cdf(flat, 8.0), mean(gap)
 
 The [Getting started](@ref getting-started) walkthrough and the [Visualising convolutions](@ref visualising-convolutions) tutorial show nesting in more detail.
 
+## Why is the package called ConvolvedDistributions when it also has `difference`?
+
+Because every member of the family is a convolution in the generalised sense.
+For independent variables, the distribution of `X op Y` is the pushforward of the product measure under `op`: for `+` that is the classical convolution, for `-` it is the convolution with the reflected variable (a cross-correlation), and future members like the maximum or minimum of independent variables are max-convolutions in the sense of Urbanik's generalised convolutions.
+The family supertype is [`AbstractConvolvedDistribution`](@ref ConvolvedDistributions.AbstractConvolvedDistribution) to match.
+
 ## When should I use `convolved` rather than `Distributions.convolve`?
 
 `Distributions.convolve` only handles pairs with a closed-form result (for example `Normal` + `Normal`, or two `Gamma`s with equal scale) and errors on anything else.

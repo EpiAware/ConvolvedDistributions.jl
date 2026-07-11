@@ -23,7 +23,7 @@ ConvolvedDistributions.jl/
 ├── src/                    # Package source
 │   ├── ConvolvedDistributions.jl  # Module file: exports and centralised imports
 │   ├── docstrings.jl       # DocStringExtensions @template registration
-│   ├── interface.jl        # AbstractCombinedDistribution family supertype
+│   ├── interface.jl        # AbstractConvolvedDistribution family supertype
 │   ├── Convolved.jl        # convolved and the Convolved type
 │   ├── Difference.jl       # difference and the Difference type
 │   ├── convolve_with_vector.jl  # timeseries form of convolved

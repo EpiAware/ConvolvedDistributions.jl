@@ -6,11 +6,11 @@ This page documents the contract a new member implements and the conventions the
 
 ## The family supertype
 
-`AbstractCombinedDistribution{F, S}` in [`src/interface.jl`](https://github.com/EpiAware/ConvolvedDistributions.jl/blob/main/src/interface.jl) is the supertype of the multi-base algebraic combinations.
+`AbstractConvolvedDistribution{F, S}` in [`src/interface.jl`](https://github.com/EpiAware/ConvolvedDistributions.jl/blob/main/src/interface.jl) is the supertype of the multi-base algebraic combinations.
 It is parametric on variate form and value support for symmetry with the wider EpiAware family model (`Distribution{F, S}`), so a univariate member subtypes
 
 ```julia
-AbstractCombinedDistribution{Distributions.Univariate, Continuous}
+AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
 ```
 
 and remains a `UnivariateDistribution`, keeping all existing `Distributions.jl` dispatch.
@@ -23,7 +23,7 @@ The documented interface contract on the abstract type requires of a concrete su
 - `logpdf(d, x)` finite at in-support points;
 - `Base.show(io, d)` producing a non-empty display.
 
-`ConvolvedDistributions.TestUtils.test_combined_interface` verifies exactly this, and `test_abstract_membership` checks the hierarchy itself.
+`ConvolvedDistributions.TestUtils.test_convolved_interface` verifies exactly this, and `test_abstract_membership` checks the hierarchy itself.
 
 ## Conventions the built-ins follow
 
@@ -63,7 +63,7 @@ This is illustrative rather than complete (no solver field, no batched methods, 
 
 ```julia
 struct Largest{C <: Tuple} <:
-       AbstractCombinedDistribution{Distributions.Univariate, Continuous}
+       AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
     "Tuple of independent component distributions."
     components::C
 
@@ -133,21 +133,21 @@ A member whose operation has no closed form at all (as for a general convolution
 Verify the contract with the shipped `TestUtils` verifiers, the same entry points `test/package/interface.jl` uses for the built-ins:
 
 ```julia
-using ConvolvedDistributions.TestUtils: test_combined_interface,
+using ConvolvedDistributions.TestUtils: test_convolved_interface,
                                         test_abstract_membership
 
-test_combined_interface(largest(Gamma(2.0, 1.0), LogNormal(0.5, 0.4));
+test_convolved_interface(largest(Gamma(2.0, 1.0), LogNormal(0.5, 0.4));
     x = 3.0)
 test_abstract_membership()
 ```
 
-`test_combined_interface(d; x)` checks the subtyping, `params`, a finite `logpdf` at the in-support point `x`, and a non-empty `show`.
+`test_convolved_interface(d; x)` checks the subtyping, `params`, a finite `logpdf` at the in-support point `x`, and a non-empty `show`.
 `test_abstract_membership` asserts the built-in members sit in the right place in the hierarchy; when adding a member to this package, add your type to its tuple in `src/TestUtils.jl` so the meta-test covers it.
-A downstream package defining its own member calls `test_combined_interface` on its instances directly.
+A downstream package defining its own member calls `test_convolved_interface` on its instances directly.
 
 ## Checklist
 
-- [ ] Struct subtyping `AbstractCombinedDistribution{Univariate, Continuous}` with a validated inner constructor
+- [ ] Struct subtyping `AbstractConvolvedDistribution{Univariate, Continuous}` with a validated inner constructor
 - [ ] Lowercase constructor verb as the user-facing entry point
 - [ ] The contract: `params`, finite in-support `logpdf`, `Base.show`
 - [ ] Support (`minimum`/`maximum`/`insupport`), `rand`, `Base.eltype`
@@ -156,4 +156,4 @@ A downstream package defining its own member calls `test_combined_interface` on 
 - [ ] `quantile` method in the Optimization extension if inverse-CDF support is wanted
 - [ ] Docstrings in the house style (`@doc` blocks, `# Examples`, `# See also`)
 - [ ] Export the verb; mark the type `public` in `src/public.jl`
-- [ ] Tests under `test/distributions/`, `test_combined_interface` coverage, membership in `src/TestUtils.jl`, and an ADFixtures gradient scenario
+- [ ] Tests under `test/distributions/`, `test_convolved_interface` coverage, membership in `src/TestUtils.jl`, and an ADFixtures gradient scenario

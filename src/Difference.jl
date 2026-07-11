@@ -58,7 +58,7 @@ path even for a `Normal`-`Normal` pair (useful for validation).
 "
 struct Difference{X <: UnivariateDistribution, Y <: UnivariateDistribution,
     M <: AbstractSolverMethod} <:
-       AbstractCombinedDistribution{Distributions.Univariate, Continuous}
+       AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
     "The minuend component (the `X` in `Z = X - Y`)."
     x::X
     "The subtrahend component (the `Y` in `Z = X - Y`)."

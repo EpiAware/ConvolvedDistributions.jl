@@ -8,7 +8,7 @@ This section contains guides and resources for contributors and maintainers.
 New to contributing? Start here:
 
 - **[Contributing guide](@ref contributing)**: How to contribute code, documentation, and issues, plus the Taskfile workflow and quality gates
-- **[Adding a new combination](@ref extending)**: The `AbstractCombinedDistribution` contract and the conventions `Convolved` and `Difference` follow, as a template for a new family member
+- **[Adding a new combination](@ref extending)**: The `AbstractConvolvedDistribution` contract and the conventions `Convolved` and `Difference` follow, as a template for a new family member
 - **[Release process](@ref release-process)**: How releases and versioning work in this repository
 
 For general Julia development setup, see the [EpiAware site](https://epiaware.org/).
