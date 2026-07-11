@@ -5,6 +5,10 @@
 # algebraic-combination family supertype they subtype.
 public Convolved, AbstractCombinedDistribution
 
+# The build-once discretised delay PMF type behind the exported
+# `discretise_pmf` constructor (`convolve_series`/`pdf` reuse it).
+public DelayPMF
+
 # Interface-contract verifiers (`TestUtils.test_combined_interface`,
 # `TestUtils.test_abstract_membership`) for downstream family members.
 public TestUtils
