@@ -317,6 +317,44 @@ end
     @test logpdf(d3, xs3) ≈ [logpdf(d3, x) for x in xs3] atol=1e-8
 end
 
+@testitem "Convolved batched AD wrt parameters (#43)" begin
+    using Distributions, ForwardDiff
+
+    # Issue #43 MWE: the batched vector methods must accept components
+    # whose parameters carry Dual tracers. `eltype(d)` stays `Float64`
+    # for a Dual-parameterised Convolved, so the final clamp/convert
+    # must promote with the quadrature result element type rather than
+    # truncate it.
+    obs = [1.0, 2.0, 3.0]
+    θ₀ = [2.0, 1.0]
+    d(θ) = convolved(Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4))
+
+    # The scalar path is the trusted reference.
+    for f in (pdf, logpdf, cdf)
+        g_batch = ForwardDiff.gradient(θ -> sum(f(d(θ), obs)), θ₀)
+        g_scalar = ForwardDiff.gradient(
+            θ -> sum(x -> f(d(θ), x), obs), θ₀)
+        @test g_batch ≈ g_scalar rtol=1e-8
+    end
+end
+
+@testitem "Convolved batched AD wrt evaluation points (#44)" begin
+    using Distributions, ForwardDiff
+
+    # Batched and scalar eval-point gradients agree tightly: each point
+    # keeps its own scalar-path window, so gradient flow through the
+    # window bounds matches the scalar path.
+    d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    obs = [1.0, 2.0, 3.0, 5.0]
+
+    for f in (pdf, logpdf, cdf)
+        g_batch = ForwardDiff.gradient(x -> sum(f(d, x)), obs)
+        g_scalar = ForwardDiff.gradient(
+            x -> sum(xi -> f(d, xi), x), obs)
+        @test g_batch ≈ g_scalar rtol=1e-8
+    end
+end
+
 @testitem "Convolved logcdf/ccdf/logccdf branches" begin
     using Distributions
 
