@@ -18,12 +18,24 @@ using Optimization: OptimizationFunction, OptimizationProblem, solve,
                     ReturnCode
 using OptimizationOptimJL: NelderMead
 
-# Numerically invert `cdf(d, q) = p` by minimising the squared residual
-# `(cdf(d, q) - p)^2` with Nelder-Mead from a caller-supplied initial
-# guess vector `x0`. Validates `p` (rejecting NaN), returns the support
-# ends exactly for p = 0 / 1, and penalises iterates outside the support
-# heavily so the optimiser is guided back in. Errors if the solve does
-# not converge.
+# Log-odds transform used to steepen the tail objective below. Clamping
+# keeps the residual finite when `cdf` under/overflows to exactly 0 or 1
+# (or drifts just outside [0, 1] through quadrature error).
+function _clamped_logit(p::Real)
+    pf = float(p)
+    pc = clamp(pf, eps(typeof(pf)), 1 - eps(typeof(pf)))
+    return log(pc) - log1p(-pc)
+end
+
+# Numerically invert `cdf(d, q) = p` by minimising the squared log-odds
+# residual `(logit(cdf(d, q)) - logit(p))^2` with Nelder-Mead from a
+# caller-supplied initial guess vector `x0`. Minimising the plain squared
+# residual `(cdf(d, q) - p)^2` is nearly flat in `q` in the far tails, so
+# the solve stopped early there (#48); the logit transform keeps the
+# objective steep at extreme `p`. Validates `p` (rejecting NaN), returns
+# the support ends exactly for p = 0 / 1, and penalises iterates outside
+# the support heavily so the optimiser is guided back in. Errors if the
+# solve does not converge.
 function _quantile_optimization(
         d::UnivariateDistribution, p::Real, x0::AbstractVector{<:Real})
     if isnan(p) || p < 0 || p > 1
@@ -34,11 +46,14 @@ function _quantile_optimization(
     p == 0 && return minimum(d)
     p == 1 && return maximum(d)
 
+    target = _clamped_logit(p)
     objective = function (q, _)
         q_val = q[1]
         # Outside the support, apply a large penalty (growing with the
         # distance to the nearest finite support end) to guide the
-        # optimisation back inside.
+        # optimisation back inside. 1e10 dominates the in-support
+        # objective, which the logit clamp caps near (2 * logit(eps))^2
+        # ~ 5e3.
         if !insupport(d, q_val)
             min_d = minimum(d)
             max_d = maximum(d)
@@ -53,7 +68,7 @@ function _quantile_optimization(
             end
             return penalty
         end
-        return (cdf(d, q_val) - p)^2
+        return (_clamped_logit(cdf(d, q_val)) - target)^2
     end
 
     optfun = OptimizationFunction(objective)
