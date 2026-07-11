@@ -175,6 +175,13 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             convolved(
                 Gamma(θ[1], θ[2]), LogNormal(θ[3], θ[4])), s)),
         [2.0, 1.0, 0.5, 0.4], (Constant(series),))
+    # Build-once DelayPMF: the gradient flows through the
+    # `discretise_pmf` interval masses and the linear reuse path, so
+    # the prebuilt surface matches the rebuild-every-time path above.
+    _push!("Timeseries convolve prebuilt Gamma DelayPMF",
+        (θ, s) -> sum(convolve_series(
+            discretise_pmf(Gamma(θ[1], θ[2]), length(s) - 1), s)),
+        [2.0, 1.0], (Constant(series),))
 
     return out
 end
