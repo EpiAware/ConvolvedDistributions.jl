@@ -191,8 +191,8 @@ end
 
     # Scalar and batched paths agree for the unbounded-below component.
     xs = [-1.0, 0.5, 2.0, 4.0]
-    @test cdf(d, xs) ≈ [cdf(d, x) for x in xs] rtol=5e-4
-    @test pdf(d, xs) ≈ [pdf(d, x) for x in xs] rtol=1e-3
+    @test cdf(d, xs) ≈ [cdf(d, x) for x in xs] rtol=1e-9
+    @test pdf(d, xs) ≈ [pdf(d, x) for x in xs] rtol=1e-9
 end
 
 @testitem "Convolved pdf matches analytic and Monte Carlo" begin
@@ -259,15 +259,15 @@ end
 
     cdf_batch = cdf(d, xs)
     cdf_scalar = [cdf(d, x) for x in xs]
-    @test cdf_batch ≈ cdf_scalar rtol=5e-4
+    @test cdf_batch ≈ cdf_scalar rtol=1e-9
 
     pdf_batch = pdf(d, xs)
     pdf_scalar = [pdf(d, x) for x in xs]
-    @test pdf_batch ≈ pdf_scalar rtol=1e-3
+    @test pdf_batch ≈ pdf_scalar rtol=1e-9
 
     lp_batch = logpdf(d, xs)
     lp_scalar = [logpdf(d, x) for x in xs]
-    @test lp_batch ≈ lp_scalar rtol=1e-3
+    @test lp_batch ≈ lp_scalar rtol=1e-9
 
     # Analytic path
     da = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
@@ -279,12 +279,42 @@ end
 @testitem "Convolved batched cdf does a single solve" begin
     using Distributions
 
-    # This batch deliberately spans a wide range (16x), the hardest case for
-    # a single shared-window solve, so its tolerance is looser than the
-    # typical-batch test above.
+    # This batch deliberately spans a wide range (16x), the hardest case
+    # for a shared quadrature grid: the batched path must match the scalar
+    # per-point windows even here.
     d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     xs = collect(0.5:0.25:8.0)
-    @test cdf(d, xs) ≈ [cdf(d, x) for x in xs] rtol=5e-3
+    @test cdf(d, xs) ≈ [cdf(d, x) for x in xs] rtol=1e-9
+end
+
+@testitem "Convolved batched quadrature matches scalar windows (#29)" begin
+    using Distributions
+
+    # The batched numeric path integrates every point over its own
+    # scalar-path window (shared composite panels + per-point end
+    # corrections), so batched and scalar log densities agree far inside
+    # the documented ~1e-8 bound even for wide batches, where the old
+    # single shared window drifted to ~2e-3 in the tails.
+    d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+
+    # The issue #29 example batch.
+    xs = [1.0, 2.0, 3.0, 5.0]
+    @test logpdf(d, xs) ≈ [logpdf(d, x) for x in xs] atol=1e-9
+
+    # Wide batches (16x and 40x spans), the old worst case.
+    for xs in (collect(0.5:0.25:8.0), collect(0.5:0.5:20.0))
+        lp = logpdf(d, xs)
+        ls = [logpdf(d, x) for x in xs]
+        @test maximum(abs.(lp .- ls)) < 1e-8
+        @test cdf(d, xs) ≈ [cdf(d, x) for x in xs] atol=1e-9
+        @test pdf(d, xs) ≈ [pdf(d, x) for x in xs] rtol=1e-8
+    end
+
+    # Three components: the recursive numeric kernel takes the same
+    # per-point-window batched path.
+    d3 = convolved(Gamma(2.0, 1.0), Gamma(1.5, 2.0), LogNormal(0.5, 0.4))
+    xs3 = [2.0, 4.0, 6.0, 10.0, 15.0]
+    @test logpdf(d3, xs3) ≈ [logpdf(d3, x) for x in xs3] atol=1e-8
 end
 
 @testitem "Convolved logcdf/ccdf/logccdf branches" begin
@@ -329,7 +359,7 @@ end
     @test cb[1] == 0.0
     @test cb[end] == 1.0
     @test all(0.0 .<= cb .<= 1.0)
-    @test cb ≈ [cdf(d, x) for x in xs] rtol=1e-3
+    @test cb ≈ [cdf(d, x) for x in xs] rtol=1e-9
 
     lp = logpdf(d, xs)
     @test lp[1] == -Inf
@@ -340,7 +370,7 @@ end
     @test pb[1] == 0.0
     @test pb[end] == 0.0
     @test pb[3] > 0
-    @test pb ≈ [pdf(d, x) for x in xs] rtol=1e-2
+    @test pb ≈ [pdf(d, x) for x in xs] rtol=1e-9
 
     # All-below-support batches collapse the shared window, hitting the
     # per-point scalar fallback (every entry is 0).
