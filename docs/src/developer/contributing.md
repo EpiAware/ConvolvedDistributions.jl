@@ -136,7 +136,7 @@ task test-formatting  # JuliaFormatter check
 
 The convolution and difference log densities must differentiate cleanly across every backend the ecosystem uses.
 The harness in `test/ad/` sweeps the scenarios registered in `test/ADFixtures/` across six backends: ForwardDiff, ReverseDiff, Enzyme (reverse and forward), and Mooncake (reverse and forward), each an `@testitem` tagged for per-backend CI selection.
-The scenarios cover both the analytic and numeric (quadrature) paths of `Convolved` and `Difference`, plus the timeseries convolution.
+The scenarios cover both the analytic and numeric (quadrature) paths of `Convolved`, `Difference`, and `Product`, plus the timeseries convolution.
 
 ```bash
 task test-ad                          # all backends

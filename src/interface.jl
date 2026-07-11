@@ -5,9 +5,10 @@
 # Mirrors the CensoredDistributions.jl family model: related concrete types
 # share one supertype, and the documented interface contract plus any shared
 # behaviour hang off the abstract. This package has a single family — the
-# algebraic combinations `Convolved` and `Difference` — so one abstract type
-# carries the contract that a future member (e.g. a min/max order statistic)
-# implements and `TestUtils.test_convolved_interface` verifies.
+# algebraic combinations `Convolved`, `Difference`, and `Product` — so one
+# abstract type carries the contract that a future member (e.g. a min/max
+# order statistic) implements and `TestUtils.test_convolved_interface`
+# verifies.
 
 @doc "
 

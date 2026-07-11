@@ -3,7 +3,7 @@
 This page answers common questions about ConvolvedDistributions.jl.
 If your question is not answered here, open a discussion on the [GitHub repository](https://github.com/EpiAware/ConvolvedDistributions.jl).
 
-## How do I build a convolved or difference distribution?
+## How do I build a convolved, difference, or product distribution?
 
 Each constructor takes distributions and returns a distribution:
 
@@ -12,16 +12,18 @@ using ConvolvedDistributions, Distributions
 
 d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 z = difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
+w = product(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
 
-cdf(d, 5.0), cdf(z, 0.0)
+cdf(d, 5.0), cdf(z, 0.0), cdf(w, 5.0)
 ```
 
 `convolved` accepts two or more components as varargs, a tuple, or a vector.
+`product` requires both components to have non-negative support (sign-crossing supports are future work).
 
 ## Can I nest combinations?
 
 Yes.
-The results are `UnivariateDistribution`s, so a `Convolved` can itself be a component of another `convolved` call or one side of a `difference`, and a nested convolution evaluates the same integral as its flat equivalent:
+The results are `UnivariateDistribution`s, so the combinations nest across sums, differences, and products: a `Convolved` can itself be a component of another `convolved` call, one side of a `difference`, or (with non-negative support) a factor in a `product`, and a nested convolution evaluates the same integral as its flat equivalent:
 
 ```@example faq
 nested = convolved(d, Exponential(2.0))
@@ -33,10 +35,10 @@ mean(nested) ≈ mean(flat), cdf(nested, 8.0) ≈ cdf(flat, 8.0), mean(gap)
 
 The [Getting started](@ref getting-started) walkthrough and the [Visualising convolutions](@ref visualising-convolutions) tutorial show nesting in more detail.
 
-## Why is the package called ConvolvedDistributions when it also has `difference`?
+## Why is the package called ConvolvedDistributions when it also has `difference` and `product`?
 
 Because every member of the family is a convolution in the generalised sense.
-For independent variables, the distribution of `X op Y` is the pushforward of the product measure under `op`: for `+` that is the classical convolution, for `-` it is the convolution with the reflected variable (a cross-correlation), and future members like the maximum or minimum of independent variables are max-convolutions in the sense of Urbanik's generalised convolutions.
+For independent variables, the distribution of `X op Y` is the pushforward of the product measure under `op`: for `+` that is the classical convolution, for `-` it is the convolution with the reflected variable (a cross-correlation), for `*` it is the Mellin convolution, and future members like the maximum or minimum of independent variables are max-convolutions in the sense of Urbanik's generalised convolutions.
 The family supertype is [`AbstractConvolvedDistribution`](@ref ConvolvedDistributions.AbstractConvolvedDistribution) to match.
 
 ## When should I use `convolved` rather than `Distributions.convolve`?
@@ -58,13 +60,13 @@ using Optimization, OptimizationOptimJL
 quantile(d, 0.5)
 ```
 
-Loading the extension also enables `rand` on `truncated` wrappers of `Convolved` and `Difference`, which routes through the base `quantile`.
-`rand` on a bare `Convolved` or `Difference` samples the components directly and needs no extension.
+Loading the extension also enables `rand` on `truncated` wrappers of `Convolved`, `Difference`, and `Product`, which routes through the base `quantile`.
+`rand` on a bare `Convolved`, `Difference`, or `Product` samples the components directly and needs no extension.
 
 ## What is the difference between `AnalyticalSolver` and `NumericSolver`?
 
 Both constructors take a `method` keyword.
-The default `AnalyticalSolver()` uses the closed form when `Distributions.convolve` applies to every component pair (or, for `difference`, when both components are `Normal`) and falls back to Gauss-Legendre quadrature otherwise.
+The default `AnalyticalSolver()` uses the closed form when `Distributions.convolve` applies to every component pair (for `difference`, when both components are `Normal`; for `product`, when both are `LogNormal`) and falls back to Gauss-Legendre quadrature otherwise.
 `NumericSolver()` forces the quadrature path even when a closed form exists.
 Results agree to quadrature accuracy, so forcing the numeric path is mainly useful for testing, debugging, and comparing the two:
 

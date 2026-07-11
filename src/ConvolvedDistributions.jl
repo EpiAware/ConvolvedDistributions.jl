@@ -3,10 +3,12 @@
 
 Raw-distribution convolution and the shared numeric quadrature machinery for
 the EpiAware distribution-operations stack. Provides [`Convolved`](@ref) (the
-sum of independent components), [`Difference`](@ref) (the `X - Y` dual), the
-pluggable Gauss-Legendre `integrate`/`gl_integrate` layer, and the solver-method
-types `AnalyticalSolver`/`NumericSolver` selecting the analytic-vs-numeric
-backend. Operates on any `Distributions.UnivariateDistribution`; no censoring.
+sum of independent components), [`Difference`](@ref) (the `X - Y` dual),
+[`Product`](@ref) (the `X * Y` Mellin convolution for non-negative
+components), the pluggable Gauss-Legendre `integrate`/`gl_integrate` layer,
+and the solver-method types `AnalyticalSolver`/`NumericSolver` selecting the
+analytic-vs-numeric backend. Operates on any
+`Distributions.UnivariateDistribution`; no censoring.
 
 # Examples
 ```@example
@@ -19,6 +21,10 @@ cdf(d, 5.0)
 # Signed gap between two events
 z = difference(Normal(5.0, 1.0), Normal(2.0, 1.0))
 mean(z)
+
+# A delay scaled by an independent multiplicative factor
+w = product(Gamma(3.0, 1.0), LogNormal(0.0, 0.3))
+mean(w)
 ```
 """
 module ConvolvedDistributions

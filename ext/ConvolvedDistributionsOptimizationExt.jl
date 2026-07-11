@@ -1,6 +1,7 @@
 module ConvolvedDistributionsOptimizationExt
 
-# Optional inverse-CDF (quantile) support for `Convolved` and `Difference`.
+# Optional inverse-CDF (quantile) support for `Convolved`, `Difference`, and
+# `Product`.
 #
 # No closed form exists for a generic convolution or difference, so the
 # quantile is found by numerically inverting `cdf` with a Nelder-Mead
