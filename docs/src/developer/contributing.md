@@ -24,9 +24,9 @@ ConvolvedDistributions.jl/
 │   ├── ConvolvedDistributions.jl  # Module file: exports and centralised imports
 │   ├── docstrings.jl       # DocStringExtensions @template registration
 │   ├── interface.jl        # AbstractCombinedDistribution family supertype
-│   ├── Convolved.jl        # convolve_distributions and the Convolved type
+│   ├── Convolved.jl        # convolved and the Convolved type
 │   ├── Difference.jl       # difference and the Difference type
-│   ├── convolve_with_vector.jl  # timeseries form of convolve_distributions
+│   ├── convolve_with_vector.jl  # timeseries form of convolved
 │   ├── solvers.jl          # AnalyticalSolver / NumericSolver method types
 │   ├── integration.jl      # shared Gauss-Legendre quadrature layer
 │   ├── gamma_ad.jl         # AD-safe gamma CDF helpers
@@ -173,7 +173,7 @@ You can run them directly in the REPL or as scripts.
    ## Section
    """
 
-   convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+   convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
    ```
 
 ### Documentation structure

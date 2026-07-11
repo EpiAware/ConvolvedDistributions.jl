@@ -67,7 +67,7 @@ The VS Code Test Explorer lists each `@testitem` individually, so you can run on
 @testitem "Convolved mean is the component sum" begin
     using ConvolvedDistributions, Distributions
 
-    d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     @test mean(d) ≈ mean(Gamma(2.0, 1.0)) + mean(LogNormal(0.5, 0.4))
 end
 ```
@@ -160,7 +160,7 @@ You can also run JET interactively:
 
 ```julia
 using JET
-@report_opt convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+@report_opt convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 @report_package ConvolvedDistributions
 ```
 
@@ -181,7 +181,7 @@ For a quick one-off measurement in the REPL:
 
 ```julia
 using BenchmarkTools, ConvolvedDistributions, Distributions
-d = convolve_distributions(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 @benchmark cdf($d, 5.0)
 ```
 

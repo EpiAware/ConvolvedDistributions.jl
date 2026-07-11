@@ -29,7 +29,7 @@ Following [SemVer](https://semver.org/):
 Examples:
 - Adding a new combination type to the family: **Minor**
 - Fixing a quadrature or PMF calculation bug: **Patch**
-- Changing the `convolve_distributions` or `difference` signature: **Major**
+- Changing the `convolved` or `difference` signature: **Major**
 - Adding an optional keyword (for example a new solver option): **Minor**
 - Removing a deprecated function: **Major**
 
