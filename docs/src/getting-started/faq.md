@@ -140,7 +140,7 @@ The tutorial `.jl` files are plain Julia scripts that can be run top-to-bottom i
 
 ## I get "Package not found" errors
 
-Make sure you are in the right environment, and remember the package installs by URL until its initial registration in the Julia General Registry completes:
+Make sure you are in the right environment; the registered release installs with `Pkg.add("ConvolvedDistributions")`, and the development version by URL:
 
 ```julia
 using Pkg

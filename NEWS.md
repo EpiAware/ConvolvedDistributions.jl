@@ -1,16 +1,26 @@
-## Unreleased
+## 0.2.0
 
-- Renamed the family supertype `AbstractCombinedDistribution` to `AbstractConvolvedDistribution` and `TestUtils.test_combined_interface` to `test_convolved_interface`, matching the package name.
-- `convolve_series(pmf::DelayPMF, series)` reads the series on the PMF's own grid: the `DelayPMF` carries the step width, so a weekly-binned PMF convolves a weekly series and no unit-width restriction applies.
-- Tightened the batched numeric `cdf`/`pdf`/`logpdf` quadrature to integrate every point over its own scalar-path window via a shared composite panel grid with per-point end corrections: batched and scalar log densities now agree to well within ~1e-8 (typically near machine precision; previously up to ~2e-3 in the tails of wide batches) while the batched path stays 1.6-2.2x faster than broadcasting the scalar path (#29).
-- Pre-release parity pass against the CensoredDistributions.jl integration branch: ported the ambiguity-free ForwardDiff `_gamma_cdf` Dual overloads and the AD-safe `Gamma` `logcdf`/`logccdf` Dual routing, enabled the extension-ambiguity QA checks, clamped discretised delay-PMF masses at zero, added a compact `GaussLegendre` show, removed the never-released `force_numeric` shim, and made `_ccdf_ad_safe`/`_logccdf_ad_safe` public (ComposedDistributions.jl extends them).
-- Added the `AbstractConvolvedDistribution` family supertype (mirroring the CensoredDistributions.jl abstract hierarchy) that `Convolved` and `Difference` now subtype, with the interface contract documented on the type and shipped `TestUtils.test_convolved_interface` / `TestUtils.test_abstract_membership` verifiers for downstream family members.
-- Added the timeseries form `convolve_series`: a numeric series (e.g. expected infections at unit-spaced times) convolved with a delay PMF on the unit lag grid, giving the expected downstream counts (the renewal-style observation layer), ported censoring-free from CensoredDistributions.jl (#6, #28, #31). The surface:
-  - `convolve_series(delay::DiscreteUnivariateDistribution, series)` reads the delay PMF directly off the integer grid (the lag-`k` mass is `pdf(delay, k)`); direct PMF evaluation, not a CDF difference, to avoid the `F(k+1) - F(k) = pdf(delay, k+1)` off-by-one on integer support. Differentiable in the delay parameters on every supported backend.
-  - `convolve_series(delay::ContinuousUnivariateDistribution, series)` throws: discretising a continuous delay is an explicit modelling choice with more than one right answer, so `convolve_series` no longer picks one silently. The error names both routes — `discretise_pmf` for interval-censored-secondary masses (exact primary), and CensoredDistributions.jl's double-interval-censored extension for a primary event known only to the day.
-  - `discretise_pmf(delay, maxlag; interval)` builds a reusable public `DelayPMF` of raw CDF-difference masses (the interval-censored-secondary scheme, exact primary — an explicit choice, not a neutral default), with `pdf(pmf, lag)` mass reads.
-  - `convolve_series(pmf, series)` accepts any already-discretised PMF vector (or `DelayPMF`), masses used as given (no renormalisation, truncated to the series window), so callers such as CensoredDistributions.jl's double-interval censoring own the discretisation. Gradients flow through the masses and the series.
-- Restored `quantile` (inverse CDF) for `Convolved` and `Difference` via the new `ConvolvedDistributionsOptimizationExt` extension, loaded when both Optimization.jl and OptimizationOptimJL.jl are present (#20).
+Breaking changes relative to 0.1.0, with migration notes:
+
+- **`convolve_series` no longer discretises continuous delays.** A `DiscreteUnivariateDistribution` convolves via its own PMF (`pdf(delay, k)` at integer lags); a continuous delay throws. Migration: discretise explicitly — `convolve_series(discretise_pmf(delay, length(series) - 1), series)` for interval-censored-secondary masses (exact primary event), or build double-interval-censored masses with CensoredDistributions.jl's `convolve_series` extension when the primary event is only known to the day — then convolve the resulting PMF.
+- **Family names.** `AbstractCombinedDistribution` is now `AbstractConvolvedDistribution`, and `TestUtils.test_combined_interface` is `test_convolved_interface`. Migration: rename references; behaviour is unchanged.
+
+Additions and improvements:
+
+- `discretise_pmf(delay, maxlag; interval)` builds a reusable public `DelayPMF` (raw CDF-difference masses, clamped at zero, never renormalised) with `pdf(pmf, lag)` mass reads, and `convolve_series` accepts a `DelayPMF` or any raw PMF vector, with masses used exactly as given. A `DelayPMF` carries its grid width: the series is read at steps of `pmf.interval`, so weekly-binned masses convolve weekly series.
+- Batched numeric `cdf`/`pdf`/`logpdf` now integrate every point over its own scalar-path window on a shared composite panel grid: batched and scalar log densities agree to well within `1e-8` (typically near machine precision; previously up to ~`2e-3` in wide-batch tails) while the batched path remains 1.6-2.2x faster than broadcasting (#29).
+- The AD-safe component hooks `_cdf_ad_safe`, `_logcdf_ad_safe`, and `_pdf_ad_safe` are public, joining `_ccdf_ad_safe`/`_logccdf_ad_safe`, so wrapper packages can make their component types differentiable inside the quadrature.
+
+## 0.1.0
+
+Initial release. Raw-distribution convolution machinery for any `Distributions.jl` univariate distribution, split out of CensoredDistributions.jl:
+
+- `convolved(dists...)` (public type `Convolved`): sums of independent components with analytic fast paths (`Normal`+`Normal`, equal-scale `Gamma`, equal-rate `Exponential`) and an AD-safe fixed-node Gauss-Legendre quadrature fallback; scalar and batched `cdf`/`pdf`/`logpdf`; exact additive moments.
+- `difference(x, y)` (exported type `Difference`): the `Z = X - Y` dual with the `Normal`-`Normal` closed form and numeric cross-correlation.
+- `convolve_series`: causal convolution of a numeric series with a delay PMF (the renewal-style observation layer).
+- `quantile` for `Convolved`/`Difference` via the Optimization + OptimizationOptimJL extension.
+- The `AbstractCombinedDistribution` family supertype with shipped `TestUtils` interface verifiers.
+- AD extensions (ChainRulesCore, ForwardDiff, ReverseDiff, Mooncake, Enzyme) with analytic gamma-CDF rules; gradients tested on all backends in CI.
 
 This file tracks notes for major releases and significant milestones; GitHub
 Releases (auto-generated from merged PRs) cover every release in between.

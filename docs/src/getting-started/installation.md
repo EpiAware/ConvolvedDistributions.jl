@@ -1,12 +1,12 @@
 # [Installation](@id installation)
 
-Once the initial registration of `ConvolvedDistributions` in the Julia General Registry completes, install it with:
+`ConvolvedDistributions` is registered in the Julia General Registry; install it with:
 
 ```julia
 using Pkg; Pkg.add("ConvolvedDistributions")
 ```
 
-Until then, or for the development version, install it from GitHub:
+For the development version, install from GitHub:
 
 ```julia
 using Pkg
