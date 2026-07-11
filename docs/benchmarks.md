@@ -5,17 +5,73 @@ generated `docs/src/benchmarks.md`, between the page heading and the rendered
 managed skeleton carries none): describe what the suite covers, how to run it,
 and how to read the history below. Add your own `## ...` subsections freely. -->
 
-`ConvolvedDistributions` benchmarks its hot paths so the cost of the numeric quadrature backend is visible against the analytic one and regressions are caught on every pull request.
+Benchmarks for the convolution distributions, reading the analytic and numeric quadrature backends against the bare component distributions.
 
-The suite (`benchmark/benchmarks.jl`) covers:
+## Quick start
 
-- `Baseline`: the bare Gamma and Normal components, the floor everything else is read against.
-- `Convolved`: densities and CDFs on both backends — the analytic Normal+Normal pair (closed form, should sit near the baseline) and the numeric Gamma+LogNormal pair (Gauss-Legendre quadrature). The `batched` rows use the vector methods that share quadrature nodes across evaluation points; their gap to the scalar `logpdf broadcast` row over the same 100 points is the headline number for the numeric backend.
-- `Difference`: the `Z = X - Y` dual on the same analytic/numeric split. Difference has no batched methods, so evaluation rows broadcast the scalar path.
-- `Timeseries`: `convolve_series` over a delay PMF, with a continuous delay discretised via `discretise_pmf` (a Gamma and a numeric `Convolved` delay) and a discrete `Poisson` delay read straight off its own PMF.
-- `Quantile`: the Optimization-extension inverse CDF (Nelder-Mead over `cdf`); the numeric variants pay one quadrature CDF per optimiser iteration and are the slowest rows in the suite.
-- `AD gradients`: `DifferentiationInterface.gradient` of every `test/ADFixtures` scenario across the ForwardDiff, ReverseDiff, Mooncake and Enzyme backends, sharing the fixtures that drive the AD test suite.
+Install the `benchpkg` CLI once:
 
-Run the suite locally with `task benchmark`, or compare against `main` with `task benchmark-compare` (see `benchmark/README.md`).
-On pull requests the [benchmark workflow](https://github.com/EpiAware/ConvolvedDistributions.jl/blob/main/.github/workflows/benchmark.yaml) benchmarks head and base in separate jobs and posts a single comparison comment.
-Pushes to `main` and tags append to the performance history shown below.
+```bash
+task benchmark-install
+# Or: julia -e 'using Pkg; Pkg.add("AirspeedVelocity")'
+```
+
+then run the suite:
+
+```bash
+# Benchmark current state
+task benchmark
+
+# Compare main branch vs current state
+task benchmark-compare
+
+# Filter to specific benchmarks
+task benchmark -- --filter=Convolved
+task benchmark-compare -- --filter=Quantile
+```
+
+## Benchmark structure
+
+```
+Baseline/
+  Gamma/               (logpdf, cdf)
+  Normal/              (logpdf, cdf)
+
+Convolved/
+  analytic/            (construction, logpdf/pdf/cdf scalar,
+                        logpdf broadcast, logpdf/pdf/cdf batched,
+                        rand, mean)
+  numeric/             (same operations)
+
+Difference/
+  analytic/            (construction, logpdf/cdf scalar,
+                        logpdf/cdf broadcast, rand, mean)
+  numeric/             (same operations)
+
+Timeseries/
+  Gamma delay          (convolve_series(discretise_pmf(delay, m), series))
+  Convolved delay
+  Poisson delay        (discrete: convolve_series(delay, series))
+
+Quantile/
+  Convolved analytic/  (median, grid)
+  Convolved numeric/   (median)
+  Difference numeric/  (median)
+
+AD gradients/
+  <every test/ADFixtures scenario>/
+    ForwardDiff, ReverseDiff (tape), Enzyme forward, Enzyme reverse,
+    Mooncake forward, Mooncake reverse
+```
+
+## Analytic vs numeric
+
+`convolved` and `difference` use a closed form where one exists (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`; `Normal` - `Normal`) and AD-safe Gauss-Legendre quadrature otherwise.
+The analytic rows should sit near the `Baseline` floor; the gap between the numeric rows and their analytic counterparts is the cost of the quadrature backend.
+The `batched` rows share the composite quadrature grid across evaluation points; their gap to the `logpdf broadcast` row over the same points is the headline batching win.
+Pass `method = NumericSolver()` to force the numeric path.
+
+## CI integration
+
+Pull requests benchmark head and base in separate jobs via the [benchmark workflow](https://github.com/EpiAware/ConvolvedDistributions.jl/blob/main/.github/workflows/benchmark.yaml) and post a single comparison comment.
+Pushes to `main` and tagged releases append to the performance history below.

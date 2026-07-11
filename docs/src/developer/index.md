@@ -11,12 +11,12 @@ New to contributing? Start here:
 - **[Adding a new combination](@ref extending)**: The `AbstractCombinedDistribution` contract and the conventions `Convolved` and `Difference` follow, as a template for a new family member
 - **[Release process](@ref release-process)**: How releases and versioning work in this repository
 
-For general Julia development setup, see [Getting started with Julia](@ref julia) in the Getting started section.
+For general Julia development setup, see the [EpiAware site](https://epiaware.org/).
 
 For common development questions, including how to run tests faster while iterating, see the [Developer FAQ](@ref developer-faq).
 
 This repository adopts shared configuration and test infrastructure from [EpiAwarePackageTools](https://github.com/EpiAware/EpiAwarePackageTools.jl).
-The [Infrastructure and template sync](@ref infrastructure) page explains which files are managed and how they stay current.
+The kit repository documents which files are managed and how they stay current.
 
 ---
 

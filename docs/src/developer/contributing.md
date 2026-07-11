@@ -5,7 +5,7 @@ This page details the guidelines to follow when contributing to ConvolvedDistrib
 ## Getting started
 
 Before contributing, please:
-1. Read the [Getting started with Julia](@ref julia) guide if you are new to Julia development
+1. New to Julia development? Start from the [EpiAware site](https://epiaware.org/)
 2. **Install Task** for the development workflows below:
    - **macOS**: `brew install go-task/tap/go-task`
    - **Linux**: Download from [releases](https://github.com/go-task/task/releases) or use your package manager
@@ -56,7 +56,7 @@ ConvolvedDistributions.jl/
 ```
 
 Files carrying a `MANAGED by EpiAwarePackageTools.scaffold` header are owned by the shared kit and rewritten on every sync.
-See [Infrastructure and template sync](@ref infrastructure) for which files are managed and which are yours to edit.
+See [EpiAwarePackageTools](https://github.com/EpiAware/EpiAwarePackageTools.jl) for which files are managed and which are yours to edit.
 
 ## Development commands
 

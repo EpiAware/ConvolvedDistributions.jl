@@ -14,9 +14,7 @@ pages = [
         "Tutorials" => [
             "Visualising convolutions" => "getting-started/tutorials/visualising-convolutions.md"
         ],
-        "Julia" => "getting-started/julia.md",
-        "FAQ" => "getting-started/faq.md",
-        "Customising your docs" => "getting-started/customising.md"
+        "FAQ" => "getting-started/faq.md"
     ],
     "API reference" => [
         "Public API" => "lib/public.md",
@@ -28,10 +26,7 @@ pages = [
         "Contributing" => "developer/contributing.md",
         "Adding a new combination" => "developer/extending.md",
         "Release process" => "developer/release-process.md",
-        "Developer FAQ" => "developer/faq.md",
-        # Maintainer-facing: kept out of Getting started so a new user's
-        # first section is not maintainer noise (kit #136/#156).
-        "Infrastructure and template sync" => "getting-started/infrastructure.md"
+        "Developer FAQ" => "developer/faq.md"
     ],
     "Release notes" => "release-notes.md"
 ]

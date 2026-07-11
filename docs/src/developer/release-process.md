@@ -84,7 +84,7 @@ It creates the GitHub release with generated changelog and uses the repository's
 
 Dependency and pinned-reference updates reach this repository through the shared infrastructure rather than a per-repository CompatHelper.
 Dependabot (`.github/dependabot.yml`) keeps the pinned reusable-workflow and action references current, and the scheduled template-sync workflow propagates kit-level `[compat]` and configuration changes.
-See [Infrastructure and template sync](@ref infrastructure) for details.
+See [EpiAwarePackageTools](https://github.com/EpiAware/EpiAwarePackageTools.jl) for details.
 
 ## Release notes
 

@@ -4,15 +4,7 @@
 Closed forms are used where they exist and an AD-safe Gauss-Legendre quadrature everywhere else, so the results can be scored, truncated, and differentiated inside a fitting loop.
 This page walks through the main entry points; the [Public API](@ref public-api) has the full interface.
 
-## Installation
-
-Once the initial registration in the Julia General Registry completes, `Pkg.add("ConvolvedDistributions")` installs the package.
-Until then, or for the development version, install it from GitHub:
-
-```julia
-using Pkg
-Pkg.add(url = "https://github.com/EpiAware/ConvolvedDistributions.jl")
-```
+See [Installation](@ref installation) for how to install the package.
 
 ## Convolving distributions
 
@@ -157,10 +149,9 @@ Gradients with respect to the component parameters are tested on ForwardDiff, Re
 
 ## Learning more
 
-- New to the package? [Installation](@ref installation) covers installing by URL and the optional quantile extension, and [Getting started with Julia](@ref julia) covers setting up Julia itself.
+- New to the package? [Installation](@ref installation) covers installing by URL and the optional quantile extension; for setting up Julia itself, see the [EpiAware site](https://epiaware.org/).
 - Common questions (solver choice, the timeseries form, the extension, AD support) are answered in the [FAQ](@ref faq).
 - Want the full interface? See the [Public API](@ref public-api).
 - Curious how the numeric layer is put together? The internal quadrature (`integrate`, `gl_integrate`, `GaussLegendre`) is documented in the [Internal API](../lib/internals.md), and an Integrals.jl backend is available as an extension.
 - Contributing, or adding a new member of the combination family? Start from the [developer documentation](@ref developer), the [Contributing guide](@ref contributing), and [Adding a new combination](@ref extending).
-- See [Infrastructure and template sync](@ref infrastructure) for how this repository's docs and CI are generated, and [Customising your docs](@ref customising) for which pages are package-owned.
 - Want to report a problem or ask a question? Open an issue or start a discussion on the [GitHub repository](https://github.com/EpiAware/ConvolvedDistributions.jl).
