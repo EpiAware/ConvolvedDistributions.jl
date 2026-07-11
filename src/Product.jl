@@ -33,8 +33,13 @@ f_Z(z) = \\int f_X(z / y)\\, f_Y(y)\\, \\frac{\\mathrm{d}y}{y}
 and the CDF integrates `X`'s CDF against `Y`'s density:
 
 ```math
-F_Z(z) = \\int F_X(z / y)\\, f_Y(y)\\, \\mathrm{d}y .
+F_Z(z) = \\int F_X(z / y)\\, f_Y(y)\\, \\mathrm{d}y ,
 ```
+
+evaluated numerically in the equivalent survival form
+``F_Y(u) - \\int \\bar{F}_X(z / y) f_Y(y)\\,\\mathrm{d}y`` so the
+integrand stays bounded when `Y`'s density diverges at zero
+(Gamma or Weibull shape below one).
 
 For a `LogNormal`-`LogNormal` pair the closed form
 ``\\mathrm{LogNormal}(\\mu_X + \\mu_Y, \\sqrt{\\sigma_X^2 + \\sigma_Y^2})``
@@ -262,24 +267,33 @@ function _product_pdf_window(d::Product, z::Real)
     return lower, upper
 end
 
-# CDF integration window plus the saturated constant (mirroring
-# `_cdf_point_window` for Convolved): F_X(z / y) = 1 for y <= cut with
-# cut = z / max(X), so the mass of Y below the cut is a constant term
-# and the quadrature only covers the transition region
-# [cut, z / min(X)] within Y's mass window. Dropping the saturated term
-# would lose that mass — wrong for bounded X (Uniform). The CDF
-# integrand has no 1/y factor and tends to f_Y(y) as y -> 0, so the
-# lower end needs no zero clamp: the exact support edge is used.
+# CDF integration window for the survival (control-variate) form.
+# Writing F_X = 1 - ccdf_X inside the direct integral gives
+#   F_Z(z) = F_Y(u*) - ∫_{lower}^{u*} ccdf_X(z / y) f_Y(y) dy
+# with u* = min(max(Y), z / min(X)) (above u* the direct integrand's
+# F_X factor is exactly zero, so nothing is dropped) and
+# lower = max(min(Y), z / max(X)) (below it ccdf_X is exactly zero).
+# The survival form is used unconditionally: unlike the direct
+# F_X-weighted integrand it stays bounded as y -> 0 when f_Y diverges
+# there (Gamma/Weibull shape < 1, with X unbounded above so the window
+# reaches the singularity) — ccdf_X(z / y) -> 0 kills the integrable
+# singularity that the fixed-node rule cannot resolve, which otherwise
+# biased the CDF by ~1e-2 (Gamma(0.5) multiplier) to ~7e-2 (Gamma(0.3))
+# and broke cdf symmetry between product(X, Y) and product(Y, X).
+# Measured against adaptive-quadrature references, the survival form is
+# ~1e-12 on the singular cases and no worse than the direct form
+# anywhere else (both ~1e-9 worst case elsewhere), so one code path
+# suffices. An infinite u* is clamped to an extreme AD-stripped
+# quantile of Y; the mass above it contributes at most the tail
+# fraction.
 function _product_cdf_window(d::Product, z::Real)
     ymin = minimum(d.y)
     ymax = maximum(d.y)
-    hi = isfinite(ymax) ? ymax : _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
-    cut = z / maximum(d.x)
-    saturated = cut > ymin ? _cdf_ad_safe(d.y, cut) :
-                zero(float(typeof(z)))
-    lower = _max2(ymin, cut)
-    upper = _min2(hi, z / minimum(d.x))
-    return lower, upper, saturated
+    upper_exact = _min2(ymax, z / minimum(d.x))
+    upper = isfinite(upper_exact) ? upper_exact :
+            _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
+    lower = _max2(ymin, z / maximum(d.x))
+    return lower, upper
 end
 
 # Numeric product density (the Mellin convolution):
@@ -299,20 +313,23 @@ end
 
 # Numeric product CDF:
 #   F_Z(z) = P(X Y ≤ z) = ∫ F_X(z / y) f_Y(y) dy   over y ∈ support(Y),
-# evaluated as the saturated constant plus the transition integral (see
-# `_product_cdf_window`).
+# evaluated in the singularity-free survival form
+#   F_Y(upper) - ∫ ccdf_X(z / y) f_Y(y) dy
+# (see `_product_cdf_window`). A degenerate window means the direct
+# integrand's F_X factor is 1 on all of Y's mass below `upper`, so the
+# base term alone is the answer.
 function _product_numeric_cdf(d::Product, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
     z <= minimum(d) && return zero(float(typeof(z)))
     z >= maximum(d) && return one(float(typeof(z)))
 
-    lower, upper, saturated = _product_cdf_window(d, z)
-    upper <= lower &&
-        return clamp(saturated, zero(saturated), one(saturated))
+    lower, upper = _product_cdf_window(d, z)
+    base = _cdf_ad_safe(d.y, upper)
+    upper <= lower && return clamp(base, zero(base), one(base))
 
-    result = saturated +
+    result = base -
              gl_integrate(
-        y -> _cdf_ad_safe(d.x, z / y) * _pdf_ad_safe(d.y, y),
+        y -> _ccdf_ad_safe(d.x, z / y) * _pdf_ad_safe(d.y, y),
         lower, upper)
     return clamp(result, zero(result), one(result))
 end
@@ -327,7 +344,9 @@ Compute the cumulative distribution function.
 
 Uses the analytic `LogNormal`-`LogNormal` product where it applies,
 otherwise AD-safe numeric quadrature of
-``\\int F_X(z / y) f_Y(y)\\,\\mathrm{d}y``.
+``\\int F_X(z / y) f_Y(y)\\,\\mathrm{d}y`` in its survival form
+``F_Y(u) - \\int \\bar{F}_X(z / y) f_Y(y)\\,\\mathrm{d}y``, which stays
+accurate when `Y`'s density diverges at zero (shape below one).
 
 See also: [`logcdf`](@ref)
 "
