@@ -13,6 +13,7 @@ Additions and improvements:
 - The AD-safe component hooks `_cdf_ad_safe`, `_logcdf_ad_safe`, and `_pdf_ad_safe` are public, joining `_ccdf_ad_safe`/`_logccdf_ad_safe`, so wrapper packages can make their component types differentiable inside the quadrature.
 - The extension `quantile` is now accurate in the far tails: the solve minimises the log-odds residual rather than the near-flat squared probability residual (relative error at `p = 0.999` down from ~0.16 to ~4e-6 on the analytic product pair) (#48).
 - `cdf`/`pdf` no longer throw on distributions whose components are themselves composites (for example a `difference` of two `Convolved` totals): composite integration windows recurse over the nested components with union-bound tail trims (#45).
+- The batched `cdf`/`pdf`/`logpdf` methods now differentiate: AD tracers on component parameters survive the final convert (#43), ReverseDiff works with respect to the evaluation points (the per-point assembly no longer mutates tracked storage) (#44), and batched-path AD scenarios run on all six backend tags in CI.
 
 ## 0.1.0
 
