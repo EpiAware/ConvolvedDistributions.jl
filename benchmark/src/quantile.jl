@@ -13,6 +13,7 @@ let
     conv_numeric = convolved(
         Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     diff_numeric = difference(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    prod_numeric = product(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 
     SUITE["Quantile"]["Convolved analytic"] = BenchmarkGroup()
     SUITE["Quantile"]["Convolved analytic"]["median"] = @benchmarkable quantile(
@@ -27,4 +28,8 @@ let
     SUITE["Quantile"]["Difference numeric"] = BenchmarkGroup()
     SUITE["Quantile"]["Difference numeric"]["median"] = @benchmarkable quantile(
         $diff_numeric, 0.5)
+
+    SUITE["Quantile"]["Product numeric"] = BenchmarkGroup()
+    SUITE["Quantile"]["Product numeric"]["median"] = @benchmarkable quantile(
+        $prod_numeric, 0.5)
 end
