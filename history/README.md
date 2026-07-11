@@ -1,6 +1,6 @@
 # ConvolvedDistributions.jl benchmark history
 
-Revisions: 45114d9dbc17964ced64b4612be2f3514b3e9482
+Revisions: 7408b826a6cb885bd2f0d23663c6d06569017fa7
 
 See `table.md` for the ratio summary and the PNG
 files in this folder for per-benchmark timelines.
