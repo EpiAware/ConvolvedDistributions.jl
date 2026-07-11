@@ -328,6 +328,45 @@ function _finite_window(last_comp, lower::Real, upper::Real)
     return lo, hi
 end
 
+# Interior panel breaks for the quantile-panelled quadrature (issue
+# #49): the integration component's `_PANEL_PROBS` quantiles that fall
+# strictly inside the primal window `(lo, hi)`, in increasing order
+# (quantiles are monotone in `p`). Like the window clamp above, the
+# breaks are quadrature hyperparameters — just *where* to split — so
+# they are computed on AD-stripped params (`_window_quantile`) and stay
+# non-differentiated constants across every AD backend.
+function _panel_breaks(comp, lo::Float64, hi::Float64)
+    breaks = Float64[]
+    for p in _PANEL_PROBS
+        b = Float64(_window_quantile(comp, p))
+        lo < b < hi && push!(breaks, b)
+    end
+    return breaks
+end
+
+# Quantile-panelled scalar quadrature: integrate `f` over `[lo, hi]` by
+# splitting the window at the integration component's quantile breaks
+# and applying the `_PANEL_GL` rule per panel, so node density follows
+# the component's mass even when a heavy tail stretches the window
+# (issue #49). The interior breaks are primal constants (see
+# `_panel_breaks`); the outermost panels keep the live `lo`/`hi`
+# endpoints, so gradient flow through the window bounds matches the old
+# single-window rule. A window with no interior breaks (within one
+# quantile band, or in a far tail) falls back to the single-window
+# `_CONVOLVED_GL` rule unchanged.
+function _panel_integrate(f::F, lo, hi, comp) where {F}
+    lop = Float64(_primal(lo))
+    hip = Float64(_primal(hi))
+    breaks = _panel_breaks(comp, lop, hip)
+    isempty(breaks) && return gl_integrate(f, lo, hi)
+    acc = gl_integrate(f, lo, first(breaks), _PANEL_GL)
+    for i in 1:(length(breaks) - 1)
+        acc += gl_integrate(f, breaks[i], breaks[i + 1], _PANEL_GL)
+    end
+    acc += gl_integrate(f, last(breaks), hi, _PANEL_GL)
+    return acc
+end
+
 # ---------------------------------------------------------------------------
 # Numeric convolution (AD-safe Gauss-Legendre dot product)
 # ---------------------------------------------------------------------------
@@ -354,11 +393,12 @@ _convolution_pdf(d::UnivariateDistribution, x::Real) = pdf(d, x)
 _convolution_pdf(d::Convolved, x::Real) = _convolved_numeric_pdf(d, x)
 
 # The convolution quadrature uses the shared Gauss-Legendre machinery in
-# `src/integration.jl`: the `_CONVOLVED_GL` rule (192 nodes, see there for
-# the node-count rationale) and `gl_integrate`. Holding the rule directly
-# and reducing inline keeps the path AD-safe (the accumulator type is
-# seeded from the integrand). The batched companion below shares a
-# composite panel grid across the points instead.
+# `src/integration.jl` (`gl_integrate` and the rule constants, see there
+# for the node-count rationale) through the quantile-panelled
+# `_panel_integrate` above. Holding the rules directly and reducing
+# inline keeps the path AD-safe (the accumulator type is seeded from the
+# integrand). The batched companion below shares a composite panel grid
+# across the points instead.
 
 # Scalar convolution quadrature:
 #   ∫ kernel(rest, x - t) · f_C(t) dt   over t ∈ [lower, upper],
@@ -367,8 +407,9 @@ _convolution_pdf(d::Convolved, x::Real) = _convolved_numeric_pdf(d, x)
 # Returns the bare integral; callers add any saturated constant and clamp.
 function _convolved_quadrature(
         last_comp, rest, kernel::F, x::Real, lower, upper) where {F}
-    return gl_integrate(
-        t -> kernel(rest, x - t) * _pdf_ad_safe(last_comp, t), lower, upper)
+    return _panel_integrate(
+        t -> kernel(rest, x - t) * _pdf_ad_safe(last_comp, t),
+        lower, upper, last_comp)
 end
 
 # Per-point PDF integration window, shared by the scalar and batched
@@ -420,36 +461,44 @@ end
 #   ∫ kernel(rest, x_j - t) · f_C(t) dt   over t ∈ [lower_j, upper_j],
 # each over its own scalar-path window `wins[j]`, in one shared pass.
 #
-# The union window `[L, U]` is split into `_COMPOSITE_PANELS` equal
-# panels whose nodes and `f_C(t)` factors are evaluated once and reused
-# across every point; each point then sums the panels inside its own
-# window plus small end-correction integrals from its live window
-# endpoints to the panel grid. Every integrand kink (a support edge of
-# `rest`) sits on a window endpoint, i.e. on a correction boundary, so
-# each integrated piece is smooth and the small per-panel rule converges
-# spectrally — this is what removes the old shared-window tail error
-# (issue #29). The panel grid is primal (see `_window_union`); the
-# corrections keep the live endpoints, so gradient flow through the
-# window bounds matches the scalar path. The per-point assembly is a
-# functional `map` with a scalar accumulator seeded from the integrand,
-# so tracer element types (`Dual`s, tracked reals) propagate and no
-# tracked storage is mutated — `fill` of a ReverseDiff `TrackedReal`
-# yields a `TrackedArray`, whose `setindex!` throws (issue #44).
+# The union window `[L, U]` is split at the integration component's
+# quantile breaks (see `_panel_breaks`) into panels whose nodes and
+# `f_C(t)` factors are evaluated once and reused across every point;
+# each point then sums the panels inside its own window plus small
+# end-correction integrals from its live window endpoints to the panel
+# grid. Every integrand kink (a support edge of `rest`) sits on a
+# window endpoint, i.e. on a correction boundary, so each integrated
+# piece is smooth and the small per-panel rule converges spectrally —
+# this is what removes the old shared-window tail error (issue #29).
+# Quantile spacing keeps node density proportional to `f_C`'s mass, so
+# a heavy-tailed component cannot stretch any panel across orders of
+# magnitude of density (issue #49; equal spacing drifted to ~2e-5 on
+# the Gamma + LogNormal(0, 1.5) CDF). The panel grid is primal (see
+# `_window_union` and `_panel_breaks`); the corrections keep the live
+# endpoints, so gradient flow through the window bounds matches the
+# scalar path. The per-point assembly is a functional `map` with a
+# scalar accumulator seeded from the integrand, so tracer element types
+# (`Dual`s, tracked reals) propagate and no tracked storage is mutated
+# — `fill` of a ReverseDiff `TrackedReal` yields a `TrackedArray`,
+# whose `setindex!` throws (issue #44).
 function _convolved_quadrature_composite(
         last_comp, rest, kernel::F, x::AbstractVector{<:Real},
         wins, L::Float64, U::Float64) where {F}
-    np = length(_COMPOSITE_GL.nodes)
-    nd, wts = _COMPOSITE_GL.nodes, _COMPOSITE_GL.weights
-    bounds = range(L, U; length = _COMPOSITE_PANELS + 1)
-    hp = step(bounds) / 2
+    np = length(_PANEL_GL.nodes)
+    nd, wts = _PANEL_GL.nodes, _PANEL_GL.weights
+    bounds = vcat(L, _panel_breaks(last_comp, L, U), U)
+    npan = length(bounds) - 1
 
     # Shared panel nodes and f_C-weighted quadrature weights; the
     # comprehensions seed the element types from the values so component
-    # `Dual`s propagate.
-    Tc = [(bounds[p] + bounds[p + 1]) / 2 + hp * nd[k]
-          for k in 1:np, p in 1:_COMPOSITE_PANELS]
-    Wc = [hp * wts[k] * _pdf_ad_safe(last_comp, Tc[k, p])
-          for k in 1:np, p in 1:_COMPOSITE_PANELS]
+    # `Dual`s propagate. Panels are quantile-spaced, so each carries its
+    # own half-width.
+    Tc = [(bounds[p] + bounds[p + 1]) / 2 +
+          (bounds[p + 1] - bounds[p]) / 2 * nd[k]
+          for k in 1:np, p in 1:npan]
+    Wc = [(bounds[p + 1] - bounds[p]) / 2 * wts[k] *
+          _pdf_ad_safe(last_comp, Tc[k, p])
+          for k in 1:np, p in 1:npan]
 
     z = zero(kernel(rest, first(x) - Tc[1, 1]) * Wc[1, 1])
     return map(eachindex(x)) do j
@@ -463,7 +512,7 @@ function _convolved_quadrature_composite(
         integrand = t -> kernel(rest, xj - t) * _pdf_ad_safe(last_comp, t)
         if ilo > ihi
             # Window inside one panel: a single small solve.
-            return z + gl_integrate(integrand, wl, wu, _COMPOSITE_GL)
+            return z + gl_integrate(integrand, wl, wu, _PANEL_GL)
         end
         acc = z
         @inbounds for p in ilo:(ihi - 1), k in 1:np
@@ -471,10 +520,10 @@ function _convolved_quadrature_composite(
             acc += Wc[k, p] * kernel(rest, xj - Tc[k, p])
         end
         if wlp < bounds[ilo]
-            acc += gl_integrate(integrand, wl, bounds[ilo], _COMPOSITE_GL)
+            acc += gl_integrate(integrand, wl, bounds[ilo], _PANEL_GL)
         end
         if wup > bounds[ihi]
-            acc += gl_integrate(integrand, bounds[ihi], wu, _COMPOSITE_GL)
+            acc += gl_integrate(integrand, bounds[ihi], wu, _PANEL_GL)
         end
         return acc
     end

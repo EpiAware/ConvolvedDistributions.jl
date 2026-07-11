@@ -55,29 +55,40 @@ end
 
 _GL(n::Int) = _GL(FastGaussQuadrature.gausslegendre(n)...)
 
-# Number of Gauss-Legendre nodes for the scalar convolution quadrature.
-# Each scalar evaluation integrates over its own per-point window, whose
-# only integrand kinks sit at the window endpoints, so the rule converges
-# spectrally: n = 192 is accurate to ~1e-13 on the smooth,
-# density-weighted integrands used here and the scalar path is the
-# accuracy reference for the batched composite path below.
+# Number of Gauss-Legendre nodes for the scalar convolution quadrature's
+# single-window fallback. A window containing none of the `_PANEL_PROBS`
+# quantile breaks (it sits within one quantile band of the integration
+# component, or in a far tail) has a smooth integrand throughout, so the
+# rule converges spectrally: n = 192 is accurate to ~1e-13 there.
+# Windows that do contain breaks are split into quantile-spaced panels
+# instead (see `_panel_integrate` in `src/Convolved.jl`).
 const _CONVOLVED_NODES = 192
 
 # Default rule for the convolution quadrature, built once at load.
 const _CONVOLVED_GL = _GL(_CONVOLVED_NODES)
 
-# Composite grid for the batched convolution quadrature: the shared
-# window is split into `_COMPOSITE_PANELS` equal panels, each integrated
-# with the `_COMPOSITE_GL` rule, plus per-point end-correction integrals
-# on the same rule. Every point's integrand kinks land on a panel or
-# correction boundary, so each piece is smooth and the small rule
-# converges spectrally: 16 panels x 16 nodes keep the batched-vs-scalar
-# gap below ~1e-8 even for batches spanning a 40x range (measured
-# ~7e-11), at roughly the cost of the old single shared-window solve.
-const _COMPOSITE_PANELS = 16
+# Interior split probabilities for the quantile-panelled quadrature
+# (issue #49). Integration windows are split at the integration
+# component's quantiles so node density follows its mass: a heavy tail
+# stretches the window to the 1 - 1e-8 quantile (~4.5e3 for
+# LogNormal(0, 1.5)) while the integrand's mass sits near O(1), and a
+# single fixed rule then starves the mass region of nodes (measured
+# ~1.4e-2 CDF error on the issue's Gamma x LogNormal(0, 1.5) product).
+# The probabilities step geometrically toward each tail so no outer
+# panel spans orders of magnitude of density; the bulk breaks give
+# panels of roughly equal mass. A full-support window yields 12 panels
+# x 16 nodes = 192 evaluations, the cost of the old single window.
+const _PANEL_PROBS = (
+    1e-6, 1e-4, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99,
+    1 - 1e-4, 1 - 1e-6)
 
-# Per-panel (and per-correction) rule for the batched composite path.
-const _COMPOSITE_GL = _GL(16)
+# Per-panel (and per-correction) rule shared by the quantile-panelled
+# scalar path and the batched composite path. Measured against adaptive
+# references, 16 nodes per quantile panel hold the worst scalar case at
+# ~5e-11 (machine precision in the bulk) and keep the batched-vs-scalar
+# gap below ~1e-8 even for batches spanning a 40x range, at roughly the
+# cost of the old fixed grids.
+const _PANEL_GL = _GL(16)
 
 # Number of Gauss-Legendre nodes for the default solver used by the solver
 # types (analytic/numeric quadrature fallback).

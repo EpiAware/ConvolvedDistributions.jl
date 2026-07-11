@@ -228,6 +228,9 @@ end
 
 # Numeric difference density:
 #   f_Z(z) = ∫ f_X(z + y) f_Y(y) dy   over y ∈ support(Y).
+# The quadrature is quantile-panelled on Y (`_panel_integrate`, shared
+# with Convolved) so a heavy-tailed Y cannot stretch the window away
+# from the integrand's mass (issue #49).
 function _difference_numeric_pdf(d::Difference, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
     (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
@@ -235,13 +238,15 @@ function _difference_numeric_pdf(d::Difference, z::Real)
     lower, upper = _difference_window(d)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = gl_integrate(
-        y -> _pdf_ad_safe(d.x, z + y) * _pdf_ad_safe(d.y, y), lower, upper)
+    result = _panel_integrate(
+        y -> _pdf_ad_safe(d.x, z + y) * _pdf_ad_safe(d.y, y),
+        lower, upper, d.y)
     return max(result, zero(result))
 end
 
 # Numeric difference CDF:
-#   F_Z(z) = P(X - Y ≤ z) = ∫ F_X(z + y) f_Y(y) dy   over y ∈ support(Y).
+#   F_Z(z) = P(X - Y ≤ z) = ∫ F_X(z + y) f_Y(y) dy   over y ∈ support(Y),
+# quantile-panelled on Y like the density above (issue #49).
 function _difference_numeric_cdf(d::Difference, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
     z <= minimum(d) && return zero(float(typeof(z)))
@@ -250,8 +255,9 @@ function _difference_numeric_cdf(d::Difference, z::Real)
     lower, upper = _difference_window(d)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = gl_integrate(
-        y -> _cdf_ad_safe(d.x, z + y) * _pdf_ad_safe(d.y, y), lower, upper)
+    result = _panel_integrate(
+        y -> _cdf_ad_safe(d.x, z + y) * _pdf_ad_safe(d.y, y),
+        lower, upper, d.y)
     return clamp(result, zero(result), one(result))
 end
 

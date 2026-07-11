@@ -308,6 +308,9 @@ end
 
 # Numeric product density (the Mellin convolution):
 #   f_Z(z) = ∫ f_X(z / y) f_Y(y) / y dy   over y ∈ support(Y), y > 0.
+# The quadrature is quantile-panelled on Y (`_panel_integrate`, shared
+# with Convolved) so a heavy-tailed Y cannot stretch the window away
+# from the integrand's mass (issue #49).
 function _product_numeric_pdf(d::Product, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
     (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
@@ -315,9 +318,9 @@ function _product_numeric_pdf(d::Product, z::Real)
     lower, upper = _product_pdf_window(d, z)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = gl_integrate(
+    result = _panel_integrate(
         y -> _pdf_ad_safe(d.x, z / y) * _pdf_ad_safe(d.y, y) / y,
-        lower, upper)
+        lower, upper, d.y)
     return max(result, zero(result))
 end
 
@@ -327,7 +330,9 @@ end
 #   F_Y(upper) - ∫ ccdf_X(z / y) f_Y(y) dy
 # (see `_product_cdf_window`). A degenerate window means the direct
 # integrand's F_X factor is 1 on all of Y's mass below `upper`, so the
-# base term alone is the answer.
+# base term alone is the answer. The quadrature is quantile-panelled on
+# Y like the density above (issue #49; a single fixed-node window
+# missed this CDF by ~1.4e-2 for a LogNormal(0, 1.5) multiplier).
 function _product_numeric_cdf(d::Product, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
     z <= minimum(d) && return zero(float(typeof(z)))
@@ -338,9 +343,9 @@ function _product_numeric_cdf(d::Product, z::Real)
     upper <= lower && return clamp(base, zero(base), one(base))
 
     result = base -
-             gl_integrate(
+             _panel_integrate(
         y -> _ccdf_ad_safe(d.x, z / y) * _pdf_ad_safe(d.y, y),
-        lower, upper)
+        lower, upper, d.y)
     return clamp(result, zero(result), one(result))
 end
 
