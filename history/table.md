@@ -1,158 +1,158 @@
-|                                                                                                 | eaf187346ef1fa...  |
-|:------------------------------------------------------------------------------------------------|:------------------:|
-| AD gradients/Convolved Gamma+LogNormal numerical/Enzyme forward                                 | 0.113 ± 0.00059 ms |
-| AD gradients/Convolved Gamma+LogNormal numerical/Enzyme reverse                                 | 0.15 ± 0.00078 ms  |
-| AD gradients/Convolved Gamma+LogNormal numerical/ForwardDiff                                    | 0.115 ± 0.00026 ms |
-| AD gradients/Convolved Gamma+LogNormal numerical/Mooncake forward                               | 0.475 ± 0.0088 ms  |
-| AD gradients/Convolved Gamma+LogNormal numerical/Mooncake reverse                               | 0.728 ± 0.016 ms   |
-| AD gradients/Convolved Gamma+LogNormal numerical/ReverseDiff (tape)                             | 4.24 ± 0.56 ms     |
-| AD gradients/Convolved Gamma+Normal mean+var moments/Enzyme forward                             | 7.8 ± 0.24 μs      |
-| AD gradients/Convolved Gamma+Normal mean+var moments/Enzyme reverse                             | 0.0487 ± 0.013 μs  |
-| AD gradients/Convolved Gamma+Normal mean+var moments/ForwardDiff                                | 0.55 ± 0.041 μs    |
-| AD gradients/Convolved Gamma+Normal mean+var moments/Mooncake forward                           | 5.31 ± 1 μs        |
-| AD gradients/Convolved Gamma+Normal mean+var moments/Mooncake reverse                           | 4.87 ± 0.53 μs     |
-| AD gradients/Convolved Gamma+Normal mean+var moments/ReverseDiff (tape)                         | 2.65 ± 0.13 μs     |
-| AD gradients/Convolved LogNormal+Gamma numerical/Enzyme forward                                 | 0.113 ± 0.00065 ms |
-| AD gradients/Convolved LogNormal+Gamma numerical/Enzyme reverse                                 | 0.156 ± 0.0012 ms  |
-| AD gradients/Convolved LogNormal+Gamma numerical/ForwardDiff                                    | 0.112 ± 0.0002 ms  |
-| AD gradients/Convolved LogNormal+Gamma numerical/Mooncake forward                               | 0.503 ± 0.0088 ms  |
-| AD gradients/Convolved LogNormal+Gamma numerical/Mooncake reverse                               | 0.77 ± 0.017 ms    |
-| AD gradients/Convolved LogNormal+Gamma numerical/ReverseDiff (tape)                             | 4.16 ± 0.55 ms     |
-| AD gradients/Convolved Normal+Normal analytical/Enzyme forward                                  | 8.19 ± 0.087 μs    |
-| AD gradients/Convolved Normal+Normal analytical/Enzyme reverse                                  | 3.42 ± 0.06 μs     |
-| AD gradients/Convolved Normal+Normal analytical/ForwardDiff                                     | 0.617 ± 0.09 μs    |
-| AD gradients/Convolved Normal+Normal analytical/Mooncake forward                                | 6.13 ± 0.51 μs     |
-| AD gradients/Convolved Normal+Normal analytical/Mooncake reverse                                | 28.7 ± 3.3 μs      |
-| AD gradients/Convolved Normal+Normal analytical/ReverseDiff (tape)                              | 17 ± 0.39 μs       |
-| AD gradients/Difference Gamma-LogNormal numerical wrt X/Enzyme forward                          | 0.115 ± 0.00072 ms |
-| AD gradients/Difference Gamma-LogNormal numerical wrt X/Enzyme reverse                          | 0.152 ± 0.00086 ms |
-| AD gradients/Difference Gamma-LogNormal numerical wrt X/ForwardDiff                             | 0.115 ± 0.00039 ms |
-| AD gradients/Difference Gamma-LogNormal numerical wrt X/Mooncake forward                        | 0.481 ± 0.0089 ms  |
-| AD gradients/Difference Gamma-LogNormal numerical wrt X/Mooncake reverse                        | 0.683 ± 0.019 ms   |
-| AD gradients/Difference Gamma-LogNormal numerical wrt X/ReverseDiff (tape)                      | 4.26 ± 0.52 ms     |
-| AD gradients/Difference Gamma-Normal mean+var moments/Enzyme forward                            | 7.78 ± 0.23 μs     |
-| AD gradients/Difference Gamma-Normal mean+var moments/Enzyme reverse                            | 0.0487 ± 0.013 μs  |
-| AD gradients/Difference Gamma-Normal mean+var moments/ForwardDiff                               | 0.535 ± 0.044 μs   |
-| AD gradients/Difference Gamma-Normal mean+var moments/Mooncake forward                          | 5.34 ± 0.85 μs     |
-| AD gradients/Difference Gamma-Normal mean+var moments/Mooncake reverse                          | 4.74 ± 0.5 μs      |
-| AD gradients/Difference Gamma-Normal mean+var moments/ReverseDiff (tape)                        | 2.62 ± 0.13 μs     |
-| AD gradients/Difference LogNormal-Gamma numerical wrt Y/Enzyme forward                          | 0.116 ± 0.00078 ms |
-| AD gradients/Difference LogNormal-Gamma numerical wrt Y/Enzyme reverse                          | 0.159 ± 0.0012 ms  |
-| AD gradients/Difference LogNormal-Gamma numerical wrt Y/ForwardDiff                             | 0.115 ± 0.00097 ms |
-| AD gradients/Difference LogNormal-Gamma numerical wrt Y/Mooncake forward                        | 0.518 ± 0.0089 ms  |
-| AD gradients/Difference LogNormal-Gamma numerical wrt Y/Mooncake reverse                        | 0.71 ± 0.018 ms    |
-| AD gradients/Difference LogNormal-Gamma numerical wrt Y/ReverseDiff (tape)                      | 4.17 ± 0.55 ms     |
-| AD gradients/Difference Normal-Normal analytical/Enzyme forward                                 | 8.16 ± 0.14 μs     |
-| AD gradients/Difference Normal-Normal analytical/Enzyme reverse                                 | 3.24 ± 0.072 μs    |
-| AD gradients/Difference Normal-Normal analytical/ForwardDiff                                    | 0.577 ± 0.088 μs   |
-| AD gradients/Difference Normal-Normal analytical/Mooncake forward                               | 6.72 ± 0.22 μs     |
-| AD gradients/Difference Normal-Normal analytical/Mooncake reverse                               | 0.0345 ± 0.0037 ms |
-| AD gradients/Difference Normal-Normal analytical/ReverseDiff (tape)                             | 18.5 ± 0.45 μs     |
-| AD gradients/Product Gamma*LogNormal mean+var moments/Enzyme forward                            | 7.81 ± 0.22 μs     |
-| AD gradients/Product Gamma*LogNormal mean+var moments/Enzyme reverse                            | 0.0711 ± 0.013 μs  |
-| AD gradients/Product Gamma*LogNormal mean+var moments/ForwardDiff                               | 0.61 ± 0.039 μs    |
-| AD gradients/Product Gamma*LogNormal mean+var moments/Mooncake forward                          | 5.54 ± 0.86 μs     |
-| AD gradients/Product Gamma*LogNormal mean+var moments/Mooncake reverse                          | 6.87 ± 1.1 μs      |
-| AD gradients/Product Gamma*LogNormal mean+var moments/ReverseDiff (tape)                        | 10.3 ± 0.33 μs     |
-| AD gradients/Product Gamma*LogNormal numerical wrt X/Enzyme forward                             | 0.117 ± 0.001 ms   |
-| AD gradients/Product Gamma*LogNormal numerical wrt X/Enzyme reverse                             | 0.16 ± 0.0011 ms   |
-| AD gradients/Product Gamma*LogNormal numerical wrt X/ForwardDiff                                | 0.116 ± 0.00036 ms |
-| AD gradients/Product Gamma*LogNormal numerical wrt X/Mooncake forward                           | 0.511 ± 0.009 ms   |
-| AD gradients/Product Gamma*LogNormal numerical wrt X/Mooncake reverse                           | 0.736 ± 0.02 ms    |
-| AD gradients/Product Gamma*LogNormal numerical wrt X/ReverseDiff (tape)                         | 4.74 ± 0.58 ms     |
-| AD gradients/Product LogNormal*Gamma numerical wrt Y/Enzyme forward                             | 0.123 ± 0.00085 ms |
-| AD gradients/Product LogNormal*Gamma numerical wrt Y/Enzyme reverse                             | 0.166 ± 0.0013 ms  |
-| AD gradients/Product LogNormal*Gamma numerical wrt Y/ForwardDiff                                | 0.119 ± 0.00052 ms |
-| AD gradients/Product LogNormal*Gamma numerical wrt Y/Mooncake forward                           | 0.546 ± 0.0091 ms  |
-| AD gradients/Product LogNormal*Gamma numerical wrt Y/Mooncake reverse                           | 0.779 ± 0.019 ms   |
-| AD gradients/Product LogNormal*Gamma numerical wrt Y/ReverseDiff (tape)                         | 4.61 ± 0.61 ms     |
-| AD gradients/Product LogNormal*LogNormal analytical/Enzyme forward                              | 8.18 ± 0.13 μs     |
-| AD gradients/Product LogNormal*LogNormal analytical/Enzyme reverse                              | 3.35 ± 0.076 μs    |
-| AD gradients/Product LogNormal*LogNormal analytical/ForwardDiff                                 | 0.596 ± 0.088 μs   |
-| AD gradients/Product LogNormal*LogNormal analytical/Mooncake forward                            | 6.82 ± 0.27 μs     |
-| AD gradients/Product LogNormal*LogNormal analytical/Mooncake reverse                            | 17.9 ± 1.1 μs      |
-| AD gradients/Product LogNormal*LogNormal analytical/ReverseDiff (tape)                          | 22.3 ± 0.51 μs     |
-| AD gradients/Timeseries convolve discrete Poisson delay/Enzyme forward                          | 8.42 ± 0.14 μs     |
-| AD gradients/Timeseries convolve discrete Poisson delay/Enzyme reverse                          | 7.38 ± 0.072 μs    |
-| AD gradients/Timeseries convolve discrete Poisson delay/ForwardDiff                             | 0.981 ± 0.13 μs    |
-| AD gradients/Timeseries convolve discrete Poisson delay/Mooncake forward                        | 6.28 ± 0.97 μs     |
-| AD gradients/Timeseries convolve discrete Poisson delay/Mooncake reverse                        | 20.4 ± 1.1 μs      |
-| AD gradients/Timeseries convolve discrete Poisson delay/ReverseDiff (tape)                      | 29.9 ± 1.3 μs      |
-| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/Enzyme forward     | 0.958 ± 0.0019 ms  |
-| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/Enzyme reverse     | 1.03 ± 0.003 ms    |
-| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/ForwardDiff        | 0.782 ± 0.0019 ms  |
-| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/Mooncake forward   | 3.75 ± 0.0068 ms   |
-| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/Mooncake reverse   | 2.25 ± 0.03 ms     |
-| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/ReverseDiff (tape) | 13.6 ± 1.3 ms      |
-| AD gradients/Timeseries convolve discretised Gamma delay/Enzyme forward                         | 10.9 ± 0.2 μs      |
-| AD gradients/Timeseries convolve discretised Gamma delay/Enzyme reverse                         | 14.2 ± 0.25 μs     |
-| AD gradients/Timeseries convolve discretised Gamma delay/ForwardDiff                            | 3.27 ± 0.039 μs    |
-| AD gradients/Timeseries convolve discretised Gamma delay/Mooncake forward                       | 12.1 ± 0.36 μs     |
-| AD gradients/Timeseries convolve discretised Gamma delay/Mooncake reverse                       | 25.1 ± 3.7 μs      |
-| AD gradients/Timeseries convolve discretised Gamma delay/ReverseDiff (tape)                     | 0.0352 ± 0.001 ms  |
-| Baseline/Gamma/cdf                                                                              | 3.61 ± 0.37 μs     |
-| Baseline/Gamma/logpdf                                                                           | 2.88 ± 0.34 μs     |
-| Baseline/Normal/cdf                                                                             | 1.48 ± 0.3 μs      |
-| Baseline/Normal/logpdf                                                                          | 1.05 ± 0.021 μs    |
-| Convolved/analytic/cdf batched                                                                  | 2.67 ± 0.35 μs     |
-| Convolved/analytic/cdf scalar                                                                   | 28.2 ± 0.31 ns     |
-| Convolved/analytic/construction                                                                 | 3.41 ± 0.001 ns    |
-| Convolved/analytic/logpdf batched                                                               | 1.08 ± 0.022 μs    |
-| Convolved/analytic/logpdf broadcast                                                             | 2.54 ± 0.34 μs     |
-| Convolved/analytic/logpdf scalar                                                                | 27.8 ± 0.19 ns     |
-| Convolved/analytic/mean                                                                         | 2.79 ± 0.01 ns     |
-| Convolved/analytic/pdf batched                                                                  | 1.12 ± 0.035 μs    |
-| Convolved/analytic/pdf scalar                                                                   | 29.9 ± 0.05 ns     |
-| Convolved/analytic/rand                                                                         | 1.12 ± 0.036 μs    |
-| Convolved/numeric/cdf batched                                                                   | 0.916 ± 0.0032 ms  |
-| Convolved/numeric/cdf scalar                                                                    | 21.3 ± 0.07 μs     |
-| Convolved/numeric/construction                                                                  | 3.41 ± 0.01 ns     |
-| Convolved/numeric/logpdf batched                                                                | 0.73 ± 0.0071 ms   |
-| Convolved/numeric/logpdf broadcast                                                              | 1.63 ± 0.0079 ms   |
-| Convolved/numeric/logpdf scalar                                                                 | 16.2 ± 0.05 μs     |
-| Convolved/numeric/mean                                                                          | 6.63 ± 0.02 ns     |
-| Convolved/numeric/pdf batched                                                                   | 0.729 ± 0.0068 ms  |
-| Convolved/numeric/pdf scalar                                                                    | 16.1 ± 0.04 μs     |
-| Convolved/numeric/rand                                                                          | 2.8 ± 0.35 μs      |
-| Difference/analytic/cdf broadcast                                                               | 3.36 ± 0.35 μs     |
-| Difference/analytic/cdf scalar                                                                  | 10.9 ± 0.02 ns     |
-| Difference/analytic/construction                                                                | 3.41 ± 0.01 ns     |
-| Difference/analytic/logpdf broadcast                                                            | 1.51 ± 0.3 μs      |
-| Difference/analytic/logpdf scalar                                                               | 17 ± 0.081 ns      |
-| Difference/analytic/mean                                                                        | 3.1 ± 0.01 ns      |
-| Difference/analytic/rand                                                                        | 1.12 ± 0.037 μs    |
-| Difference/numeric/cdf broadcast                                                                | 1.22 ± 0.0071 ms   |
-| Difference/numeric/cdf scalar                                                                   | 14.5 ± 0.061 μs    |
-| Difference/numeric/construction                                                                 | 3.12 ± 0.01 ns     |
-| Difference/numeric/logpdf broadcast                                                             | 1.63 ± 0.0084 ms   |
-| Difference/numeric/logpdf scalar                                                                | 16.3 ± 0.06 μs     |
-| Difference/numeric/mean                                                                         | 6.65 ± 0.02 ns     |
-| Difference/numeric/rand                                                                         | 2.83 ± 0.35 μs     |
-| Product/analytic/cdf broadcast                                                                  | 4.91 ± 0.22 μs     |
-| Product/analytic/cdf scalar                                                                     | 29.7 ± 0.55 ns     |
-| Product/analytic/construction                                                                   | 3.41 ± 0.01 ns     |
-| Product/analytic/logpdf broadcast                                                               | 2.22 ± 0.33 μs     |
-| Product/analytic/logpdf scalar                                                                  | 23.9 ± 0.13 ns     |
-| Product/analytic/mean                                                                           | 10.8 ± 0.039 ns    |
-| Product/analytic/rand                                                                           | 1.78 ± 0.32 μs     |
-| Product/numeric/cdf broadcast                                                                   | 2.43 ± 0.0092 ms   |
-| Product/numeric/cdf scalar                                                                      | 25.6 ± 0.08 μs     |
-| Product/numeric/construction                                                                    | 3.11 ± 0.01 ns     |
-| Product/numeric/logpdf broadcast                                                                | 1.72 ± 0.0064 ms   |
-| Product/numeric/logpdf scalar                                                                   | 17.1 ± 0.04 μs     |
-| Product/numeric/mean                                                                            | 6.76 ± 0.03 ns     |
-| Product/numeric/rand                                                                            | 2.81 ± 0.35 μs     |
-| Quantile/Convolved analytic/grid                                                                | 0.625 ± 0.11 ms    |
-| Quantile/Convolved analytic/median                                                              | 23.6 ± 0.9 μs      |
-| Quantile/Convolved numeric/median                                                               | 0.381 ± 0.01 ms    |
-| Quantile/Difference numeric/median                                                              | 0.218 ± 0.0053 ms  |
-| Quantile/Product numeric/median                                                                 | 0.52 ± 0.01 ms     |
-| Timeseries/Convolved delay                                                                      | 0.979 ± 0.0014 ms  |
-| Timeseries/Gamma delay                                                                          | 1.84 ± 0.028 μs    |
-| Timeseries/Poisson delay                                                                        | 1.27 ± 0.027 μs    |
-| time_to_load                                                                                    | 0.846 ± 0.002 s    |
+|                                                                                                 | 4993a98fd61c0b...   |
+|:------------------------------------------------------------------------------------------------|:-------------------:|
+| AD gradients/Convolved Gamma+LogNormal numerical/Enzyme forward                                 | 0.113 ± 0.00062 ms  |
+| AD gradients/Convolved Gamma+LogNormal numerical/Enzyme reverse                                 | 0.155 ± 0.00095 ms  |
+| AD gradients/Convolved Gamma+LogNormal numerical/ForwardDiff                                    | 0.115 ± 0.00028 ms  |
+| AD gradients/Convolved Gamma+LogNormal numerical/Mooncake forward                               | 0.475 ± 0.0089 ms   |
+| AD gradients/Convolved Gamma+LogNormal numerical/Mooncake reverse                               | 0.698 ± 0.019 ms    |
+| AD gradients/Convolved Gamma+LogNormal numerical/ReverseDiff (tape)                             | 4.28 ± 0.55 ms      |
+| AD gradients/Convolved Gamma+Normal mean+var moments/Enzyme forward                             | 8.02 ± 0.28 μs      |
+| AD gradients/Convolved Gamma+Normal mean+var moments/Enzyme reverse                             | 0.0479 ± 0.0066 μs  |
+| AD gradients/Convolved Gamma+Normal mean+var moments/ForwardDiff                                | 0.534 ± 0.042 μs    |
+| AD gradients/Convolved Gamma+Normal mean+var moments/Mooncake forward                           | 5.18 ± 1 μs         |
+| AD gradients/Convolved Gamma+Normal mean+var moments/Mooncake reverse                           | 4.65 ± 0.54 μs      |
+| AD gradients/Convolved Gamma+Normal mean+var moments/ReverseDiff (tape)                         | 2.61 ± 0.14 μs      |
+| AD gradients/Convolved LogNormal+Gamma numerical/Enzyme forward                                 | 0.112 ± 0.0007 ms   |
+| AD gradients/Convolved LogNormal+Gamma numerical/Enzyme reverse                                 | 0.158 ± 0.00084 ms  |
+| AD gradients/Convolved LogNormal+Gamma numerical/ForwardDiff                                    | 0.112 ± 0.00024 ms  |
+| AD gradients/Convolved LogNormal+Gamma numerical/Mooncake forward                               | 0.504 ± 0.009 ms    |
+| AD gradients/Convolved LogNormal+Gamma numerical/Mooncake reverse                               | 0.738 ± 0.02 ms     |
+| AD gradients/Convolved LogNormal+Gamma numerical/ReverseDiff (tape)                             | 4.27 ± 0.52 ms      |
+| AD gradients/Convolved Normal+Normal analytical/Enzyme forward                                  | 8.33 ± 0.11 μs      |
+| AD gradients/Convolved Normal+Normal analytical/Enzyme reverse                                  | 3.45 ± 0.094 μs     |
+| AD gradients/Convolved Normal+Normal analytical/ForwardDiff                                     | 0.624 ± 0.086 μs    |
+| AD gradients/Convolved Normal+Normal analytical/Mooncake forward                                | 6.04 ± 0.56 μs      |
+| AD gradients/Convolved Normal+Normal analytical/Mooncake reverse                                | 28.7 ± 3.4 μs       |
+| AD gradients/Convolved Normal+Normal analytical/ReverseDiff (tape)                              | 17.2 ± 0.45 μs      |
+| AD gradients/Difference Gamma-LogNormal numerical wrt X/Enzyme forward                          | 0.114 ± 0.00079 ms  |
+| AD gradients/Difference Gamma-LogNormal numerical wrt X/Enzyme reverse                          | 0.154 ± 0.00081 ms  |
+| AD gradients/Difference Gamma-LogNormal numerical wrt X/ForwardDiff                             | 0.115 ± 0.00028 ms  |
+| AD gradients/Difference Gamma-LogNormal numerical wrt X/Mooncake forward                        | 0.481 ± 0.0089 ms   |
+| AD gradients/Difference Gamma-LogNormal numerical wrt X/Mooncake reverse                        | 0.696 ± 0.018 ms    |
+| AD gradients/Difference Gamma-LogNormal numerical wrt X/ReverseDiff (tape)                      | 4.32 ± 0.51 ms      |
+| AD gradients/Difference Gamma-Normal mean+var moments/Enzyme forward                            | 8.05 ± 0.26 μs      |
+| AD gradients/Difference Gamma-Normal mean+var moments/Enzyme reverse                            | 0.048 ± 0.0065 μs   |
+| AD gradients/Difference Gamma-Normal mean+var moments/ForwardDiff                               | 0.556 ± 0.04 μs     |
+| AD gradients/Difference Gamma-Normal mean+var moments/Mooncake forward                          | 5.22 ± 0.98 μs      |
+| AD gradients/Difference Gamma-Normal mean+var moments/Mooncake reverse                          | 4.8 ± 0.48 μs       |
+| AD gradients/Difference Gamma-Normal mean+var moments/ReverseDiff (tape)                        | 2.66 ± 0.12 μs      |
+| AD gradients/Difference LogNormal-Gamma numerical wrt Y/Enzyme forward                          | 0.117 ± 0.00089 ms  |
+| AD gradients/Difference LogNormal-Gamma numerical wrt Y/Enzyme reverse                          | 0.162 ± 0.0015 ms   |
+| AD gradients/Difference LogNormal-Gamma numerical wrt Y/ForwardDiff                             | 0.116 ± 0.00085 ms  |
+| AD gradients/Difference LogNormal-Gamma numerical wrt Y/Mooncake forward                        | 0.52 ± 0.0089 ms    |
+| AD gradients/Difference LogNormal-Gamma numerical wrt Y/Mooncake reverse                        | 0.721 ± 0.017 ms    |
+| AD gradients/Difference LogNormal-Gamma numerical wrt Y/ReverseDiff (tape)                      | 4.24 ± 0.54 ms      |
+| AD gradients/Difference Normal-Normal analytical/Enzyme forward                                 | 8.26 ± 0.15 μs      |
+| AD gradients/Difference Normal-Normal analytical/Enzyme reverse                                 | 3.4 ± 0.082 μs      |
+| AD gradients/Difference Normal-Normal analytical/ForwardDiff                                    | 0.58 ± 0.084 μs     |
+| AD gradients/Difference Normal-Normal analytical/Mooncake forward                               | 5.9 ± 0.54 μs       |
+| AD gradients/Difference Normal-Normal analytical/Mooncake reverse                               | 30.1 ± 3.5 μs       |
+| AD gradients/Difference Normal-Normal analytical/ReverseDiff (tape)                             | 18.3 ± 0.55 μs      |
+| AD gradients/Product Gamma*LogNormal mean+var moments/Enzyme forward                            | 8.29 ± 0.3 μs       |
+| AD gradients/Product Gamma*LogNormal mean+var moments/Enzyme reverse                            | 0.0701 ± 0.0066 μs  |
+| AD gradients/Product Gamma*LogNormal mean+var moments/ForwardDiff                               | 0.604 ± 0.041 μs    |
+| AD gradients/Product Gamma*LogNormal mean+var moments/Mooncake forward                          | 5.4 ± 0.83 μs       |
+| AD gradients/Product Gamma*LogNormal mean+var moments/Mooncake reverse                          | 6.74 ± 0.95 μs      |
+| AD gradients/Product Gamma*LogNormal mean+var moments/ReverseDiff (tape)                        | 10.4 ± 0.32 μs      |
+| AD gradients/Product Gamma*LogNormal numerical wrt X/Enzyme forward                             | 0.118 ± 0.00077 ms  |
+| AD gradients/Product Gamma*LogNormal numerical wrt X/Enzyme reverse                             | 0.157 ± 0.00084 ms  |
+| AD gradients/Product Gamma*LogNormal numerical wrt X/ForwardDiff                                | 0.116 ± 0.00027 ms  |
+| AD gradients/Product Gamma*LogNormal numerical wrt X/Mooncake forward                           | 0.51 ± 0.0089 ms    |
+| AD gradients/Product Gamma*LogNormal numerical wrt X/Mooncake reverse                           | 0.739 ± 0.022 ms    |
+| AD gradients/Product Gamma*LogNormal numerical wrt X/ReverseDiff (tape)                         | 4.78 ± 0.58 ms      |
+| AD gradients/Product LogNormal*Gamma numerical wrt Y/Enzyme forward                             | 0.125 ± 0.0014 ms   |
+| AD gradients/Product LogNormal*Gamma numerical wrt Y/Enzyme reverse                             | 0.167 ± 0.0013 ms   |
+| AD gradients/Product LogNormal*Gamma numerical wrt Y/ForwardDiff                                | 0.119 ± 0.0005 ms   |
+| AD gradients/Product LogNormal*Gamma numerical wrt Y/Mooncake forward                           | 0.545 ± 0.0093 ms   |
+| AD gradients/Product LogNormal*Gamma numerical wrt Y/Mooncake reverse                           | 0.783 ± 0.023 ms    |
+| AD gradients/Product LogNormal*Gamma numerical wrt Y/ReverseDiff (tape)                         | 4.67 ± 0.6 ms       |
+| AD gradients/Product LogNormal*LogNormal analytical/Enzyme forward                              | 8.37 ± 0.18 μs      |
+| AD gradients/Product LogNormal*LogNormal analytical/Enzyme reverse                              | 3.41 ± 0.093 μs     |
+| AD gradients/Product LogNormal*LogNormal analytical/ForwardDiff                                 | 0.597 ± 0.085 μs    |
+| AD gradients/Product LogNormal*LogNormal analytical/Mooncake forward                            | 5.86 ± 0.51 μs      |
+| AD gradients/Product LogNormal*LogNormal analytical/Mooncake reverse                            | 18.1 ± 1 μs         |
+| AD gradients/Product LogNormal*LogNormal analytical/ReverseDiff (tape)                          | 22.3 ± 0.55 μs      |
+| AD gradients/Timeseries convolve discrete Poisson delay/Enzyme forward                          | 8.02 ± 0.19 μs      |
+| AD gradients/Timeseries convolve discrete Poisson delay/Enzyme reverse                          | 7 ± 0.088 μs        |
+| AD gradients/Timeseries convolve discrete Poisson delay/ForwardDiff                             | 0.949 ± 0.12 μs     |
+| AD gradients/Timeseries convolve discrete Poisson delay/Mooncake forward                        | 6.69 ± 0.76 μs      |
+| AD gradients/Timeseries convolve discrete Poisson delay/Mooncake reverse                        | 19.8 ± 1.2 μs       |
+| AD gradients/Timeseries convolve discrete Poisson delay/ReverseDiff (tape)                      | 29.6 ± 0.84 μs      |
+| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/Enzyme forward     | 0.964 ± 0.002 ms    |
+| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/Enzyme reverse     | 1.04 ± 0.0058 ms    |
+| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/ForwardDiff        | 0.787 ± 0.0017 ms   |
+| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/Mooncake forward   | 3.78 ± 0.0076 ms    |
+| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/Mooncake reverse   | 2.29 ± 0.03 ms      |
+| AD gradients/Timeseries convolve discretised Convolved Gamma+LogNormal delay/ReverseDiff (tape) | 13.4 ± 1.3 ms       |
+| AD gradients/Timeseries convolve discretised Gamma delay/Enzyme forward                         | 10.9 ± 0.19 μs      |
+| AD gradients/Timeseries convolve discretised Gamma delay/Enzyme reverse                         | 13.6 ± 0.25 μs      |
+| AD gradients/Timeseries convolve discretised Gamma delay/ForwardDiff                            | 3.25 ± 0.041 μs     |
+| AD gradients/Timeseries convolve discretised Gamma delay/Mooncake forward                       | 12.1 ± 0.42 μs      |
+| AD gradients/Timeseries convolve discretised Gamma delay/Mooncake reverse                       | 21.9 ± 2.7 μs       |
+| AD gradients/Timeseries convolve discretised Gamma delay/ReverseDiff (tape)                     | 0.0353 ± 0.00079 ms |
+| Baseline/Gamma/cdf                                                                              | 3.57 ± 0.36 μs      |
+| Baseline/Gamma/logpdf                                                                           | 2.9 ± 0.33 μs       |
+| Baseline/Normal/cdf                                                                             | 1.48 ± 0.31 μs      |
+| Baseline/Normal/logpdf                                                                          | 1.06 ± 0.024 μs     |
+| Convolved/analytic/cdf batched                                                                  | 2.64 ± 0.37 μs      |
+| Convolved/analytic/cdf scalar                                                                   | 28.2 ± 0.15 ns      |
+| Convolved/analytic/construction                                                                 | 3.1 ± 0.01 ns       |
+| Convolved/analytic/logpdf batched                                                               | 1.09 ± 0.028 μs     |
+| Convolved/analytic/logpdf broadcast                                                             | 2.56 ± 0.35 μs      |
+| Convolved/analytic/logpdf scalar                                                                | 27.8 ± 0.08 ns      |
+| Convolved/analytic/mean                                                                         | 3.1 ± 0.01 ns       |
+| Convolved/analytic/pdf batched                                                                  | 1.12 ± 0.035 μs     |
+| Convolved/analytic/pdf scalar                                                                   | 29.9 ± 0.1 ns       |
+| Convolved/analytic/rand                                                                         | 1.14 ± 0.04 μs      |
+| Convolved/numeric/cdf batched                                                                   | 0.913 ± 0.0037 ms   |
+| Convolved/numeric/cdf scalar                                                                    | 21.2 ± 0.07 μs      |
+| Convolved/numeric/construction                                                                  | 3.1 ± 0.01 ns       |
+| Convolved/numeric/logpdf batched                                                                | 0.729 ± 0.0072 ms   |
+| Convolved/numeric/logpdf broadcast                                                              | 1.62 ± 0.0079 ms    |
+| Convolved/numeric/logpdf scalar                                                                 | 16.2 ± 0.04 μs      |
+| Convolved/numeric/mean                                                                          | 6.66 ± 0.01 ns      |
+| Convolved/numeric/pdf batched                                                                   | 0.731 ± 0.0069 ms   |
+| Convolved/numeric/pdf scalar                                                                    | 16.1 ± 0.041 μs     |
+| Convolved/numeric/rand                                                                          | 2.81 ± 0.37 μs      |
+| Difference/analytic/cdf broadcast                                                               | 3.37 ± 0.38 μs      |
+| Difference/analytic/cdf scalar                                                                  | 10.8 ± 0.02 ns      |
+| Difference/analytic/construction                                                                | 3.41 ± 0.01 ns      |
+| Difference/analytic/logpdf broadcast                                                            | 1.52 ± 0.31 μs      |
+| Difference/analytic/logpdf scalar                                                               | 17 ± 0.07 ns        |
+| Difference/analytic/mean                                                                        | 3.1 ± 0.01 ns       |
+| Difference/analytic/rand                                                                        | 1.13 ± 0.056 μs     |
+| Difference/numeric/cdf broadcast                                                                | 1.2 ± 0.0046 ms     |
+| Difference/numeric/cdf scalar                                                                   | 14.4 ± 0.051 μs     |
+| Difference/numeric/construction                                                                 | 3.41 ± 0.01 ns      |
+| Difference/numeric/logpdf broadcast                                                             | 1.62 ± 0.0057 ms    |
+| Difference/numeric/logpdf scalar                                                                | 16.5 ± 0.03 μs      |
+| Difference/numeric/mean                                                                         | 6.65 ± 0.02 ns      |
+| Difference/numeric/rand                                                                         | 2.82 ± 0.36 μs      |
+| Product/analytic/cdf broadcast                                                                  | 4.91 ± 0.22 μs      |
+| Product/analytic/cdf scalar                                                                     | 29.7 ± 0.54 ns      |
+| Product/analytic/construction                                                                   | 3.41 ± 0.01 ns      |
+| Product/analytic/logpdf broadcast                                                               | 2.27 ± 0.33 μs      |
+| Product/analytic/logpdf scalar                                                                  | 24 ± 0.1 ns         |
+| Product/analytic/mean                                                                           | 10.8 ± 0.039 ns     |
+| Product/analytic/rand                                                                           | 1.79 ± 0.32 μs      |
+| Product/numeric/cdf broadcast                                                                   | 2.43 ± 0.0085 ms    |
+| Product/numeric/cdf scalar                                                                      | 25.6 ± 0.08 μs      |
+| Product/numeric/construction                                                                    | 4.03 ± 0.01 ns      |
+| Product/numeric/logpdf broadcast                                                                | 1.73 ± 0.0065 ms    |
+| Product/numeric/logpdf scalar                                                                   | 17.2 ± 0.06 μs      |
+| Product/numeric/mean                                                                            | 6.71 ± 0.031 ns     |
+| Product/numeric/rand                                                                            | 2.82 ± 0.35 μs      |
+| Quantile/Convolved analytic/grid                                                                | 0.805 ± 0.12 ms     |
+| Quantile/Convolved analytic/median                                                              | 30.9 ± 1.3 μs       |
+| Quantile/Convolved numeric/median                                                               | 0.432 ± 0.011 ms    |
+| Quantile/Difference numeric/median                                                              | 0.254 ± 0.012 ms    |
+| Quantile/Product numeric/median                                                                 | 0.585 ± 0.012 ms    |
+| Timeseries/Convolved delay                                                                      | 0.977 ± 0.0015 ms   |
+| Timeseries/Gamma delay                                                                          | 1.82 ± 0.035 μs     |
+| Timeseries/Poisson delay                                                                        | 1.27 ± 0.025 μs     |
+| time_to_load                                                                                    | 0.885 ± 0.012 s     |
 
-|                                                                                                 | eaf187346ef1fa...         |
+|                                                                                                 | 4993a98fd61c0b...         |
 |:------------------------------------------------------------------------------------------------|:-------------------------:|
 | AD gradients/Convolved Gamma+LogNormal numerical/Enzyme forward                                 | 0.036 k allocs: 1.11 kB   |
 | AD gradients/Convolved Gamma+LogNormal numerical/Enzyme reverse                                 | 14  allocs: 1.86 kB       |
@@ -296,11 +296,11 @@
 | Product/numeric/logpdf scalar                                                                   | 0  allocs: 0 B            |
 | Product/numeric/mean                                                                            | 0  allocs: 0 B            |
 | Product/numeric/rand                                                                            | 2  allocs: 0.906 kB       |
-| Quantile/Convolved analytic/grid                                                                | 5.38 k allocs: 0.311 MB   |
-| Quantile/Convolved analytic/median                                                              | 0.247 k allocs: 14.8 kB   |
-| Quantile/Convolved numeric/median                                                               | 0.264 k allocs: 15.6 kB   |
-| Quantile/Difference numeric/median                                                              | 0.227 k allocs: 14 kB     |
-| Quantile/Product numeric/median                                                                 | 0.279 k allocs: 16.3 kB   |
+| Quantile/Convolved analytic/grid                                                                | 5.71 k allocs: 0.324 MB   |
+| Quantile/Convolved analytic/median                                                              | 0.265 k allocs: 15.6 kB   |
+| Quantile/Convolved numeric/median                                                               | 0.282 k allocs: 16.4 kB   |
+| Quantile/Difference numeric/median                                                              | 0.242 k allocs: 14.8 kB   |
+| Quantile/Product numeric/median                                                                 | 0.297 k allocs: 17.1 kB   |
 | Timeseries/Convolved delay                                                                      | 4  allocs: 0.594 kB       |
 | Timeseries/Gamma delay                                                                          | 4  allocs: 0.594 kB       |
 | Timeseries/Poisson delay                                                                        | 4  allocs: 0.594 kB       |
