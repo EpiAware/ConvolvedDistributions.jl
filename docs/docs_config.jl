@@ -31,6 +31,14 @@ const TUTORIAL_STUBS = [
     "visualising-convolutions.md" => "# [Visualising convolutions](@id visualising-convolutions)"
 ]
 
+# Heavy tutorials that always render from their `TUTORIAL_STUBS` heading and
+# never execute, independent of `--skip-notebooks` — the escape hatch for a
+# heavy tutorial with a problem of its own (e.g. a model that does not
+# terminate in reasonable time), so it need not block its siblings from
+# running for real. Leave empty; every heavy tutorial with no such problem
+# should execute.
+const FORCE_STUB_TUTORIALS = String[]
+
 # Regexes for URLs to skip during the (full-build) linkcheck, e.g. a page
 # published by a separate workflow that is not yet live.
 # - The stable docs URL 404s until the first tagged release deploys; drop
