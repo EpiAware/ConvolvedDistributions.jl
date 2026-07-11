@@ -77,6 +77,15 @@ With `series` the expected events at times `0, 1, ..., t` (say infections), the 
 The separate verb reflects the different return type: `convolved` always returns a distribution, `convolve_series` always returns a numeric series.
 The PMF masses depend differentiably on the delay parameters, so the timeseries form composes with gradient-based fitting.
 
+The discretisation and the convolution are also available separately.
+`convolve_series(pmf, series)` takes an already-discretised PMF vector and only convolves, with the masses used exactly as given (so a caller can supply, say, double-interval-censored masses).
+`discretise_pmf(delay, maxlag)` builds the delay PMF once as a reusable `DelayPMF`, which `convolve_series(pmf, series)` and `pdf(pmf, lag)` then read without rediscretising:
+
+```@example faq
+pmf = discretise_pmf(d, length(infections) - 1)
+convolve_series(pmf, infections)
+```
+
 ## Can I use this with automatic differentiation?
 
 Yes.
