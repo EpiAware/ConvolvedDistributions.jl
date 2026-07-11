@@ -121,6 +121,20 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             x -> logpdf(convolved(
                     LogNormal(0.5, 0.4), Gamma(θ[1], θ[2])), x), obs),
         [2.0, 1.0], (Constant(obs),))
+    # Batched vector logpdf (issues #43/#44): one composite-quadrature
+    # solve for the whole batch, differentiated through the VECTOR
+    # method rather than a scalar sum. W.r.t. parameters the final
+    # clamp/convert must promote with the quadrature result type (#43);
+    # w.r.t. the evaluation points the accumulator must not mutate
+    # tracked storage (#44).
+    _push!("Convolved Gamma+LogNormal batched logpdf wrt params",
+        (θ, obs) -> sum(logpdf(convolved(
+                Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4)), obs)),
+        [2.0, 1.0], (Constant(obs),))
+    _push!("Convolved Gamma+LogNormal batched logpdf wrt points",
+        (x, _obs) -> sum(logpdf(convolved(
+                Gamma(2.0, 1.0), LogNormal(0.5, 0.4)), x)),
+        copy(obs), (Constant(obs),))
     # Convolved analytic moments: mean/var are the sums of the component
     # moments, so the gradient flows through each component's closed-form
     # `mean`/`var`. The `obs` context is unused but keeps the scenario shape

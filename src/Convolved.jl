@@ -430,8 +430,11 @@ end
 # spectrally — this is what removes the old shared-window tail error
 # (issue #29). The panel grid is primal (see `_window_union`); the
 # corrections keep the live endpoints, so gradient flow through the
-# window bounds matches the scalar path. The accumulator's element type
-# is seeded from the integrand so `Dual`s propagate.
+# window bounds matches the scalar path. The per-point assembly is a
+# functional `map` with a scalar accumulator seeded from the integrand,
+# so tracer element types (`Dual`s, tracked reals) propagate and no
+# tracked storage is mutated — `fill` of a ReverseDiff `TrackedReal`
+# yields a `TrackedArray`, whose `setindex!` throws (issue #44).
 function _convolved_quadrature_composite(
         last_comp, rest, kernel::F, x::AbstractVector{<:Real},
         wins, L::Float64, U::Float64) where {F}
@@ -449,34 +452,32 @@ function _convolved_quadrature_composite(
           for k in 1:np, p in 1:_COMPOSITE_PANELS]
 
     z = zero(kernel(rest, first(x) - Tc[1, 1]) * Wc[1, 1])
-    out = fill(z, length(x))
-    for j in eachindex(x)
+    return map(eachindex(x)) do j
         wl, wu = wins[j][1], wins[j][2]
-        wu > wl || continue
+        wu > wl || return z
         wlp = Float64(_primal(wl))
         wup = Float64(_primal(wu))
         ilo = searchsortedfirst(bounds, wlp)
         ihi = searchsortedlast(bounds, wup)
-        integrand = let xj = x[j]
-            t -> kernel(rest, xj - t) * _pdf_ad_safe(last_comp, t)
-        end
+        xj = x[j]
+        integrand = t -> kernel(rest, xj - t) * _pdf_ad_safe(last_comp, t)
         if ilo > ihi
             # Window inside one panel: a single small solve.
-            out[j] += gl_integrate(integrand, wl, wu, _COMPOSITE_GL)
-            continue
+            return z + gl_integrate(integrand, wl, wu, _COMPOSITE_GL)
         end
+        acc = z
         @inbounds for p in ilo:(ihi - 1), k in 1:np
 
-            out[j] += Wc[k, p] * kernel(rest, x[j] - Tc[k, p])
+            acc += Wc[k, p] * kernel(rest, xj - Tc[k, p])
         end
         if wlp < bounds[ilo]
-            out[j] += gl_integrate(integrand, wl, bounds[ilo], _COMPOSITE_GL)
+            acc += gl_integrate(integrand, wl, bounds[ilo], _COMPOSITE_GL)
         end
         if wup > bounds[ihi]
-            out[j] += gl_integrate(integrand, bounds[ihi], wu, _COMPOSITE_GL)
+            acc += gl_integrate(integrand, bounds[ihi], wu, _COMPOSITE_GL)
         end
+        return acc
     end
-    return out
 end
 
 # Numeric convolution CDF.
@@ -672,13 +673,17 @@ function _convolved_numeric_cdf_batched(d::Convolved, x::AbstractVector{<:Real})
     raw = _convolved_quadrature_composite(
         last_comp, rest, _convolution_cdf, x, wins, L, U)
 
+    # `eltype(d)` stays `Float64` when the component parameters carry AD
+    # tracers (Duals, tracked reals), so promote with the quadrature
+    # result type before the clamp/convert (#43).
+    Tr = promote_type(T, eltype(raw))
     return map(zip(x, raw, wins)) do (xi, ri, wi)
         if xi <= dmin
-            zero(T)
+            zero(Tr)
         elseif xi >= dmax
-            one(T)
+            one(Tr)
         else
-            clamp(T(wi[3] + ri), zero(T), one(T))
+            clamp(Tr(wi[3] + ri), zero(Tr), one(Tr))
         end
     end
 end
@@ -704,8 +709,11 @@ function _convolved_numeric_pdf_batched(d::Convolved, x::AbstractVector{<:Real})
     raw = _convolved_quadrature_composite(
         last_comp, rest, _convolution_pdf, x, wins, L, U)
 
+    # Promote with the quadrature result type: `eltype(d)` misses
+    # AD tracers on the component parameters (#43).
+    Tr = promote_type(T, eltype(raw))
     return map(zip(x, raw)) do (xi, ri)
-        (xi <= dmin || xi >= dmax) ? zero(T) : max(T(ri), zero(T))
+        (xi <= dmin || xi >= dmax) ? zero(Tr) : max(Tr(ri), zero(Tr))
     end
 end
 
@@ -743,8 +751,10 @@ function logpdf(d::Convolved, x::AbstractVector{<:Real})
         return map(xi -> logpdf(analytic, xi), x)
     end
 
-    T = promote_type(eltype(x), float(eltype(d)))
     pdfs = _convolved_numeric_pdf_batched(d, x)
+    # Promote with the batched-PDF result type: `eltype(d)` misses
+    # AD tracers on the component parameters (#43).
+    T = promote_type(eltype(x), float(eltype(d)), eltype(pdfs))
 
     return map(zip(x, pdfs)) do (xi, p)
         if !insupport(d, xi)
