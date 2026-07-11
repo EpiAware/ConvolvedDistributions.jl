@@ -239,7 +239,7 @@ function _difference_numeric_pdf(d::Difference, z::Real)
     upper <= lower && return zero(float(typeof(z)))
 
     result = _panel_integrate(
-        y -> _pdf_ad_safe(d.x, z + y) * _pdf_ad_safe(d.y, y),
+        y -> pdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y),
         lower, upper, d.y)
     return max(result, zero(result))
 end
@@ -256,7 +256,7 @@ function _difference_numeric_cdf(d::Difference, z::Real)
     upper <= lower && return zero(float(typeof(z)))
 
     result = _panel_integrate(
-        y -> _cdf_ad_safe(d.x, z + y) * _pdf_ad_safe(d.y, y),
+        y -> cdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y),
         lower, upper, d.y)
     return clamp(result, zero(result), one(result))
 end

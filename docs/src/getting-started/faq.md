@@ -113,7 +113,7 @@ The masses depend differentiably on the delay parameters, so the timeseries form
 ## Can I use this with automatic differentiation?
 
 Yes.
-The `cdf`, `pdf`, and `logpdf` paths are AD-safe by construction: the quadrature uses fixed nodes, the integration window is shielded from the tape, and the gamma CDF carries analytic derivative rules.
+The `cdf`, `pdf`, and `logpdf` paths are AD-safe by construction: the quadrature uses fixed nodes, the integration window is shielded from the tape, and the gamma CDF carries analytic derivative rules (supplied by [EpiAwareADTools.jl](https://github.com/EpiAware/EpiAwareADTools.jl), which also hosts the `cdf_ad_safe` hook family wrapper packages extend).
 Gradients with respect to the component parameters are tested on ForwardDiff, ReverseDiff, Enzyme (forward and reverse), and Mooncake (forward and reverse) on every CI run.
 The per-backend badges in the [README](https://github.com/EpiAware/ConvolvedDistributions.jl#readme) track their status.
 Note that `quantile` (via the Optimization extension) is a numeric root-find and is not intended to sit on an AD path.

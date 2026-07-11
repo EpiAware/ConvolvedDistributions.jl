@@ -110,7 +110,7 @@ end
 
 # Independence: F_Z(z) = prod_i F_i(z), clamped against numeric noise.
 function cdf(d::Largest, x::Real)
-    result = prod(c -> _cdf_ad_safe(c, x), d.components)
+    result = prod(c -> cdf_ad_safe(c, x), d.components)
     return clamp(result, zero(result), one(result))
 end
 
@@ -118,7 +118,7 @@ end
 function pdf(d::Largest, x::Real)
     result = sum(eachindex(d.components)) do i
         fi = pdf(d.components[i], x)
-        rest = prod(j -> j == i ? one(fi) : _cdf_ad_safe(d.components[j], x),
+        rest = prod(j -> j == i ? one(fi) : cdf_ad_safe(d.components[j], x),
             eachindex(d.components))
         fi * rest
     end
@@ -126,7 +126,8 @@ function pdf(d::Largest, x::Real)
 end
 ```
 
-Route CDF evaluations through `_cdf_ad_safe` (from `src/gamma_ad.jl`) rather than bare `cdf` so `Gamma` components differentiate on every backend.
+Route CDF evaluations through `cdf_ad_safe` (from [EpiAwareADTools.jl](https://github.com/EpiAware/EpiAwareADTools.jl), the shared home of the AD-safe hook family) rather than bare `cdf` so `Gamma` components differentiate on every backend.
+A wrapper package with its own component types extends the EpiAwareADTools hooks (`cdf_ad_safe`, `logcdf_ad_safe`, `ccdf_ad_safe`, `logccdf_ad_safe`, `pdf_ad_safe`) by depending on EpiAwareADTools directly.
 A member whose operation has no closed form at all (as for a general convolution) instead builds its `cdf`/`pdf` on `gl_integrate`, following `Convolved`'s numeric path.
 
 ## Verifying the new member

@@ -210,8 +210,8 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
     # explicitly with `discretise_pmf` (interval-censored-secondary
     # CDF-difference masses, AD-safe via `_delay_pmf`), then the linear
     # causal convolution carries the gradient through the delay
-    # parameters. The Gamma delay hits the `_gamma_cdf` AD-safe path, the
-    # Convolved delay the numeric quadrature CDF.
+    # parameters. The Gamma delay hits the EpiAwareADTools AD-safe
+    # gamma-CDF path, the Convolved delay the numeric quadrature CDF.
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
     _push!("Timeseries convolve discretised Gamma delay",
         (θ, s) -> sum(convolve_series(

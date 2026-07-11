@@ -25,11 +25,9 @@ public AbstractSolverMethod
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
 
-# AD-safe CDF/PDF-family helpers (src/gamma_ad.jl). ComposedDistributions
-# imports `_ccdf_ad_safe` / `_logccdf_ad_safe` (racing-hazard composers) and
-# ModifiedDistributions hooks `_pdf_ad_safe` (component densities in the
-# quadrature), so the trio is a deliberate, semver-covered surface despite
-# the underscore names (kept for parity with the CensoredDistributions
-# source).
-public _cdf_ad_safe, _logcdf_ad_safe, _ccdf_ad_safe, _logccdf_ad_safe,
-       _pdf_ad_safe
+# The AD-safe CDF/PDF-family hooks this package used to own
+# (`_cdf_ad_safe` and friends) now live in EpiAwareADTools.jl under
+# underscore-free names (`cdf_ad_safe`, `logcdf_ad_safe`, `ccdf_ad_safe`,
+# `logccdf_ad_safe`, `pdf_ad_safe`, plus the tape-strip pair `primal` /
+# `primal_distribution`). Wrapper packages extend those names by depending
+# on EpiAwareADTools directly; they are deliberately not re-exported here.
