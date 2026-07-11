@@ -26,7 +26,7 @@ using Test: Test, @test, @testset
 using Distributions: Distributions, logpdf, params
 
 using ..ConvolvedDistributions: AbstractConvolvedDistribution, Convolved,
-                                Difference
+                                Difference, Product
 
 @doc "
 
@@ -36,8 +36,9 @@ Assert a combined distribution satisfies the
 `test_convolved_interface(d; x)` checks `d` subtypes
 `AbstractConvolvedDistribution` (a multi-base algebraic combination) and
 exposes `params`, a finite `logpdf` at the in-support point `x`, and a
-non-empty `show`. Use for [`Convolved`](@ref) and [`Difference`](@ref)
-and any new member of the family. Returns the `@testset` object.
+non-empty `show`. Use for [`Convolved`](@ref), [`Difference`](@ref), and
+[`Product`](@ref) and any new member of the family. Returns the
+`@testset` object.
 "
 function test_convolved_interface(
         d; name::AbstractString = string(nameof(typeof(d))), x::Real = 1.0)
@@ -54,15 +55,15 @@ end
 Assert the built-in combination types subtype the family supertype.
 
 `test_abstract_membership()` is the meta-test that the abstract hierarchy
-stays consistent: the multi-base combinations `Convolved` and
-`Difference` subtype [`AbstractConvolvedDistribution`](@ref), which itself
+stays consistent: the multi-base combinations `Convolved`, `Difference`,
+and `Product` subtype [`AbstractConvolvedDistribution`](@ref), which itself
 sits under `Distributions.Distribution` so the univariate members remain
 `UnivariateDistribution`s. A type filed under the wrong family fails
 here. Returns the `@testset` object.
 "
 function test_abstract_membership()
     return @testset "abstract hierarchy membership" begin
-        for T in (Convolved, Difference)
+        for T in (Convolved, Difference, Product)
             @test T <: AbstractConvolvedDistribution
             @test T <: Distributions.UnivariateDistribution
         end

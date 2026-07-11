@@ -12,15 +12,17 @@
 @doc "
 
 Supertype of the multi-base algebraic combinations: [`Convolved`](@ref)
-(the sum of independent components) and [`Difference`](@ref) (`Z = X - Y`).
-These combine two or more base distributions by an algebraic operation.
+(the sum of independent components), [`Difference`](@ref) (`Z = X - Y`),
+and [`Product`](@ref) (`Z = X * Y`). These combine two or more base
+distributions by an algebraic operation.
 
 Every member is a convolution in the generalised sense — the
 distribution of `X op Y` for independent components is the pushforward
 of the product measure under `op`, which for `+` is the classical
-convolution, for `-` the convolution with the reflected variable, and
-for future members like `max`/`min` the max-convolution of the Urbanik
-generalised-convolution family — hence the family and package name.
+convolution, for `-` the convolution with the reflected variable, for
+`*` the Mellin convolution, and for future members like `max`/`min` the
+max-convolution of the Urbanik generalised-convolution family — hence
+the family and package name.
 
 Parametric on variate form and value support for symmetry with the wider
 EpiAware family model (`Distribution{F, S}`), so the univariate members

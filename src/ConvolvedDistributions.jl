@@ -34,7 +34,8 @@ import Base: minimum, maximum
 using Distributions: Distributions, UnivariateDistribution,
                      ContinuousUnivariateDistribution,
                      DiscreteUnivariateDistribution, Continuous,
-                     Exponential, Gamma, Normal, shape, scale, quantile
+                     Exponential, Gamma, LogNormal, Normal, shape, scale,
+                     quantile
 
 using LogExpFunctions: log1mexp
 
@@ -52,8 +53,10 @@ using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
 # are defined (see src/docstrings.jl).
 include("docstrings.jl")
 
-# Public convolution constructor and its dual difference constructor.
-export convolved, convolve_series, Difference, difference
+# Public convolution constructor, its dual difference constructor, and the
+# multiplicative product constructor (`Product` itself is public, not
+# exported, to avoid clashing with Distributions' deprecated `Product`).
+export convolved, convolve_series, Difference, difference, product
 
 # The build-once discretised delay PMF constructor (`DelayPMF` itself is
 # public, not exported, mirroring `Convolved`).
@@ -72,6 +75,10 @@ include("Convolved.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.
 include("Difference.jl")
+# Product (Z = X * Y), the Mellin-convolution member for non-negative
+# components. Also after Convolved.jl for `_window_quantile` /
+# `_CONVOLVED_TAIL` / `_max2` / `_min2`.
+include("Product.jl")
 # The timeseries form `convolve_series`: a numeric series convolved with
 # a delay PMF on the unit lag grid — direct for a discrete delay, via a
 # caller-supplied / `discretise_pmf` PMF for a continuous one (#6, #31).

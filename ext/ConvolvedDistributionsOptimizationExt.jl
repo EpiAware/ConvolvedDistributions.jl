@@ -10,7 +10,7 @@ module ConvolvedDistributionsOptimizationExt
 # only consumers that need inverse-CDF sampling pull the solver. Ported
 # from CensoredDistributions `src/utils/quantile_optimization.jl`.
 
-using ConvolvedDistributions: Convolved, Difference
+using ConvolvedDistributions: Convolved, Difference, Product
 import Distributions
 using Distributions: UnivariateDistribution, cdf, insupport, quantile
 using Optimization: OptimizationFunction, OptimizationProblem, solve,
@@ -80,6 +80,18 @@ function _difference_quantile_guess(d::Difference, p::Real)
     return [float(quantile(d.x, p)) - float(quantile(d.y, 1 - p))]
 end
 
+# Product of the component quantiles at `p` as the starting point. With
+# both supports non-negative the product is monotone in each factor, so
+# high `p` in X pairs with high `p` in Y (no tail flip, unlike the
+# difference). On the log scale this is exactly the Convolved guess —
+# log-quantiles add — so it is exact for degenerate components and exact
+# at the median of a `LogNormal` pair; in the tails it overshoots
+# (`σ_X + σ_Y >= sqrt(σ_X² + σ_Y²)`), which the Nelder-Mead inversion
+# tolerates as a starting point.
+function _product_quantile_guess(d::Product, p::Real)
+    return [float(quantile(d.x, p)) * float(quantile(d.y, p))]
+end
+
 @doc "
 
 Compute the quantile (inverse CDF) of the convolution.
@@ -119,6 +131,27 @@ See also: [`cdf`](@ref)
 "
 function Distributions.quantile(d::Difference, p::Real)
     return _quantile_optimization(d, p, _difference_quantile_guess(d, p))
+end
+
+@doc "
+
+Compute the quantile (inverse CDF) of the product.
+
+No closed form exists for a generic product, so the quantile is found by
+numerically inverting [`cdf`](@ref) with a Nelder-Mead solve, starting
+from the product of the component quantiles at `p` (the Convolved guess
+on the log scale, since both supports are non-negative). Providing this
+method lets a `Product` compose under `truncated`, where `Distributions`
+derives the truncated quantile and inverse-CDF sampler from the base
+`quantile`.
+
+Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
+method lives in the `ConvolvedDistributionsOptimizationExt` extension).
+
+See also: [`cdf`](@ref)
+"
+function Distributions.quantile(d::Product, p::Real)
+    return _quantile_optimization(d, p, _product_quantile_guess(d, p))
 end
 
 end # module
