@@ -1,9 +1,9 @@
 # Timeseries convolution: a numeric series pushed through a delay PMF on
 # the unit lag grid (`convolve_series`). A continuous delay is discretised
 # explicitly with `discretise_pmf` — the Gamma delay hits the AD-safe
-# `_gamma_cdf` discretisation, the Convolved delay the numeric quadrature
-# CDF, so the PMF construction dominates. A discrete delay (Poisson) is
-# read straight off its own PMF.
+# gamma-CDF discretisation (EpiAwareADTools), the Convolved delay the
+# numeric quadrature CDF, so the PMF construction dominates. A discrete
+# delay (Poisson) is read straight off its own PMF.
 
 SUITE["Timeseries"] = BenchmarkGroup()
 

@@ -40,12 +40,17 @@ import Base: minimum, maximum
 using Distributions: Distributions, UnivariateDistribution,
                      ContinuousUnivariateDistribution,
                      DiscreteUnivariateDistribution, Continuous,
-                     Exponential, Gamma, LogNormal, Normal, shape, scale,
-                     quantile
+                     Exponential, Gamma, LogNormal, Normal, scale, quantile
 
 using LogExpFunctions: log1mexp
 
-using SpecialFunctions: gamma_inc, loggamma, digamma
+# The shared EpiAware AD-safety layer: the tape-strip pair keeps quadrature
+# hyperparameters (window endpoints, panel breaks) off the AD path, and the
+# AD-safe evaluation hooks are the sanctioned extension points wrapper
+# packages overload for their own component types (their Gamma methods carry
+# the analytic gamma-CDF derivative rules on every supported backend).
+using EpiAwareADTools: primal, primal_distribution, pdf_ad_safe,
+                       cdf_ad_safe, ccdf_ad_safe
 
 import FastGaussQuadrature  # Gauss-Legendre nodes for the default solver
 
@@ -71,7 +76,6 @@ export discretise_pmf
 # Solver methods for choosing the analytic-vs-numeric backend.
 export AnalyticalSolver, NumericSolver
 
-include("gamma_ad.jl")
 include("integration.jl")
 include("solvers.jl")
 # The abstract family supertype `Convolved`/`Difference` subtype, carrying

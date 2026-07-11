@@ -253,49 +253,21 @@ end
 # integration component when clamping an infinite quadrature window.
 const _CONVOLVED_TAIL = 1e-8
 
-# Strip any AD wrapper (ForwardDiff `Dual`, ReverseDiff `TrackedReal`,
-# Enzyme/Mooncake duals) from a scalar, returning its underlying primal
-# value. The generic method is the identity on a plain real (so a
-# non-AD call keeps the component's own float type, e.g. `Float32`); the
-# per-backend extensions (`...ForwardDiffExt`, `...ReverseDiffExt`) add
-# unwrapping methods, and `...ChainRulesCoreExt` / `...EnzymeExt` register
-# it as non-differentiable so reverse and Enzyme modes do not trace it.
-# This is what keeps the quadrature window (a non-differentiable
-# hyperparameter — just *where* to integrate) off the AD path.
-_primal(x::Real) = x
-
-# Elementwise fallback so a nested parameter tuple (a composite
-# component's `params` are the per-component parameter tuples) strips
-# cleanly under every AD backend.
-_primal(t::Tuple) = map(_primal, t)
-
 # Quantile used only to pick a finite quadrature endpoint. Reconstructing
-# the component from primal (AD-stripped) params means `quantile` — and so
-# `gamma_inc_inv` for a `Gamma` integration component — only ever sees
-# plain `Float64`s. No AD backend differentiates through it, which is
-# correct: the window choice carries no gradient (it is a fixed
-# hyperparameter of the quadrature, like the node count). Previously the
-# live `Dual`/`TrackedReal` params flowed into `quantile`, and Enzyme
-# cannot push duals through `SpecialFunctions.gamma_inc_inv_qsmall`
-# (`IllegalTypeAnalysisException`).
+# the component from primal (AD-stripped) params via EpiAwareADTools'
+# `primal_distribution` means `quantile` — and so `gamma_inc_inv` for a
+# `Gamma` integration component — only ever sees plain `Float64`s. No AD
+# backend differentiates through it, which is correct: the window choice
+# carries no gradient (it is a fixed hyperparameter of the quadrature,
+# like the node count). Previously the live `Dual`/`TrackedReal` params
+# flowed into `quantile`, and Enzyme cannot push duals through
+# `SpecialFunctions.gamma_inc_inv_qsmall` (`IllegalTypeAnalysisException`).
 # `@noinline` so the call survives as a call site for the per-backend AD
 # rules (the Enzyme `EnzymeRules` rule and the ChainRules
 # `@non_differentiable` mark) to attach to; if it inlined, Enzyme would
 # type-analyse `quantile`/`gamma_inc_inv` directly and abort.
 @noinline function _window_quantile(comp::UnivariateDistribution, p::Real)
-    primal = _primal_distribution(comp)
-    return quantile(primal, p)
-end
-
-# Rebuild a distribution with its parameters stripped to primal `Float64`s
-# via the type's positional constructor (`params` round-trips through the
-# constructor for the Distributions.jl families used here). The
-# `check_args = false` keyword is intentionally not passed: the original
-# distribution already validated its parameters, and the primal copy uses
-# the identical (now plain-`Float64`) values.
-function _primal_distribution(d::UnivariateDistribution)
-    D = Base.typename(typeof(d)).wrapper
-    return D(map(_primal, params(d))...)
+    return quantile(primal_distribution(comp), p)
 end
 
 # Composite window quantile for a `Convolved` component (issue #45). A
@@ -355,8 +327,8 @@ end
 # quantile band, or in a far tail) falls back to the single-window
 # `_CONVOLVED_GL` rule unchanged.
 function _panel_integrate(f::F, lo, hi, comp) where {F}
-    lop = Float64(_primal(lo))
-    hip = Float64(_primal(hi))
+    lop = Float64(primal(lo))
+    hip = Float64(primal(hi))
     breaks = _panel_breaks(comp, lop, hip)
     isempty(breaks) && return gl_integrate(f, lo, hi)
     acc = gl_integrate(f, lo, first(breaks), _PANEL_GL)
@@ -386,7 +358,7 @@ _max2(a, b) = a > b ? a : b
 # Recursion bases / steps for the two kernels. For a single (degenerate)
 # component the kernel is just that component's CDF/PDF; for a nested
 # `Convolved` it recurses through the numeric routines.
-_convolution_cdf(d::UnivariateDistribution, x::Real) = _cdf_ad_safe(d, x)
+_convolution_cdf(d::UnivariateDistribution, x::Real) = cdf_ad_safe(d, x)
 _convolution_cdf(d::Convolved, x::Real) = _convolved_numeric_cdf(d, x)
 
 _convolution_pdf(d::UnivariateDistribution, x::Real) = pdf(d, x)
@@ -408,7 +380,7 @@ _convolution_pdf(d::Convolved, x::Real) = _convolved_numeric_pdf(d, x)
 function _convolved_quadrature(
         last_comp, rest, kernel::F, x::Real, lower, upper) where {F}
     return _panel_integrate(
-        t -> kernel(rest, x - t) * _pdf_ad_safe(last_comp, t),
+        t -> kernel(rest, x - t) * pdf_ad_safe(last_comp, t),
         lower, upper, last_comp)
 end
 
@@ -432,7 +404,7 @@ function _cdf_point_window(last_comp, rest, x::Real)
     cut = x - maximum(rest)
     lower = _max2(cmin, cut)
     upper = _min2(maximum(last_comp), x - minimum(rest))
-    saturated = cut > cmin ? _cdf_ad_safe(last_comp, cut) :
+    saturated = cut > cmin ? cdf_ad_safe(last_comp, cut) :
                 zero(float(typeof(x)))
     upper <= lower && return lower, lower, saturated
     lower, upper = _finite_window(last_comp, lower, upper)
@@ -447,8 +419,8 @@ end
 function _window_union(wins)
     L, U = Inf, -Inf
     for w in wins
-        wl = Float64(_primal(w[1]))
-        wu = Float64(_primal(w[2]))
+        wl = Float64(primal(w[1]))
+        wu = Float64(primal(w[2]))
         (isnan(wl) || isnan(wu)) && return (NaN, NaN)
         wu > wl || continue
         L = _min2(L, wl)
@@ -497,19 +469,19 @@ function _convolved_quadrature_composite(
           (bounds[p + 1] - bounds[p]) / 2 * nd[k]
           for k in 1:np, p in 1:npan]
     Wc = [(bounds[p + 1] - bounds[p]) / 2 * wts[k] *
-          _pdf_ad_safe(last_comp, Tc[k, p])
+          pdf_ad_safe(last_comp, Tc[k, p])
           for k in 1:np, p in 1:npan]
 
     z = zero(kernel(rest, first(x) - Tc[1, 1]) * Wc[1, 1])
     return map(eachindex(x)) do j
         wl, wu = wins[j][1], wins[j][2]
         wu > wl || return z
-        wlp = Float64(_primal(wl))
-        wup = Float64(_primal(wu))
+        wlp = Float64(primal(wl))
+        wup = Float64(primal(wu))
         ilo = searchsortedfirst(bounds, wlp)
         ihi = searchsortedlast(bounds, wup)
         xj = x[j]
-        integrand = t -> kernel(rest, xj - t) * _pdf_ad_safe(last_comp, t)
+        integrand = t -> kernel(rest, xj - t) * pdf_ad_safe(last_comp, t)
         if ilo > ihi
             # Window inside one panel: a single small solve.
             return z + gl_integrate(integrand, wl, wu, _PANEL_GL)

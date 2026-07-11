@@ -135,7 +135,7 @@ end
     # Issue #45: a `Convolved` multiplier routes both the zero lower
     # endpoint and the infinite upper endpoint of the Mellin windows
     # through `_window_quantile(::Convolved, p)`, whose primal rebuild
-    # threw a `_primal(::Tuple)` MethodError on the nested parameter
+    # threw a `primal(::Tuple)` MethodError on the nested parameter
     # tuples.
     x = Gamma(2.0, 1.0)
     y = convolved(Gamma(1.5, 1.0), Gamma(1.0, 2.0))

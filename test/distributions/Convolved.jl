@@ -201,7 +201,7 @@ end
     # A nested `Convolved` as the integration (last) component with
     # unbounded support routes the window clamp through
     # `_window_quantile(::Convolved, p)`; the primal rebuild threw a
-    # `_primal(::Tuple)` MethodError on the nested parameter tuples
+    # `primal(::Tuple)` MethodError on the nested parameter tuples
     # (issue #45). Normal components give an exact reference.
     inner = convolved(Normal(1.0, 2.0), Normal(0.5, 1.5))
     d = convolved(Normal(0.0, 1.0), inner; method = NumericSolver())

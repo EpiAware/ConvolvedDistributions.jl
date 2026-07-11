@@ -10,7 +10,17 @@ Additions and improvements:
 - `product(x, y)` (public type `Product`) adds the Mellin convolution `Z = X * Y` for independent components with non-negative support: `LogNormal * LogNormal` closed form, AD-safe Mellin quadrature otherwise, exact independent-product moments, and `quantile` via the Optimization extension. Sign-crossing supports throw and are future work.
 - `discretise_pmf(delay, maxlag; interval)` builds a reusable public `DelayPMF` (raw CDF-difference masses, clamped at zero, never renormalised) with `pdf(pmf, lag)` mass reads, and `convolve_series` accepts a `DelayPMF` or any raw PMF vector, with masses used exactly as given. A `DelayPMF` carries its grid width: the series is read at steps of `pmf.interval`, so weekly-binned masses convolve weekly series.
 - Batched numeric `cdf`/`pdf`/`logpdf` now integrate every point over its own scalar-path window on a shared composite panel grid: batched and scalar log densities agree to well within `1e-8` (typically near machine precision; previously up to ~`2e-3` in wide-batch tails) while the batched path remains 1.6-2.2x faster than broadcasting (#29).
-- The AD-safe component hooks `_cdf_ad_safe`, `_logcdf_ad_safe`, and `_pdf_ad_safe` are public, joining `_ccdf_ad_safe`/`_logccdf_ad_safe`, so wrapper packages can make their component types differentiable inside the quadrature.
+- The AD-safe component hook family and the tape-strip pair moved to [EpiAwareADTools.jl](https://github.com/EpiAware/EpiAwareADTools.jl) under underscore-free names, together with the analytic gamma-CDF derivative machinery and its per-backend rules. Wrapper packages now depend on EpiAwareADTools directly and extend its names; this package no longer declares its own hooks. Migration:
+
+  | Old (`ConvolvedDistributions`) | New (`EpiAwareADTools`) |
+  |---|---|
+  | `_cdf_ad_safe` | `cdf_ad_safe` |
+  | `_logcdf_ad_safe` | `logcdf_ad_safe` |
+  | `_ccdf_ad_safe` | `ccdf_ad_safe` |
+  | `_logccdf_ad_safe` | `logccdf_ad_safe` |
+  | `_pdf_ad_safe` | `pdf_ad_safe` |
+  | `_primal` | `primal` |
+  | `_primal_distribution` | `primal_distribution` |
 - The extension `quantile` is now accurate in the far tails: the solve minimises the log-odds residual rather than the near-flat squared probability residual (relative error at `p = 0.999` down from ~0.16 to ~4e-6 on the analytic product pair) (#48).
 - `cdf`/`pdf` no longer throw on distributions whose components are themselves composites (for example a `difference` of two `Convolved` totals): composite integration windows recurse over the nested components with union-bound tail trims (#45).
 - The batched `cdf`/`pdf`/`logpdf` methods now differentiate: AD tracers on component parameters survive the final convert (#43), ReverseDiff works with respect to the evaluation points (the per-point assembly no longer mutates tracked storage) (#44), and batched-path AD scenarios run on all six backend tags in CI.

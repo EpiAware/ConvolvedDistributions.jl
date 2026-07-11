@@ -33,7 +33,7 @@
 # `[0, 1), [1, 2), ..., [maxlag, maxlag + 1)` (scaled by `interval`), as a
 # length `maxlag + 1` vector. Masses are the raw CDF differences
 # `F((k + 1) interval) - F(k interval)` (no silent renormalise), routed
-# through `_cdf_ad_safe` so `Dual`/tracked CDF values survive (no `Float64`
+# through `cdf_ad_safe` so `Dual`/tracked CDF values survive (no `Float64`
 # caching that would break AD).
 #
 # These CDF-difference masses are the interval-censored-secondary scheme
@@ -52,8 +52,8 @@ function _delay_pmf(delay::UnivariateDistribution, maxlag::Integer, interval)
         # Clamp at zero: numeric-CDF noise can make the difference of two
         # near-equal tail values fractionally negative, and a mass must not
         # be (matches the CensoredDistributions interval-mass behaviour).
-        mass = _cdf_ad_safe(delay, (k + 1) * step) -
-               _cdf_ad_safe(delay, k * step)
+        mass = cdf_ad_safe(delay, (k + 1) * step) -
+               cdf_ad_safe(delay, k * step)
         max(mass, zero(mass))
     end
 end

@@ -162,7 +162,7 @@ Nothing else on this page needs the extension.
 ## Gradients
 
 The `cdf`, `pdf`, and `logpdf` paths are AD-safe by construction.
-The quadrature uses fixed nodes, the window clamp is shielded from the tape, and the gamma CDF carries analytic derivative rules.
+The quadrature uses fixed nodes, the window clamp is shielded from the tape, and the gamma CDF carries analytic derivative rules (supplied by [EpiAwareADTools.jl](https://github.com/EpiAware/EpiAwareADTools.jl)).
 Gradients with respect to the component parameters are tested on ForwardDiff, ReverseDiff, Enzyme (forward and reverse), and Mooncake (forward and reverse) on every CI run; the per-backend badges in the [README](https://github.com/EpiAware/ConvolvedDistributions.jl#readme) track their status.
 
 ## Learning more
