@@ -264,6 +264,11 @@ const _CONVOLVED_TAIL = 1e-8
 # hyperparameter — just *where* to integrate) off the AD path.
 _primal(x::Real) = x
 
+# Elementwise fallback so a nested parameter tuple (a composite
+# component's `params` are the per-component parameter tuples) strips
+# cleanly under every AD backend.
+_primal(t::Tuple) = map(_primal, t)
+
 # Quantile used only to pick a finite quadrature endpoint. Reconstructing
 # the component from primal (AD-stripped) params means `quantile` — and so
 # `gamma_inc_inv` for a `Gamma` integration component — only ever sees
@@ -291,6 +296,21 @@ end
 function _primal_distribution(d::UnivariateDistribution)
     D = Base.typename(typeof(d)).wrapper
     return D(map(_primal, params(d))...)
+end
+
+# Composite window quantile for a `Convolved` component (issue #45). A
+# composite cannot round-trip through the generic `D(params...)` rebuild
+# above, and its exact quantile needs the Optimization extension — but
+# the window clamp only needs an effective-support bound. The sum of the
+# per-component window quantiles at the same `p` over-covers either tail
+# (union bound: if the sum lies beyond it, some component lies beyond
+# its own `p`-quantile), so at most `length(components) *
+# _CONVOLVED_TAIL` of mass is trimmed. This keeps the window cheap,
+# extension-free and, like the generic method, a non-differentiated
+# constant (`@noinline` so the per-backend AD rules attach to the call
+# site).
+@noinline function _window_quantile(d::Convolved, p::Real)
+    return sum(c -> _window_quantile(c, p), d.components)
 end
 
 # Clamp an integration window to a finite range. Both the integrand's

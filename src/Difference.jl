@@ -203,6 +203,16 @@ end
 # Numeric cross-correlation (AD-safe Gauss-Legendre dot product)
 # ---------------------------------------------------------------------------
 
+# Composite window quantile for a `Difference` component (issue #45;
+# see the `Convolved` method in `src/Convolved.jl`). The minuend
+# quantile at `p` minus the subtrahend quantile at the opposing tail
+# bounds the difference quantile on either side by a union bound,
+# trimming at most `2 * _CONVOLVED_TAIL` of mass. Mirrors the exact
+# inversion's starting guess in the Optimization extension.
+@noinline function _window_quantile(d::Difference, p::Real)
+    return _window_quantile(d.x, p) - _window_quantile(d.y, 1 - p)
+end
+
 # Integration window over Y. Both the density and CDF integrands carry the
 # factor f_Y(y), negligible outside Y's effective support, so an infinite
 # endpoint is clamped to an extreme quantile of Y on AD-stripped params
