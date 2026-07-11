@@ -75,3 +75,51 @@ const INDEX_STRIP_SECTIONS = String[]
 # to the `benchmarks` flag the package was scaffolded with; `false` drops the
 # page and `make.jl` also omits its `pages.jl` nav entry.
 const BENCHMARK_PAGE = true
+
+# ---------------------------------------------------------------------------
+# TEMPORARY WORKAROUND — remove once the empty-anchor header is fixed and
+# DocumenterVitepress skips (rather than aborts on) inventory entries whose
+# anchor id is empty. On CI (deploy builds only reach this deterministically;
+# see issue link below) the vitepress inventory writer crashes the whole docs
+# build with `ArgumentError: `name` must have non-zero length` when an
+# anchored header has an empty anchor id. Overwrite that one writer method
+# with a copy whose inventory push is guarded: an empty id logs the page and
+# heading (so the culprit is identifiable in the CI log) and skips the entry.
+# Tracked in https://github.com/EpiAware/ConvolvedDistributions.jl/issues/52.
+import Documenter
+import DocumenterVitepress
+
+function DocumenterVitepress.render(io::IO, mime::MIME"text/plain",
+        node::Documenter.MarkdownAST.Node, header::Documenter.AnchoredHeader,
+        page, doc; kwargs...)
+    anchor = header.anchor
+    id = replace(DocumenterVitepress.sanitized_anchor_label(anchor),
+        " " => "-")
+    heading = first(node.children)
+    println(io)
+    print(io, "#"^(heading.element.level), " ")
+    heading_iob = IOBuffer()
+    DocumenterVitepress.render(heading_iob, mime, node, heading.children,
+        page, doc; kwargs...)
+    heading_text = rstrip(String(take!(heading_iob)))
+    print(io, heading_text)
+    print(io, " {#$(id)}")
+    if haskey(kwargs, :inventory)
+        if isempty(anchor.id)
+            @warn "Skipping inventory entry: anchored header has an empty "*
+            "anchor id" page=page.source heading=heading_text
+        else
+            item = DocumenterVitepress.InventoryItem(
+                name = anchor.id,
+                domain = "std",
+                role = "label",
+                dispname = DocumenterVitepress._get_inventory_dispname(
+                    anchor.id, Documenter.MDFlatten.mdflatten(anchor.node)),
+                priority = -1,
+                uri = DocumenterVitepress._get_inventory_uri(doc, page, id)
+            )
+            push!(kwargs[:inventory], item)
+        end
+    end
+    println(io)
+end
