@@ -103,11 +103,28 @@ end
 @doc """
 AD-safe `logcdf(dist, u)` for use inside differentiable integrands.
 
+`_logcdf_ad_safe` is the log-CDF member of the AD-safe hook family.
 Generic dispatch falls through to `Distributions.logcdf`. The
 `Gamma` method routes through [`_gamma_cdf`](@ref) so its
 `ChainRulesCore.rrule` is picked up by reverse-mode AD inside the
 numeric convolution path; without this, the integrand calls
 `gamma_inc` and breaks under every supported AD backend.
+
+Public (not exported): a downstream extension adds methods for
+component types whose stock `logcdf` is not AD-safe, the same pattern
+as [`_pdf_ad_safe`](@ref).
+
+# Arguments
+- `dist`: the distribution whose log CDF is evaluated.
+- `u`: the evaluation point.
+
+# Examples
+```@example
+using ConvolvedDistributions: _logcdf_ad_safe
+using Distributions
+
+_logcdf_ad_safe(Gamma(2.0, 1.0), 3.0)
+```
 """
 _logcdf_ad_safe(dist::UnivariateDistribution, u::Real) = logcdf(dist, u)
 
@@ -117,10 +134,28 @@ function _logcdf_ad_safe(dist::Gamma, u::Real)
 end
 
 @doc """
-AD-safe `cdf(dist, u)` companion to [`_logcdf_ad_safe`](@ref). Same
-dispatch idea: route `Gamma` through [`_gamma_cdf`](@ref) so the
+AD-safe `cdf(dist, u)` companion to [`_logcdf_ad_safe`](@ref).
+
+Same dispatch idea: route `Gamma` through [`_gamma_cdf`](@ref) so the
 numeric-path optimisations that call `cdf(dist, lower)` for early
-termination remain differentiable under reverse-mode AD.
+termination remain differentiable under reverse-mode AD. The numeric
+CDF kernel also evaluates integration components through this hook, so
+a component type with a non-AD-safe `cdf` needs a method here.
+
+Public (not exported): ModifiedDistributions.jl adds methods for its
+modified components, the same pattern as [`_pdf_ad_safe`](@ref).
+
+# Arguments
+- `dist`: the distribution whose CDF is evaluated.
+- `u`: the evaluation point.
+
+# Examples
+```@example
+using ConvolvedDistributions: _cdf_ad_safe
+using Distributions
+
+_cdf_ad_safe(Gamma(2.0, 1.0), 3.0)
+```
 """
 _cdf_ad_safe(dist::UnivariateDistribution, u::Real) = cdf(dist, u)
 

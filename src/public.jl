@@ -25,4 +25,5 @@ public GaussLegendre, integrate, gl_integrate
 # quadrature), so the trio is a deliberate, semver-covered surface despite
 # the underscore names (kept for parity with the CensoredDistributions
 # source).
-public _ccdf_ad_safe, _logccdf_ad_safe, _pdf_ad_safe
+public _cdf_ad_safe, _logcdf_ad_safe, _ccdf_ad_safe, _logccdf_ad_safe,
+       _pdf_ad_safe
