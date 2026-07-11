@@ -103,6 +103,76 @@ end
     @test var(samples) ≈ var(x) + var(y) atol=1e-1
 end
 
+@testitem "Difference of Convolved components matches Monte Carlo" begin
+    using Distributions, ForwardDiff, Random, Statistics
+
+    # Issue #45: a `Convolved` component routes the quadrature window
+    # clamp through `_window_quantile(::Convolved, p)`, whose primal
+    # rebuild was handed the component's nested parameter tuples and
+    # threw a `_primal(::Tuple)` MethodError for a plain Float64
+    # argument as soon as an AD extension (here ForwardDiff) was loaded.
+    x = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    y = convolved(Gamma(1.5, 1.0), Gamma(1.0, 2.0))
+    d = difference(x, y)
+
+    @test mean(d) ≈ mean(x) - mean(y)
+    @test var(d) ≈ var(x) + var(y)
+
+    rng = MersenneTwister(45)
+    n = 400_000
+    samples = [rand(rng, x) - rand(rng, y) for _ in 1:n]
+    for z in (-2.0, 0.0, 1.5, 4.0)
+        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+    end
+    @test pdf(d, 0.0) > 0
+    @test logcdf(d, 0.0) ≈ log(cdf(d, 0.0)) atol=1e-10
+end
+
+@testitem "Difference with Difference subtrahend matches Monte Carlo" begin
+    using Distributions, Random, Statistics
+
+    # A `Difference` subtrahend is unbounded on both sides, so both
+    # window endpoints route through `_window_quantile(::Difference, p)`
+    # (the same composite path as issue #45).
+    x = Gamma(2.0, 1.0)
+    w = difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
+    d = difference(x, w)
+
+    rng = MersenneTwister(46)
+    n = 400_000
+    samples = [rand(rng, x) - rand(rng, w) for _ in 1:n]
+    for z in (-3.0, -1.0, 0.5, 2.0)
+        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+    end
+    @test pdf(d, 0.0) > 0
+end
+
+@testitem "Difference of Convolved cdf ForwardDiff gradient" begin
+    using Distributions, ForwardDiff
+
+    # Gradient of the cdf w.r.t. the minuend's Gamma parameters through
+    # the previously-throwing nested-Convolved window path (issue #45),
+    # checked against central finite differences.
+    f = θ -> cdf(
+        difference(
+            convolved(Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4)),
+            convolved(Gamma(1.5, 1.0), Gamma(1.0, 2.0))),
+        0.0)
+    θ = [2.0, 1.0]
+    g = ForwardDiff.gradient(f, θ)
+    @test all(isfinite, g)
+
+    h = 1e-6
+    for i in eachindex(θ)
+        θp = copy(θ)
+        θm = copy(θ)
+        θp[i] += h
+        θm[i] -= h
+        fd = (f(θp) - f(θm)) / (2h)
+        @test g[i] ≈ fd atol=1e-6
+    end
+end
+
 @testitem "Difference pdf integrates to one" begin
     using Distributions
 
