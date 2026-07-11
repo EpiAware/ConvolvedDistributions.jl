@@ -19,7 +19,8 @@ module ADFixtures
 __precompile__(false)
 
 using ConvolvedDistributions
-using Distributions: Distributions, Gamma, LogNormal, Normal, mean, var, logpdf
+using Distributions: Distributions, Gamma, LogNormal, Normal, Poisson,
+                     mean, var, logpdf
 using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
                AutoMooncakeForward, AutoEnzyme
 using DifferentiationInterface: DifferentiationInterface, Constant
@@ -160,28 +161,31 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
         end,
         [3.0, 1.5, 2.0, 0.5], (Constant(obs),))
 
-    # Timeseries convolution: the series pushed through the discretised
-    # delay PMF (`convolve_series(delay, series)`). The masses are
-    # AD-safe CDF differences, so the gradient flows through the delay
-    # parameters via `_delay_pmf`; the linear causal convolution carries
-    # them through. The Gamma delay hits the `_gamma_cdf` AD-safe path,
-    # the Convolved delay the numeric quadrature CDF.
+    # Timeseries convolution. A continuous delay is discretised
+    # explicitly with `discretise_pmf` (interval-censored-secondary
+    # CDF-difference masses, AD-safe via `_delay_pmf`), then the linear
+    # causal convolution carries the gradient through the delay
+    # parameters. The Gamma delay hits the `_gamma_cdf` AD-safe path, the
+    # Convolved delay the numeric quadrature CDF.
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-    _push!("Timeseries convolve Gamma delay",
-        (θ, s) -> sum(convolve_series(Gamma(θ[1], θ[2]), s)),
-        [2.0, 1.0], (Constant(series),))
-    _push!("Timeseries convolve Convolved Gamma+LogNormal delay",
-        (θ, s) -> sum(convolve_series(
-            convolved(
-                Gamma(θ[1], θ[2]), LogNormal(θ[3], θ[4])), s)),
-        [2.0, 1.0, 0.5, 0.4], (Constant(series),))
-    # Build-once DelayPMF: the gradient flows through the
-    # `discretise_pmf` interval masses and the linear reuse path, so
-    # the prebuilt surface matches the rebuild-every-time path above.
-    _push!("Timeseries convolve prebuilt Gamma DelayPMF",
+    _push!("Timeseries convolve discretised Gamma delay",
         (θ, s) -> sum(convolve_series(
             discretise_pmf(Gamma(θ[1], θ[2]), length(s) - 1), s)),
         [2.0, 1.0], (Constant(series),))
+    _push!("Timeseries convolve discretised Convolved Gamma+LogNormal delay",
+        (θ, s) -> sum(convolve_series(
+            discretise_pmf(
+                convolved(
+                    Gamma(θ[1], θ[2]), LogNormal(θ[3], θ[4])),
+                length(s) - 1), s)),
+        [2.0, 1.0, 0.5, 0.4], (Constant(series),))
+    # Discrete delay: the direct-PMF path reads `pdf(delay, k)` off the
+    # integer grid. `pdf(::Poisson, k)` differentiates cleanly on every
+    # backend (checked: ForwardDiff / ReverseDiff / Mooncake / Enzyme all
+    # agree), so the discrete surface differentiates w.r.t. the rate.
+    _push!("Timeseries convolve discrete Poisson delay",
+        (θ, s) -> sum(convolve_series(Poisson(θ[1]), s)),
+        [2.0], (Constant(series),))
 
     return out
 end

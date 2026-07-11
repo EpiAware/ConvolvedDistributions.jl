@@ -185,12 +185,14 @@ draw(
 
 # ## Timeseries convolution
 #
-# The timeseries form `convolve_series(delay, series)` discretises the delay to a PMF on the unit grid and convolves a numeric series with it.
+# The timeseries form `convolve_series` convolves a numeric series with a delay PMF on the unit lag grid.
+# The delay here is continuous, so we discretise it explicitly with `discretise_pmf` (raw CDF-difference masses: interval-censored secondary event, exact primary) and convolve the resulting PMF; a discrete delay would be passed straight to `convolve_series`.
 # With the series an expected infection curve, the result is the expected downstream count curve, the renewal-style observation layer.
 
 t = 0:40
 infections = 100 .* exp.(-((t .- 12.0) .^ 2) ./ 30.0)
-expected = convolve_series(d, infections)
+delay_pmf = discretise_pmf(d, length(infections) - 1)
+expected = convolve_series(delay_pmf, infections)
 
 timeseries_df = vcat(
     DataFrame(t = t, count = infections, Series = "Infections"),

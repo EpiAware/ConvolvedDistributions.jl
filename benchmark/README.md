@@ -48,8 +48,9 @@ Difference/
   numeric/             (same operations)
 
 Timeseries/
-  Gamma delay          (convolve_series(delay, series))
+  Gamma delay          (convolve_series(discretise_pmf(delay, m), series))
   Convolved delay
+  Poisson delay        (discrete: convolve_series(delay, series))
 
 Quantile/
   Convolved analytic/  (median, grid)

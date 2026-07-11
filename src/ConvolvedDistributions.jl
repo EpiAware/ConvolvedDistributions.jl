@@ -31,7 +31,9 @@ import Distributions: params, insupport, pdf, logpdf, cdf, logcdf,
 import Base: minimum, maximum
 
 # Types, constructors, and helpers used without method extension.
-using Distributions: Distributions, UnivariateDistribution, Continuous,
+using Distributions: Distributions, UnivariateDistribution,
+                     ContinuousUnivariateDistribution,
+                     DiscreteUnivariateDistribution, Continuous,
                      Exponential, Gamma, Normal, shape, scale, quantile
 
 using LogExpFunctions: log1mexp
@@ -70,8 +72,9 @@ include("Convolved.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.
 include("Difference.jl")
-# The timeseries form `convolve_series(delay, series)`: a numeric
-# series convolved with the discretised delay PMF (issue #6).
+# The timeseries form `convolve_series`: a numeric series convolved with
+# a delay PMF on the unit lag grid — direct for a discrete delay, via a
+# caller-supplied / `discretise_pmf` PMF for a continuous one (#6, #31).
 include("convolve_with_vector.jl")
 
 # `quantile` (inverse CDF) for Convolved/Difference lives in the

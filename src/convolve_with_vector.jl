@@ -2,11 +2,19 @@
 # convolve_series(delay, series): timeseries delay convolution
 # ============================================================================
 #
-# `convolve_series` convolves a numeric timeseries with the discretised
-# delay PMF of a distribution. With `series` the expected events at times
-# `0..t` (e.g. infections), the result is the expected downstream event
-# counts at the same times: the EpiNow2-style latent / renewal observation
-# layer.
+# `convolve_series` convolves a numeric timeseries with a delay PMF on the
+# unit lag grid. With `series` the expected events at times `0..t` (e.g.
+# infections), the result is the expected downstream event counts at the
+# same times: the EpiNow2-style latent / renewal observation layer.
+#
+# The delay enters as a PMF over integer lags. For a DISCRETE delay the
+# lag-`k` mass is simply `pdf(delay, k)`, so the discrete method reads the
+# distribution's own PMF directly. A CONTINUOUS delay has no mass on the
+# integer grid until it is discretised, and discretisation is a modelling
+# choice with more than one answer (single- vs double-interval censoring),
+# so passing a continuous delay is rejected: the caller discretises first
+# (via `discretise_pmf`, or CensoredDistributions.jl's double-interval
+# censored extension) and feeds the resulting PMF to the PMF-vector method.
 #
 # It has its own verb (rather than a `convolved` method) because it returns
 # a numeric series, not a distribution: `convolved` is kept strictly for
@@ -14,9 +22,10 @@
 # and `censored`.
 #
 # AD-safety. The vector convolution is linear and the PMF depends
-# differentiably on the delay parameters (the interval masses route through
-# the AD-safe CDF helpers), so gradients flow through ForwardDiff /
-# ReverseDiff / Enzyme / Mooncake w.r.t. the delay params.
+# differentiably on the delay parameters (the discrete PMF through
+# `pdf(delay, k)`, the `discretise_pmf` interval masses through the AD-safe
+# CDF helpers), so gradients flow through ForwardDiff / ReverseDiff /
+# Enzyme / Mooncake w.r.t. the delay params.
 
 # --- the discrete delay PMF over the grid 0..maxlag ------------------------
 
@@ -26,6 +35,13 @@
 # `F((k + 1) interval) - F(k interval)` (no silent renormalise), routed
 # through `_cdf_ad_safe` so `Dual`/tracked CDF values survive (no `Float64`
 # caching that would break AD).
+#
+# These CDF-difference masses are the interval-censored-secondary scheme
+# with an EXACT primary event: `F(k + 1) - F(k)` is the probability the
+# delay lands in day `k` given the primary happened at an exact instant.
+# When the PRIMARY is also only known to the day (the usual epi case), the
+# masses need double interval censoring, which is CensoredDistributions.jl's
+# job — see `discretise_pmf` for the full framing.
 function _delay_pmf(delay::UnivariateDistribution, maxlag::Integer, interval)
     # Float the grid step so the CDF arguments are floats even for an
     # integer `interval`: the AD-safe Gamma CDF rules attach a `Float64`
@@ -70,64 +86,108 @@ end
 
 @doc "
 
-Convolve a timeseries with the discretised delay PMF of a distribution.
+Convolve a timeseries with the PMF of a discrete delay distribution.
 
-`convolve_series(delay, series)` discretises `delay` to a PMF over the
-unit grid and returns the causal discrete convolution of `series` with
-that PMF, truncated to the `series` window. With `series` the expected
-events at times `0, 1, ..., t` (e.g. infections), the result is the
-expected downstream event counts at the same times (the EpiNow2-style
-latent / renewal observation layer).
+`convolve_series(delay, series)` for a `DiscreteUnivariateDistribution`
+`delay` reads the delay PMF directly off the integer lag grid — the
+lag-`k` mass IS `pdf(delay, k)` — and returns the causal discrete
+convolution of `series` with that PMF, truncated to the `series` window.
+With `series` the expected events at times `0, 1, ..., t` (e.g.
+infections), the result is the expected downstream event counts at the
+same times (the EpiNow2-style latent / renewal observation layer).
 
-The PMF masses are the raw CDF differences ``F(k + 1) - F(k)`` over the
-grid (no renormalisation), so delay mass beyond the series window — and
-any mass below zero — is truncated. The masses depend differentiably on
-the delay parameters, so gradients flow under the supported AD backends.
+The masses are `[pdf(delay, k) for k in 0:(length(series) - 1)]`, used as
+given: no renormalisation, so any delay mass beyond the series window is
+truncated. `pdf(delay, k)` is differentiable in the delay parameters for
+the standard discrete families, so gradients flow under the supported AD
+backends.
+
+Direct PMF evaluation, NOT a CDF difference: for an integer-support
+delay, ``F(k + 1) - F(k) = P(k < X \\le k + 1) = pdf(delay, k + 1)``, an
+off-by-one, so the discrete method reads `pdf(delay, k)` and never routes
+through [`discretise_pmf`](@ref)'s CDF-difference masses.
+
+Only the integer lags `0, 1, 2, ...` are read. A delay with atoms off the
+integer grid is out of scope (a lag grid means masses at the integers),
+and mass at negative lags cannot enter a causal convolution, so lags
+below `0` are not read (consistent with the causal kernel).
+
+For a CONTINUOUS delay there is no mass on the integer grid until it is
+discretised, and discretisation is an explicit modelling choice; that
+method throws — see below.
 
 Unlike [`convolved`](@ref), which combines distributions into a single
 [`Convolved`](@ref) distribution, this returns a numeric series; the
 separate verb keeps `convolved` strictly for distribution construction.
 
 # Arguments
-- `delay`: the delay distribution (any `UnivariateDistribution`,
-  including a [`Convolved`](@ref) total delay).
+- `delay`: a `DiscreteUnivariateDistribution` (e.g. `Poisson`,
+  `DiscreteUniform`, a shifted count delay).
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
-
-# Keyword Arguments
-- `interval`: the discretisation grid width, which is also the series
-  time-step. The series is unit-spaced and the causal convolution shifts
-  by integer series steps, so this must be `1` (the default); any other
-  value is rejected with an `ArgumentError` to avoid conflating the grid
-  width with the series step.
 
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
 
-delay = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+delay = Poisson(2.0)
 infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
 expected_counts = convolve_series(delay, infections)
 ```
 
 # See also
 - [`convolved`](@ref): the distribution-level convolution
-- [`Convolved`](@ref): the distribution type
-- [`discretise_pmf`](@ref): discretise once and reuse the PMF
+- [`discretise_pmf`](@ref): discretise a continuous delay, then convolve
+- [`convolve_series(pmf, series)`](@ref convolve_series): the PMF-vector
+  form for caller-owned discretisation
 "
 function convolve_series(
-        delay::UnivariateDistribution, series::AbstractVector{<:Real};
-        interval = 1)
-    # The causal convolution shifts the series by integer SERIES steps, so
-    # the PMF bin width must equal the series time-step. `series` is
-    # unit-spaced (see the docstring), so only `interval == 1` keeps the
-    # discretisation grid aligned with the shift; any other width conflates
-    # the two and silently mis-aligns the result. Reject it rather than
-    # return a wrong answer.
-    _check_unit_interval(interval)
-    maxlag = length(series) - 1
-    pmf = _delay_pmf(delay, maxlag, interval)
-    return convolve_series(pmf, series)
+        delay::DiscreteUnivariateDistribution,
+        series::AbstractVector{<:Real})
+    # The lag-`k` mass of a discrete delay is `pdf(delay, k)` directly; do
+    # NOT reuse the CDF-difference `_delay_pmf`, which would compute
+    # `F(k + 1) - F(k) = pdf(delay, k + 1)` for integer support — an
+    # off-by-one. Lags run 0..(n - 1); negative-support mass is never read
+    # (it cannot enter a causal convolution).
+    masses = [pdf(delay, k) for k in 0:(length(series) - 1)]
+    return convolve_series(masses, series)
+end
+
+@doc "
+
+Reject a continuous delay: discretising it needs an explicit censoring
+scheme.
+
+`convolve_series(delay, series)` for a `ContinuousUnivariateDistribution`
+(including a [`Convolved`](@ref) total delay) throws an `ArgumentError`.
+A continuous delay carries no mass on the integer lag grid until it is
+discretised, and there is more than one right way to do that: the naive
+CDF-difference scheme is interval-censored on the secondary event with an
+EXACT primary, whereas the usual epidemiological case (a primary event
+known only to the day) needs double interval censoring. Rather than pick
+one silently, the caller discretises first and passes the resulting PMF
+to [`convolve_series(pmf, series)`](@ref convolve_series):
+
+- [`discretise_pmf`](@ref)`(delay, maxlag)` for interval-censored-
+  secondary masses (exact primary), or
+- CensoredDistributions.jl's double-interval-censored extension for
+  day-binned primaries.
+
+# See also
+- [`discretise_pmf`](@ref): the interval-censored-secondary discretisation
+- [`convolve_series(pmf, series)`](@ref convolve_series): convolve a
+  caller-supplied PMF
+"
+function convolve_series(
+        delay::ContinuousUnivariateDistribution,
+        series::AbstractVector{<:Real})
+    throw(ArgumentError(
+        "convolve_series does not discretise a continuous delay: " *
+        "discretising a continuous delay needs an explicit censoring " *
+        "scheme. Use discretise_pmf(delay, maxlag) for " *
+        "interval-censored-secondary masses (exact primary), or " *
+        "CensoredDistributions.jl's double-interval-censored extension " *
+        "for day-binned primaries, then convolve_series(pmf, series)."))
 end
 
 # The shared unit-grid guard: the causal convolution shifts by integer
@@ -266,12 +326,21 @@ a precomputed [`DelayPMF`](@ref) to pass into
 [`convolve_series`](@ref) or `pdf(pmf, lag)`. Building once and reusing
 avoids rediscretising the delay per series or per record.
 
-The masses are exactly those the rebuild-every-time
-[`convolve_series(delay, series)`](@ref convolve_series) path computes
-(raw CDF differences clamped at zero, never renormalised), so a
-prebuilt PMF gives numerically identical results. The masses keep the
-delay's parameter type, so the discretisation differentiates w.r.t. the
-delay parameters; a parameter change is handled by calling
+The masses `F(k + 1) - F(k)` are the interval-censored-secondary scheme
+with an EXACT primary event: the probability the delay lands in day `k`
+given the primary happened at a precise instant. This is an explicit
+modelling choice, not a neutral default. When the PRIMARY is also known
+only to the day — the usual epidemiological case — the day-binned masses
+need double interval censoring, which is CensoredDistributions.jl's job
+(build those masses there and pass them to
+[`convolve_series(pmf, series)`](@ref convolve_series)). Reach for
+`discretise_pmf` only when the exact-primary assumption is the one you
+want.
+
+The masses are clamped at zero against numeric-CDF noise but never
+renormalised, so delay mass beyond `maxlag` stays truncated. They keep
+the delay's parameter type, so the discretisation differentiates w.r.t.
+the delay parameters; a parameter change is handled by calling
 `discretise_pmf` again (there is no stale cache).
 
 # Arguments
