@@ -16,7 +16,6 @@ pages = [
         ],
         "Julia" => "getting-started/julia.md",
         "FAQ" => "getting-started/faq.md",
-        "Infrastructure and template sync" => "getting-started/infrastructure.md",
         "Customising your docs" => "getting-started/customising.md"
     ],
     "API reference" => [
@@ -29,7 +28,10 @@ pages = [
         "Contributing" => "developer/contributing.md",
         "Adding a new combination" => "developer/extending.md",
         "Release process" => "developer/release-process.md",
-        "Developer FAQ" => "developer/faq.md"
+        "Developer FAQ" => "developer/faq.md",
+        # Maintainer-facing: kept out of Getting started so a new user's
+        # first section is not maintainer noise (kit #136/#156).
+        "Infrastructure and template sync" => "getting-started/infrastructure.md"
     ],
     "Release notes" => "release-notes.md"
 ]
