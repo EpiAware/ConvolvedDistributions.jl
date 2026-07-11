@@ -88,13 +88,24 @@ mean(gap), cdf(gap, 0.0)
 
 ## Convolving a timeseries
 
-`convolve_series` discretises the delay to a PMF over the unit grid and causally convolves a numeric series with it.
-If the series holds the expected events at times `0, 1, ..., t` (say infections), the result is the expected downstream counts at the same times.
-This is the renewal-style observation layer, and the PMF masses depend differentiably on the delay parameters, so it composes with gradient-based fitting.
+`convolve_series` causally convolves a numeric series with a delay PMF on the unit lag grid.
+If the series holds the expected events at times `0, 1, ..., t` (say infections), the result is the expected downstream counts at the same times, the renewal-style observation layer.
+
+A discrete delay is read straight off its own PMF (the lag-`k` mass is `pdf(delay, k)`):
 
 ```@example getting-started
 infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-convolve_series(d, infections)
+convolve_series(Poisson(2.0), infections)
+```
+
+A continuous delay carries no mass on the integer grid until it is discretised, and discretising it is an explicit modelling choice, so `convolve_series` will not do it silently.
+Discretise it first with `discretise_pmf` (raw CDF-difference masses: interval-censored secondary event, exact primary), then convolve.
+For a primary event known only to the day use CensoredDistributions.jl's double-interval-censored masses instead.
+The masses depend differentiably on the delay parameters, so this composes with gradient-based fitting.
+
+```@example getting-started
+pmf = discretise_pmf(d, length(infections) - 1)
+convolve_series(pmf, infections)
 ```
 
 ## Choosing the solver

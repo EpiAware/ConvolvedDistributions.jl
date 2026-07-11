@@ -81,25 +81,28 @@ Tightening the shared-window construction is tracked in [issue #29](https://gith
 
 They do different jobs and have separate names.
 The distribution form, `convolved(dists...)`, combines distributions into a single `Convolved` distribution (the sum of independent delays).
-The timeseries form, `convolve_series(delay, series)` with `series` a numeric vector, discretises the delay to a PMF over the unit grid and returns the causal discrete convolution of the series with that PMF:
+The timeseries form, `convolve_series(delay, series)` with `series` a numeric vector, convolves the series with a delay PMF on the unit lag grid.
+With `series` the expected events at times `0, 1, ..., t` (say infections), the result is the expected downstream counts at the same times, the renewal-style observation layer.
+The separate verb reflects the different return type: `convolved` always returns a distribution, `convolve_series` always returns a numeric series.
+
+For a discrete delay the lag-`k` mass is just `pdf(delay, k)`, so the distribution is read straight off its own PMF:
 
 ```@example faq
 infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-convolve_series(d, infections)
+convolve_series(Poisson(2.0), infections)
 ```
 
-With `series` the expected events at times `0, 1, ..., t` (say infections), the result is the expected downstream counts at the same times, the renewal-style observation layer.
-The separate verb reflects the different return type: `convolved` always returns a distribution, `convolve_series` always returns a numeric series.
-The PMF masses depend differentiably on the delay parameters, so the timeseries form composes with gradient-based fitting.
-
-The discretisation and the convolution are also available separately.
-`convolve_series(pmf, series)` takes an already-discretised PMF vector and only convolves, with the masses used exactly as given (so a caller can supply, say, double-interval-censored masses).
-`discretise_pmf(delay, maxlag)` builds the delay PMF once as a reusable `DelayPMF`, which `convolve_series(pmf, series)` and `pdf(pmf, lag)` then read without rediscretising:
+A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice, so `convolve_series(delay, series)` on a continuous delay throws rather than pick a scheme silently.
+Discretise it first and convolve the resulting PMF.
+`discretise_pmf(delay, maxlag)` builds the delay PMF once as a reusable `DelayPMF` with raw CDF-difference masses — the interval-censored-secondary scheme with an exact primary event — which `convolve_series(pmf, series)` and `pdf(pmf, lag)` then read without rediscretising:
 
 ```@example faq
 pmf = discretise_pmf(d, length(infections) - 1)
 convolve_series(pmf, infections)
 ```
+
+The masses depend differentiably on the delay parameters, so the timeseries form composes with gradient-based fitting.
+`convolve_series(pmf, series)` also takes any already-discretised PMF vector and only convolves, with the masses used exactly as given, so a caller can instead supply CensoredDistributions.jl's double-interval-censored masses when the primary event is itself known only to the day.
 
 ## Can I use this with automatic differentiation?
 
