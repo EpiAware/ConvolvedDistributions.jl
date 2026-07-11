@@ -613,7 +613,9 @@ Each point is integrated over the same window the scalar path picks,
 on a shared panel grid whose nodes and integration-component density
 are evaluated once and reused across points, plus small per-point
 end-correction integrals. Batched and scalar results therefore agree
-to well within ~1e-8 (typically near machine precision); see the FAQ.
+to well within ~1e-8 (typically near machine precision) for batches
+spanning up to ~40x point ranges; extreme spans (100x and beyond)
+stay within ~1e-6. See the FAQ.
 
 See also: [`cdf`](@ref)
 "
@@ -710,7 +712,8 @@ solve for the numeric path.
 Each point is integrated over the same window the scalar path picks
 (shared composite panels plus per-point end corrections), so batched
 and scalar log densities agree to well within ~1e-8 even for wide
-batches (typically near machine precision).
+batches (typically near machine precision; extreme 100x-plus point
+spans stay within ~1e-6).
 
 See also: [`logpdf`](@ref), [`pdf`](@ref)
 "
