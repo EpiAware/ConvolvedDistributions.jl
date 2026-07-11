@@ -168,6 +168,45 @@ end
     @test cdf(dn, 1e4) ≈ 1.0 atol=1e-6
 end
 
+@testitem "Product cdf handles singular multiplier densities" begin
+    using Distributions, Random, Statistics
+
+    # A Gamma multiplier with shape < 1 has a density diverging at
+    # y = 0. The direct F_X(z / y) f_Y(y) CDF integrand inherits that
+    # (integrable) singularity, which fixed-node quadrature cannot
+    # resolve: it biased the CDF by ~1e-2 at shape 0.5 and ~7e-2 at
+    # shape 0.3. The survival-form evaluation removes the singularity;
+    # check against fixed-seed Monte Carlo (SE ~ 8e-4 at n = 400_000,
+    # so 5e-3 is honest and the old bias fails it).
+    rng = MersenneTwister(2024)
+    x = LogNormal(0.5, 0.4)
+    for shape in (0.5, 0.3)
+        y = Gamma(shape, 1.0)
+        d = product(x, y)
+        samples = [rand(rng, x) * rand(rng, y) for _ in 1:400_000]
+        for z in (0.5, 2.0, 5.0)
+            @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+        end
+    end
+end
+
+@testitem "Product cdf is symmetric for a singular-density component" begin
+    using Distributions
+
+    # cdf(product(X, Y)) == cdf(product(Y, X)) must hold whichever side
+    # carries the singular (shape < 1) density; the direct-form CDF
+    # broke this by ~1e-2 when the singular component was the
+    # multiplier Y. Both orderings are accurate to ~1e-8 under the
+    # survival form.
+    x = LogNormal(0.5, 0.4)
+    y = Gamma(0.5, 1.0)
+    dxy = product(x, y)
+    dyx = product(y, x)
+    for z in (0.5, 2.0, 5.0)
+        @test cdf(dxy, z) ≈ cdf(dyx, z) atol=1e-7
+    end
+end
+
 @testitem "Product is symmetric in its components" begin
     using Distributions
 
