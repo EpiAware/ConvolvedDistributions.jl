@@ -3,7 +3,7 @@
 # ## Introduction
 #
 # This tutorial shows what the package does by plotting it.
-# A [`Convolved`](@ref) distribution is the sum of independent delays, so its density sits to the right of, and is wider than, either component.
+# A [`Convolved`](@ref ConvolvedDistributions.Convolved) distribution is the sum of independent delays, so its density sits to the right of, and is wider than, either component.
 # A [`Difference`](@ref) is the signed gap between two events, so its support runs on both sides of zero.
 # The plots below make each of these behaviours visible, and also check the analytic and numeric solver backends against each other.
 #
@@ -77,7 +77,7 @@ cdf(z_dist, 0.0)
 
 # ## Composing on multiple distributions
 #
-# A [`Convolved`](@ref) distribution is itself a `UnivariateDistribution`, so it can be a component of another [`convolved`](@ref) call, or one side of a [`difference`](@ref).
+# A [`Convolved`](@ref ConvolvedDistributions.Convolved) distribution is itself a `UnivariateDistribution`, so it can be a component of another [`convolved`](@ref) call, or one side of a [`difference`](@ref).
 # Here the two-stage delay `d` gains an Exponential processing stage, built once by nesting (`convolved(d, processing)`) and once flat from the three leaves.
 
 processing = Exponential(2.0)
@@ -210,7 +210,7 @@ draw(
 #
 # - Convolving two delays shifts and widens the density; the batched `pdf` and `cdf` methods evaluate a grid in one quadrature solve.
 # - [`difference`](@ref) has two-sided support and its mass below zero is directly interpretable as an ordering probability.
-# - Combinations compose: a [`Convolved`](@ref) can be a component of another convolution or one side of a difference, and a nested convolution matches its flat equivalent.
+# - Combinations compose: a [`Convolved`](@ref ConvolvedDistributions.Convolved) can be a component of another convolution or one side of a difference, and a nested convolution matches its flat equivalent.
 # - Forcing the [`NumericSolver`](@ref) on an analytic pair reproduces the closed-form CDF to a few parts in a million.
-# - `truncated` composes with a [`Convolved`](@ref) distribution for scoring under right truncation.
+# - `truncated` composes with a [`Convolved`](@ref ConvolvedDistributions.Convolved) distribution for scoring under right truncation.
 # - The timeseries form turns an infection curve into an expected count curve through the discretised delay PMF.

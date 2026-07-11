@@ -1,7 +1,7 @@
 # [Adding a new combination](@id extending)
 
 A combined distribution is a type built from two or more base distributions joined by an algebraic operation.
-The package ships two members, [`Convolved`](@ref) (the sum `X + Y + ...`) and [`Difference`](@ref) (`Z = X - Y`), and the family is designed to grow (a min or max order statistic is the natural next member).
+The package ships two members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`) and [`Difference`](@ref) (`Z = X - Y`), and the family is designed to grow (a min or max order statistic is the natural next member).
 This page documents the contract a new member implements and the conventions the built-in members follow, using them as worked examples.
 
 ## The family supertype
