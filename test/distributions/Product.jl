@@ -129,6 +129,27 @@ end
     @test var(d) ≈ var(samples) atol=5e-1
 end
 
+@testitem "Product with Convolved multiplier matches Monte Carlo" begin
+    using Distributions, Random, Statistics
+
+    # Issue #45: a `Convolved` multiplier routes both the zero lower
+    # endpoint and the infinite upper endpoint of the Mellin windows
+    # through `_window_quantile(::Convolved, p)`, whose primal rebuild
+    # threw a `_primal(::Tuple)` MethodError on the nested parameter
+    # tuples.
+    x = Gamma(2.0, 1.0)
+    y = convolved(Gamma(1.5, 1.0), Gamma(1.0, 2.0))
+    d = product(x, y)
+
+    rng = MersenneTwister(45)
+    n = 400_000
+    samples = [rand(rng, x) * rand(rng, y) for _ in 1:n]
+    for z in (1.0, 4.0, 10.0, 20.0)
+        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+    end
+    @test pdf(d, 4.0) > 0
+end
+
 @testitem "Product moments are the exact independent-product moments" begin
     using Distributions
 

@@ -238,6 +238,16 @@ end
 # Numeric Mellin convolution (AD-safe Gauss-Legendre dot product)
 # ---------------------------------------------------------------------------
 
+# Composite window quantile for a `Product` component (issue #45; see
+# the `Convolved` method in `src/Convolved.jl`). With both supports
+# non-negative the product of the component quantiles at the same `p`
+# bounds the product quantile on either side by a union bound, trimming
+# at most `2 * _CONVOLVED_TAIL` of mass. Mirrors the exact inversion's
+# starting guess in the Optimization extension.
+@noinline function _window_quantile(d::Product, p::Real)
+    return _window_quantile(d.x, p) * _window_quantile(d.y, p)
+end
+
 # The effective mass window of Y for the multiplicative quadrature. Both
 # integrands carry the factor f_Y(y), negligible outside Y's effective
 # support, so an infinite upper endpoint is clamped to an extreme
