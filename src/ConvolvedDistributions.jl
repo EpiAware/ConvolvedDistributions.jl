@@ -53,6 +53,10 @@ include("docstrings.jl")
 # Public convolution constructor and its dual difference constructor.
 export convolved, convolve_series, Difference, difference
 
+# The build-once discretised delay PMF constructor (`DelayPMF` itself is
+# public, not exported, mirroring `Convolved`).
+export discretise_pmf
+
 # Solver methods for choosing the analytic-vs-numeric backend.
 export AnalyticalSolver, NumericSolver
 
