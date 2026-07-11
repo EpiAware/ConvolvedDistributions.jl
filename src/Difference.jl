@@ -63,7 +63,7 @@ struct Difference{X <: UnivariateDistribution, Y <: UnivariateDistribution,
     x::X
     "The subtrahend component (the `Y` in `Z = X - Y`)."
     y::Y
-    "Solver method choose the analytic vs numeric quadrature backend."
+    "Solver method choosing the analytic vs numeric quadrature backend."
     method::M
 
     function Difference(x::X, y::Y;

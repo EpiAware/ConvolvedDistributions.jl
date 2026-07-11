@@ -3,8 +3,8 @@
 ConvolvedDistributions.jl follows the Julia ecosystem's standard release practices, driven by the shared EpiAwarePackageTools workflows.
 This page describes what those workflows actually do in this repository.
 
-The package is not yet in the Julia General Registry; the first `/register` run below will be its initial registration.
-Until then users install by URL, as described in [Installation](@ref installation).
+The package's initial registration in the Julia General Registry is triggered by the first `/register` run below; new packages then sit in a mandatory three-day registry waiting period before the registry pull request merges.
+Until that merge users install by URL, as described in [Installation](@ref installation).
 
 ## Release philosophy
 

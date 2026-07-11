@@ -16,7 +16,22 @@ z = difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
 cdf(d, 5.0), cdf(z, 0.0)
 ```
 
-`convolved` accepts two or more components as varargs, a tuple, or a vector, and the results nest, so a `Convolved` can itself be a component.
+`convolved` accepts two or more components as varargs, a tuple, or a vector.
+
+## Can I nest combinations?
+
+Yes.
+The results are `UnivariateDistribution`s, so a `Convolved` can itself be a component of another `convolved` call or one side of a `difference`, and a nested convolution evaluates the same integral as its flat equivalent:
+
+```@example faq
+nested = convolved(d, Exponential(2.0))
+flat = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4), Exponential(2.0))
+gap = difference(d, Gamma(2.5, 1.0))
+
+mean(nested) ≈ mean(flat), cdf(nested, 8.0) ≈ cdf(flat, 8.0), mean(gap)
+```
+
+The [Getting started](@ref getting-started) walkthrough and the [Visualising convolutions](@ref visualising-convolutions) tutorial show nesting in more detail.
 
 ## When should I use `convolved` rather than `Distributions.convolve`?
 
@@ -109,7 +124,7 @@ The tutorial `.jl` files are plain Julia scripts that can be run top-to-bottom i
 
 ## I get "Package not found" errors
 
-Make sure you are in the right environment, and remember the package installs by URL until it is registered:
+Make sure you are in the right environment, and remember the package installs by URL until its initial registration in the Julia General Registry completes:
 
 ```julia
 using Pkg
