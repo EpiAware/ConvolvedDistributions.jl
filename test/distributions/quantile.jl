@@ -6,7 +6,7 @@
     using Distributions, Optimization, OptimizationOptimJL
 
     # Numeric path: quantile is the cdf inverse.
-    # The optimiser minimises (cdf - p)^2, so cdf accuracy is ~1e-4.
+    # The optimiser minimises the squared logit-cdf residual (#48).
     d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     for p in (0.1, 0.25, 0.5, 0.75, 0.9)
         q = quantile(d, p)
