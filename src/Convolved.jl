@@ -49,7 +49,7 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod} <:
        AbstractCombinedDistribution{Distributions.Univariate, Continuous}
     "Tuple of independent component distributions to be summed."
     components::C
-    "Solver method choose the analytic vs numeric quadrature backend."
+    "Solver method choosing the analytic vs numeric quadrature backend."
     method::M
 
     function Convolved(components::C;

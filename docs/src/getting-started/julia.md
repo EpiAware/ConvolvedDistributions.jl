@@ -123,7 +123,7 @@ end
 
 ### Installing and using the package
 
-The package is not yet registered, so add it by URL (see [Installation](@ref installation)):
+Until the package's initial registration completes, add it by URL (see [Installation](@ref installation)):
 
 ```julia-repl
 julia> ]

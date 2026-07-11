@@ -153,7 +153,7 @@ When you add functionality touching the density or quadrature paths, add a match
 The tutorials are [Literate.jl](https://fredrikekre.github.io/Literate.jl/) scripts located in `docs/src/getting-started/tutorials/`.
 These are converted to markdown during the documentation build.
 
-Tutorials are plain Julia `.jl` files using `md"""..."""` blocks for markdown.
+Tutorials are plain Julia `.jl` files using Literate's `#` comment lines for markdown.
 You can run them directly in the REPL or as scripts.
 
 1. **Adding a new tutorial**:
@@ -161,17 +161,13 @@ You can run them directly in the REPL or as scripts.
    - Register it in `docs/docs_config.jl` and add the generated `.md` file to `docs/pages.jl`
 2. **Tutorial format**:
    ```julia
-   md"""
-   # Tutorial title
-
-   Introduction text.
-   """
+   # # Tutorial title
+   #
+   # Introduction text.
 
    using ConvolvedDistributions, Distributions
 
-   md"""
-   ## Section
-   """
+   # ## Section
 
    convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
    ```

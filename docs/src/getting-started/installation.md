@@ -1,17 +1,16 @@
 # [Installation](@id installation)
 
-`ConvolvedDistributions` is not yet registered in the Julia General Registry.
-Until the first release, install it from GitHub:
+Once the initial registration of `ConvolvedDistributions` in the Julia General Registry completes, install it with:
+
+```julia
+using Pkg; Pkg.add("ConvolvedDistributions")
+```
+
+Until then, or for the development version, install it from GitHub:
 
 ```julia
 using Pkg
 Pkg.add(url = "https://github.com/EpiAware/ConvolvedDistributions.jl")
-```
-
-Once the package is registered this becomes:
-
-```julia
-using Pkg; Pkg.add("ConvolvedDistributions")
 ```
 
 Load it alongside Distributions.jl:
