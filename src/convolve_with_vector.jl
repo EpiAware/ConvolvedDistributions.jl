@@ -201,7 +201,8 @@ vector evaluations.
 
 `DelayPMF` holds the raw CDF-difference interval masses of a delay
 distribution on the grid `[0, 1), [1, 2), ..., [m, m + 1)` scaled by
-`interval` (where `m` is the `maxlag` it was built with), so a single
+`interval` (where `m` is the `maxlag` it was built with), clamped at
+zero against numeric-CDF noise but never renormalised, so a single
 discretisation is shared across many series or lag lookups instead of
 being rebuilt per call.
 
@@ -251,8 +252,8 @@ avoids rediscretising the delay per series or per record.
 
 The masses are exactly those the rebuild-every-time
 [`convolve_series(delay, series)`](@ref convolve_series) path computes
-(raw CDF differences, no renormalisation), so a prebuilt PMF gives
-numerically identical results. The masses keep the delay's parameter
+(raw CDF differences clamped at zero, never renormalised), so a
+prebuilt PMF gives numerically identical results. The masses keep the delay's parameter
 type, so the discretisation differentiates w.r.t. the delay parameters;
 a parameter change is handled by calling `discretise_pmf` again (there
 is no stale cache).
@@ -337,7 +338,9 @@ Read the precomputed [`DelayPMF`](@ref) masses at integer lags.
 integer, or a vector of integers for a batched read), reusing the
 build-once masses instead of re-evaluating CDF differences per lag. A
 lag outside `0..maxlag` returns a zero of the PMF's element type (no
-mass is carried there).
+mass is carried there). `lag` counts grid steps, not time units: for a
+PMF built with `interval != 1`, `pdf(pmf, k)` is the mass on
+`[k * interval, (k + 1) * interval)`.
 
 # Arguments
 - `pmf`: a precomputed [`DelayPMF`](@ref).
