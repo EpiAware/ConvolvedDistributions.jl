@@ -12,7 +12,8 @@ pages = [
         "Overview" => "getting-started/index.md",
         "Installation" => "getting-started/installation.md",
         "Tutorials" => [
-            "Visualising convolutions" => "getting-started/tutorials/visualising-convolutions.md"
+            "Visualising convolutions" => "getting-started/tutorials/visualising-convolutions.md",
+            "AD backends" => "getting-started/tutorials/ad-backends.md"
         ],
         "FAQ" => "getting-started/faq.md"
     ],

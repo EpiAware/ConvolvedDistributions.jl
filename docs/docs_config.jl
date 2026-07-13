@@ -16,7 +16,8 @@ const LIGHT_TUTORIALS = String[]
 # Heavy tutorials (live MCMC fits, multi-backend AD, plotting) are each
 # executed once in a fresh subprocess so native/memory state cannot accumulate.
 const HEAVY_TUTORIALS = [
-    "visualising-convolutions.jl"
+    "visualising-convolutions.jl",
+    "ad-backends.jl"
 ]
 
 # Where the tutorial `.jl` sources and rendered `.md` pages live, relative to
@@ -28,7 +29,8 @@ const TUTORIALS_SUBDIR = joinpath("getting-started", "tutorials")
 # `"# [Title](@id my-anchor)"`) so cross-references from other pages still
 # resolve in a fast build.
 const TUTORIAL_STUBS = [
-    "visualising-convolutions.md" => "# [Visualising convolutions](@id visualising-convolutions)"
+    "visualising-convolutions.md" => "# [Visualising convolutions](@id visualising-convolutions)",
+    "ad-backends.md" => "# [Automatic differentiation backends](@id ad-backends)"
 ]
 
 # Heavy tutorials that always render from their `TUTORIAL_STUBS` heading and
@@ -77,15 +79,17 @@ const INDEX_STRIP_SECTIONS = String[]
 const BENCHMARK_PAGE = true
 
 # ---------------------------------------------------------------------------
-# TEMPORARY WORKAROUND — remove once the empty-anchor header is fixed and
-# DocumenterVitepress skips (rather than aborts on) inventory entries whose
-# anchor id is empty. On CI (deploy builds only reach this deterministically;
-# see issue link below) the vitepress inventory writer crashes the whole docs
-# build with `ArgumentError: `name` must have non-zero length` when an
-# anchored header has an empty anchor id. Overwrite that one writer method
-# with a copy whose inventory push is guarded: an empty id logs the page and
-# heading (so the culprit is identifiable in the CI log) and skips the entry.
-# Tracked in https://github.com/EpiAware/ConvolvedDistributions.jl/issues/52.
+# TEMPORARY WORKAROUND — retained after a scaffold_update convergence found the
+# local full docs build (with notebooks) still aborts without it. kit #211
+# fixed the benchmark-embed empty-anchor cause, but DocumenterVitepress's
+# inventory writer still crashes the whole build with
+# `ArgumentError: `name` must have non-zero length` when an anchored header
+# resolves to an empty anchor id (here `src/benchmarks.md`'s empty-id header).
+# Overwrite that one writer method with a copy whose inventory push is guarded:
+# an empty id logs the page and heading (so the culprit is identifiable in the
+# build log) and skips the entry. Remove once the kit-level guard lands
+# (EpiAwarePackageTools#232). Tracked in
+# https://github.com/EpiAware/ConvolvedDistributions.jl/issues/52.
 import Documenter
 import DocumenterVitepress
 
