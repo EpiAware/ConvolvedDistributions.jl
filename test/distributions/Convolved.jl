@@ -16,6 +16,16 @@
     # Errors
     @test_throws ArgumentError convolved([Gamma(2.0, 1.0)])
     @test_throws ArgumentError convolved((Gamma(2.0, 1.0),))
+
+    # Inner-constructor guards, only reachable via direct construction:
+    # the type itself rejects an empty tuple (the degenerate single
+    # component is allowed for the recursive rebuild paths) and any
+    # non-UnivariateDistribution component.
+    @test_throws ArgumentError ConvolvedDistributions.Convolved(())
+    @test_throws ArgumentError ConvolvedDistributions.Convolved(
+        (Gamma(2.0, 1.0), 1.0))
+    @test ConvolvedDistributions.Convolved((Gamma(2.0, 1.0),)) isa
+          ConvolvedDistributions.Convolved
 end
 
 @testitem "Convolved support and params" begin

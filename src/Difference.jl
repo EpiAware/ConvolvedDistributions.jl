@@ -96,6 +96,9 @@ non-negative delay leaf (see [`Difference`](@ref)).
   or [`NumericSolver`](@ref). `NumericSolver` forces numeric quadrature
   even for a `Normal`-`Normal` pair, mirroring `convolved`.
 
+# Returns
+- A [`Difference`](@ref) distribution of the signed gap `Z = X - Y`.
+
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
