@@ -126,6 +126,10 @@ separate verb keeps `convolved` strictly for distribution construction.
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
 
+# Returns
+- A numeric vector of expected downstream counts, the same length as
+  `series`.
+
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
@@ -217,6 +221,10 @@ convolution is linear, so gradients flow through both `pmf` and
   `0, 1, 2, ...` (used as given).
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
+
+# Returns
+- A numeric vector of expected downstream counts, the same length as
+  `series`.
 
 # Examples
 ```@example
@@ -343,6 +351,10 @@ the delay parameters; a parameter change is handled by calling
   travels with the [`DelayPMF`](@ref): [`convolve_series`](@ref) reads
   the series on the PMF's own grid, and `pdf(pmf, k)` is the mass on
   `[k * interval, (k + 1) * interval)`.
+
+# Returns
+- A [`DelayPMF`](@ref) holding the `maxlag + 1` interval masses and the
+  grid width.
 
 # Examples
 ```@example

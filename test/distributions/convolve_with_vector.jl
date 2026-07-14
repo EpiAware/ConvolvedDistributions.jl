@@ -296,7 +296,11 @@ end
     θ = [2.0, 1.0]
     g = ForwardDiff.gradient(discretised, θ)
     @test !all(iszero, g)
-    # Central finite differences confirm the autodiff gradient.
+    # Central finite differences confirm the autodiff gradient. With
+    # step 1e-6 the truncation plus round-off error of the central
+    # difference is ~1e-8 relative, so rtol = 1e-4 (here and for the
+    # Poisson check below) is dominated by neither and flags any wrong
+    # derivative rule outright.
     ε = 1e-6
     fd = [(discretised(θ + ε * e) - discretised(θ - ε * e)) / (2ε)
           for e in ([1.0, 0.0], [0.0, 1.0])]

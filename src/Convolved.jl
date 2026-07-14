@@ -85,6 +85,9 @@ distribution.
   or [`NumericSolver`](@ref). `NumericSolver` forces numeric quadrature
   even when an analytic convolution is available.
 
+# Returns
+- A [`Convolved`](@ref) distribution of the sum of the components.
+
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions

@@ -31,6 +31,12 @@ Required of a concrete subtype:
 Verify a subtype with
 `ConvolvedDistributions.TestUtils.test_convolved_interface`, and family
 membership with `ConvolvedDistributions.TestUtils.test_abstract_membership`.
+
+# See also
+- [`Convolved`](@ref), [`Difference`](@ref),
+  [`Product`](@ref): the concrete members.
+- `ConvolvedDistributions.TestUtils`: the interface verifiers for a new
+  subtype.
 "
 abstract type AbstractConvolvedDistribution{F <: Distributions.VariateForm,
     S <: Distributions.ValueSupport} <: Distributions.Distribution{F, S} end

@@ -110,6 +110,9 @@ and are future work.
   or [`NumericSolver`](@ref). `NumericSolver` forces numeric quadrature
   even for a `LogNormal`-`LogNormal` pair, mirroring `convolved`.
 
+# Returns
+- A [`Product`](@ref) distribution of the product `Z = X * Y`.
+
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
