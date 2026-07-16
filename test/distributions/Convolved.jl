@@ -47,6 +47,14 @@ end
 
     p = params(d2)
     @test p == ((0.0, 1.0), (0.0, 2.0))
+
+    # `components` is the public accessor for peeling a Convolved apart, and it
+    # extends `Distributions.components` (same function, no clash under
+    # `using Distributions`).
+    @test components === Distributions.components
+    @test components(d2) === d2.components
+    @test components(d2) == (Uniform(0.0, 1.0), Uniform(0.0, 2.0))
+    @test components(d2) isa Tuple
 end
 
 @testitem "Convolved analytic agreement with Distributions.convolve" begin

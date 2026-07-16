@@ -137,6 +137,18 @@ end
 
 params(d::Convolved) = map(params, d.components)
 
+"""
+    components(d::Convolved)
+
+The independent delay distributions whose sum `d` represents, returned as the
+component tuple. The public accessor for peeling a `Convolved` apart without
+reaching into its fields — a downstream `lower` bridge, for one, folds them
+into a series phase-type chain. Extends `Distributions.components` (the standard
+composite-distribution accessor), so it composes with `using Distributions`
+rather than clashing with it.
+"""
+components(d::Convolved) = d.components
+
 function Base.eltype(::Type{<:Convolved{C}}) where {C <: Tuple}
     return mapreduce(eltype, promote_type, fieldtypes(C))
 end
