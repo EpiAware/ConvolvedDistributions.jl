@@ -32,7 +32,7 @@ module ConvolvedDistributions
 using Random: AbstractRNG
 
 # Functions extended with new methods.
-import Distributions: params, insupport, pdf, logpdf, cdf, logcdf,
+import Distributions: params, components, insupport, pdf, logpdf, cdf, logcdf,
                       ccdf, logccdf, mean, var, std, sampler
 import Base: minimum, maximum
 
