@@ -27,11 +27,6 @@ ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
 [sources]
 ADFixtures = {path = "../test/ADFixtures"}
 ConvolvedDistributions = {path = ".."}
-# Until EpiAwareADTools and EpiAwarePackageTools are registered, they are
-# pinned by git so the env resolves out of the box ([sources] of a path
-# dep are not honoured, so the package's own pin does not cover this
-# env). Switch to a local path to develop either alongside this package.
-EpiAwareADTools = {url = "https://github.com/EpiAware/EpiAwareADTools.jl", rev = "main"}
 EpiAwarePackageTools = {url = "https://github.com/EpiAware/EpiAwarePackageTools.jl", rev = "main"}
 
 [compat]

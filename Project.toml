@@ -48,13 +48,6 @@ SurvivalDistributions = "0.1"
 Test = "1"
 julia = "1.10, 1.11, 1.12"
 
-[sources]
-# Until EpiAwareADTools is registered, it is pinned by git so the root and
-# workspace (test/docs) environments resolve out of the box. A workspace
-# member's [sources] is not honoured for a root-level dep, so this pin is
-# the one that matters; the isolated envs (test/ad, test/jet, benchmark)
-# carry their own copy.
-EpiAwareADTools = {url = "https://github.com/EpiAware/EpiAwareADTools.jl", rev = "main"}
 
 [workspace]
 projects = ["test", "docs"]

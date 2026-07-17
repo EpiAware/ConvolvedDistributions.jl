@@ -30,12 +30,6 @@ concurrency:
 jobs:
   history:
     runs-on: ubuntu-latest
-    # TEMPORARY OVERRIDE (kit #216): benchpkg's temp env cannot resolve
-    # the unregistered EpiAwareADTools [sources] pin ("no known
-    # versions"), so the job fails until EpiAwareADTools reaches the
-    # General registry. Keep the run green in the interim; remove with
-    # the [sources] pin on registration.
-    continue-on-error: true
     steps:
       # fetch-depth: 0 so all tags resolve; benchpkg checks out each
       # historical rev from this working tree.

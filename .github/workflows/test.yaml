@@ -23,11 +23,8 @@ jobs:
 
   downgrade-compat:
     uses: EpiAware/.github/.github/workflows/downgrade.yml@6fcdcde033ec670ac3832b239427fd2ded591bbc
-    # TEMPORARILY DISABLED (kit #216): the downgrade harness cannot see
-    # [sources]-pinned deps ("could not find manifest entry" for the
-    # unregistered EpiAwareADTools). Re-enable, with julia_version 1.11
-    # while the kit pin remains, once EpiAwareADTools is registered.
-    if: false
+    # 1.11 not the workflow's 1.10 default while the unregistered kit is
+    # pinned via [sources] in the test envs (EpiAwarePackageTools#115).
     with:
       julia_version: '1.11'
     secrets: inherit  # pragma: allowlist secret

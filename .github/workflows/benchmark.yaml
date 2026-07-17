@@ -49,11 +49,6 @@ jobs:
     name: Benchmark (${{ matrix.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    # TEMPORARY OVERRIDE (kit #216): the benchmark env cannot resolve
-    # the unregistered EpiAwareADTools [sources] pin on the runner's
-    # isolated project. Keep PR runs green in the interim; remove with
-    # the [sources] pin on registration.
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:

@@ -21,9 +21,4 @@ ConvolvedDistributions = "f5b942c9-bc5b-4664-8486-7f531bb06742"
 [sources]
 ADFixtures = {path = "../ADFixtures"}
 ConvolvedDistributions = {path = "../.."}
-# Until EpiAwareADTools and EpiAwarePackageTools are registered, they are
-# pinned by git so the env resolves out of the box ([sources] of a path
-# dep are not honoured, so the package's own pin does not cover this
-# env). Switch to a local path to develop either alongside this package.
-EpiAwareADTools = {url = "https://github.com/EpiAware/EpiAwareADTools.jl", rev = "main"}
 EpiAwarePackageTools = {url = "https://github.com/EpiAware/EpiAwarePackageTools.jl", rev = "main"}
