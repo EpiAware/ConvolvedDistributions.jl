@@ -113,9 +113,16 @@ When a closed form does exist, `convolved` uses it, so there is no cost to reach
 
 - Want to get started running code? Check out the [Getting started documentation](https://convolveddistributions.epiaware.org/stable/getting-started/).
 - Want to understand the API? Check out our [API reference](https://convolveddistributions.epiaware.org/stable/lib/public).
-- Want to chat with someone about `ConvolvedDistributions`? Post on our [GitHub Discussions](https://github.com/EpiAware/ConvolvedDistributions.jl/discussions).
 - Want to contribute to `ConvolvedDistributions`? Check the [open issues](https://github.com/EpiAware/ConvolvedDistributions.jl/issues) and the Contributing section below.
 - Want to see our code? Check out our [GitHub Repository](https://github.com/EpiAware/ConvolvedDistributions.jl).
+
+## Getting help
+
+For usage questions, ask on the [Julia Discourse](https://discourse.julialang.org)
+(the SciML or usage categories) or the [epinowcast community forum](https://community.epinowcast.org),
+our home for epidemiological modelling questions.
+Please use [GitHub issues](https://github.com/EpiAware/ConvolvedDistributions.jl/issues)
+for bug reports and feature requests only.
 
 ## Contributing
 

@@ -15,7 +15,8 @@ using Revise                  # Load before your package
 using ConvolvedDistributions  # Now changes reload automatically
 ```
 
-Better yet, add Revise to your `startup.jl` file as described on the [EpiAware site](https://epiaware.org/).
+Better yet, add Revise to your `startup.jl` file as described in
+[Using Julia](https://epiaware.org/using-julia) on the EpiAware site.
 
 ### Q: I get "Package not found" errors during development
 
