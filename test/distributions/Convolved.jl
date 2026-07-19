@@ -16,6 +16,16 @@
     # Errors
     @test_throws ArgumentError convolved([Gamma(2.0, 1.0)])
     @test_throws ArgumentError convolved((Gamma(2.0, 1.0),))
+
+    # Inner-constructor guards, only reachable via direct construction:
+    # the type itself rejects an empty tuple (the degenerate single
+    # component is allowed for the recursive rebuild paths) and any
+    # non-UnivariateDistribution component.
+    @test_throws ArgumentError ConvolvedDistributions.Convolved(())
+    @test_throws ArgumentError ConvolvedDistributions.Convolved(
+        (Gamma(2.0, 1.0), 1.0))
+    @test ConvolvedDistributions.Convolved((Gamma(2.0, 1.0),)) isa
+          ConvolvedDistributions.Convolved
 end
 
 @testitem "Convolved support and params" begin
@@ -37,6 +47,14 @@ end
 
     p = params(d2)
     @test p == ((0.0, 1.0), (0.0, 2.0))
+
+    # `components` is the public accessor for peeling a Convolved apart, and it
+    # extends `Distributions.components` (same function, no clash under
+    # `using Distributions`).
+    @test components === Distributions.components
+    @test components(d2) === d2.components
+    @test components(d2) == (Uniform(0.0, 1.0), Uniform(0.0, 2.0))
+    @test components(d2) isa Tuple
 end
 
 @testitem "Convolved analytic agreement with Distributions.convolve" begin
@@ -201,7 +219,7 @@ end
     # A nested `Convolved` as the integration (last) component with
     # unbounded support routes the window clamp through
     # `_window_quantile(::Convolved, p)`; the primal rebuild threw a
-    # `_primal(::Tuple)` MethodError on the nested parameter tuples
+    # `primal(::Tuple)` MethodError on the nested parameter tuples
     # (issue #45). Normal components give an exact reference.
     inner = convolved(Normal(1.0, 2.0), Normal(0.5, 1.5))
     d = convolved(Normal(0.0, 1.0), inner; method = NumericSolver())

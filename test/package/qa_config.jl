@@ -17,14 +17,10 @@ const QA_CONFIG = (
     aqua = (;),
 
     # ExplicitImports `ignore`: symbols an extension legitimately imports
-    # non-publicly. When another quality item (extension-ambiguity) has
-    # already loaded ForwardDiffExt into the session, the public-imports
-    # walk inspects the extension too, which imports its own parent's
-    # internals plus ForwardDiff's Dual plumbing — the standard extension
-    # pattern (kit-check order dependence; see EpiAwarePackageTools
-    # issue on deterministic ExplicitImports scope).
-    ei_ignore = (:Dual, :value, :partials, :_gamma_cdf,
-        :_gamma_cdf_value_and_partials, :_primal),
+    # non-publicly (kit-check order dependence; see EpiAwarePackageTools
+    # issue on deterministic ExplicitImports scope). Empty since the gamma
+    # AD machinery and its ForwardDiff extension moved to EpiAwareADTools.
+    ei_ignore = (),
 
     # Docstring `crossref_ignore`: upstream names docstrings link to via
     # `[`name`](@ref)`, e.g. (:pdf, :cdf, :logpdf).
@@ -51,14 +47,6 @@ const QA_CONFIG = (
     # Enzyme/Mooncake/ReverseDiff extensions are exercised by the dedicated
     # AD harness (test/ad), which proves gradient correctness directly.
     extensions = (
-        # The partial-Dual `_gamma_cdf` overload set: the unparametrised
-        # `Dual` slots keep the "at least one Dual" space unambiguous
-        # (a shared-tag parametrisation leaves the mixed-tag intersections
-        # uncovered and flags all six partial pairs).
-        (; name = :ConvolvedDistributionsForwardDiffExt,
-            triggers = ("ForwardDiff",),
-            prefixes = ("ConvolvedDistributions", "ForwardDiff",
-                "Distributions")),
         (; name = :ConvolvedDistributionsIntegralsExt,
             triggers = ("Integrals",),
             prefixes = ("ConvolvedDistributions", "Integrals")),

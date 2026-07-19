@@ -78,10 +78,10 @@ cdf(da, 2.0), cdf(dn, 2.0)
 
 ## Do batched and scalar log densities agree?
 
-Yes, to well within `1e-8`.
+Yes, to machine precision.
 Evaluating `cdf`, `pdf`, or `logpdf` over a vector integrates every point over the same window the scalar path picks, on a composite quadrature grid whose panel nodes and integration-component density are shared across the batch (plus small per-point end corrections), which is what makes the batched path cheap.
-Batched and scalar results typically agree near machine precision; the widest measured gap is around `1e-10` for batches spanning a 40-fold point range, and around `1e-6` for spans up to a few hundred-fold (the gap grows slowly with span, e.g. ~`2e-5` at a thousand-fold).
-Earlier versions shared one quadrature window across the whole batch and could drift from the scalar path by around `2e-3` in the tails of wide batches; the per-point-window construction ([issue #29](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/29)) removed that gap.
+Since the quantile-panelled quadrature landed ([issue #49](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/49)) the widest measured batched-vs-scalar `logpdf` gap is below `4e-15`, for batches spanning 16-fold up to a thousand-fold point ranges and including heavy-tailed integration components.
+Earlier versions shared one quadrature window across the whole batch and could drift from the scalar path by around `2e-3` in the tails of wide batches; the per-point-window construction ([issue #29](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/29)) cut that to below `1e-8` (around `2e-5` at extreme spans), and the quantile panels removed the remaining span dependence.
 
 ## How does the timeseries form differ from the distribution form?
 
@@ -113,7 +113,7 @@ The masses depend differentiably on the delay parameters, so the timeseries form
 ## Can I use this with automatic differentiation?
 
 Yes.
-The `cdf`, `pdf`, and `logpdf` paths are AD-safe by construction: the quadrature uses fixed nodes, the integration window is shielded from the tape, and the gamma CDF carries analytic derivative rules.
+The `cdf`, `pdf`, and `logpdf` paths are AD-safe by construction: the quadrature uses fixed nodes, the integration window is shielded from the tape, and the gamma CDF carries analytic derivative rules (supplied by [EpiAwareADTools.jl](https://github.com/EpiAware/EpiAwareADTools.jl), which also hosts the `cdf_ad_safe` hook family wrapper packages extend).
 Gradients with respect to the component parameters are tested on ForwardDiff, ReverseDiff, Enzyme (forward and reverse), and Mooncake (forward and reverse) on every CI run.
 The per-backend badges in the [README](https://github.com/EpiAware/ConvolvedDistributions.jl#readme) track their status.
 Note that `quantile` (via the Optimization extension) is a numeric root-find and is not intended to sit on an AD path.
@@ -163,6 +163,8 @@ See the [Contributing guide](@ref contributing) and [Developer FAQ](@ref develop
 
 Still have questions?
 
-- **Package-specific**: Open a [GitHub Discussion](https://github.com/EpiAware/ConvolvedDistributions.jl/discussions)
-- **Bug reports**: [GitHub Issues](https://github.com/EpiAware/ConvolvedDistributions.jl/issues)
-- **General Julia help**: [Julia Discourse](https://discourse.julialang.org/) or [Julia Slack](https://julialang.org/slack/)
+- **Usage questions**: the [Julia Discourse](https://discourse.julialang.org/)
+  (the SciML or usage categories) or the
+  [epinowcast community forum](https://community.epinowcast.org), our home
+  for epidemiological modelling questions
+- **Bug reports and feature requests**: [GitHub Issues](https://github.com/EpiAware/ConvolvedDistributions.jl/issues)

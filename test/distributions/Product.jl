@@ -120,7 +120,10 @@ end
     @test pdf(d, 4.0) > 0
     @test logpdf(d, 4.0) ≈ log(pdf(d, 4.0)) atol=1e-8
 
-    # Exact independent-product moments against the samples.
+    # Exact independent-product moments against the samples. Seeded-run
+    # MC standard errors at n = 400_000 are ~6e-3 for the mean and ~8e-2
+    # for the variance (fourth-moment driven; the product is heavy
+    # tailed), so 5e-2 / 5e-1 sit at ~8 and ~6 standard errors.
     @test mean(samples) ≈ mean(x) * mean(y) atol=5e-2
     ex2 = var(x) + mean(x)^2
     ey2 = var(y) + mean(y)^2
@@ -135,7 +138,7 @@ end
     # Issue #45: a `Convolved` multiplier routes both the zero lower
     # endpoint and the infinite upper endpoint of the Mellin windows
     # through `_window_quantile(::Convolved, p)`, whose primal rebuild
-    # threw a `_primal(::Tuple)` MethodError on the nested parameter
+    # threw a `primal(::Tuple)` MethodError on the nested parameter
     # tuples.
     x = Gamma(2.0, 1.0)
     y = convolved(Gamma(1.5, 1.0), Gamma(1.0, 2.0))

@@ -14,12 +14,12 @@ Raw-distribution convolution and shared numeric quadrature for any `Distribution
 
 ## Why ConvolvedDistributions?
 
-- **Convolution of any pair**: `convolved` builds the distribution of a sum of independent delays (a convolution) from any two or more `Distributions.jl` distributions, not just pairs with a closed form.
-- **Analytic fast path**: closed-form convolutions (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`) are used where they exist, with an AD-safe Gauss-Legendre quadrature fallback for every other pair.
-- **Differences and products as well as sums**: `difference` builds the `X - Y` dual, the signed gap between two independent events, and `product` the `X * Y` Mellin convolution for non-negative components, a delay scaled by an independent multiplicative factor (`LogNormal * LogNormal` closed form, quadrature otherwise).
-- **Timeseries convolution**: `convolve_series` convolves a numeric series (e.g. expected infections over time) with a delay PMF on the unit lag grid to give expected downstream counts, the renewal-style observation layer. A discrete delay is read straight off its own PMF; a continuous delay is discretised first with `discretise_pmf` (interval-censored secondary, exact primary) or CensoredDistributions.jl's double-interval-censored masses. Gradients flow through the delay parameters.
-- **Pluggable integration**: a shared `integrate` / `gl_integrate` layer with a lightweight fixed-node `GaussLegendre` default and an optional [Integrals.jl](https://github.com/SciML/Integrals.jl) backend.
-- **Gradients everywhere**: gradients flow through the component parameters on every supported AD backend (ForwardDiff, ReverseDiff, Enzyme, Mooncake), so convolved distributions can be fitted with gradient-based samplers and optimisers.
+- A convolution is usually only available in closed form for a few matching distribution families; `convolved` builds the distribution of a sum of independent delays from any two or more `Distributions.jl` distributions, not just those pairs.
+- Closed-form convolutions (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`) are used where they exist, with an AD-safe Gauss-Legendre quadrature fallback for every other pair, so there is no accuracy trade-off for reaching for the general function.
+- Sums are not the only combination that matters: `difference` builds the `X - Y` signed gap between two independent events, and `product` the `X * Y` Mellin convolution for a delay scaled by an independent multiplicative factor.
+- Turning expected events into expected downstream counts is usually a hand-rolled discrete convolution; `convolve_series` does it directly from a numeric series and a delay's PMF (discretising a continuous delay first where needed, via `discretise_pmf` or CensoredDistributions.jl's double-interval-censored masses), with gradients flowing through the delay parameters.
+- A shared `integrate`/`gl_integrate` layer means quadrature is written once, with a lightweight fixed-node default and an optional [Integrals.jl](https://github.com/SciML/Integrals.jl) backend for harder cases.
+- Gradients flow through the component parameters on every supported AD backend (ForwardDiff, ReverseDiff, Enzyme, Mooncake), so a convolved distribution is fit-ready with no extra plumbing.
 
 ## Getting started
 
@@ -102,20 +102,28 @@ Distributions.jl ships a `convolve` function, but it only covers pairs with a cl
 For example, `Distributions.convolve(Gamma(2, 1), LogNormal(0, 1))` throws a `MethodError` and `Distributions.convolve(Gamma(2, 1), Gamma(3, 2))` throws an `ArgumentError` because the scales differ, whereas `convolved` handles both via quadrature.
 When a closed form does exist, `convolved` uses it, so there is no cost to reaching for the more general function.
 
-## What packages work well with ConvolvedDistributions.jl?
+## Related packages
 
-- [Distributions.jl](https://github.com/JuliaStats/Distributions.jl) provides the base functionality for working with distributions; every component and every result is a `UnivariateDistribution`.
-- [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl) adds censoring and truncation layers for epidemiological observation processes; this package was split out of it and the two compose.
-- [Turing.jl](https://github.com/TuringLang/Turing.jl) for Bayesian inference; the `cdf` / `pdf` / `logpdf` methods are AD-safe, so convolved distributions can be fitted with its samplers.
-- [Integrals.jl](https://github.com/SciML/Integrals.jl) as an optional quadrature backend via the package extension.
+- [ComposedDistributions.jl](https://composeddistributions.epiaware.org/dev/) re-exports this package directly, so a composed chain collapses to its convolved total via `observed_distribution`.
+- [ModifiedDistributions.jl](https://modifieddistributions.epiaware.org/dev/) applies its forward-series transforms (`thin`, `cumulative`) to a convolved series, and lets modified distributions serve as convolution components.
+- [LoweredDistributions.jl](https://lowereddistributions.epiaware.org/dev/) lowers a `convolved` sum to one combined dynamical-systems representation, folding the components' phase-types in series rather than lowering each separately.
+- [CensoredDistributions.jl](https://censoreddistributions.epiaware.org/stable/) adds censoring and truncation layers for epidemiological observation processes; this package was split out of it, and `convolve_series` reads its double-interval-censored masses directly.
+- [DistributionsInference.jl](https://github.com/EpiAware/DistributionsInference.jl) is the emerging fit-protocol and PPL-integration layer across the EpiAware distribution packages.
 
 ## Where to learn more
 
 - Want to get started running code? Check out the [Getting started documentation](https://convolveddistributions.epiaware.org/stable/getting-started/).
 - Want to understand the API? Check out our [API reference](https://convolveddistributions.epiaware.org/stable/lib/public).
-- Want to chat with someone about `ConvolvedDistributions`? Post on our [GitHub Discussions](https://github.com/EpiAware/ConvolvedDistributions.jl/discussions).
 - Want to contribute to `ConvolvedDistributions`? Check the [open issues](https://github.com/EpiAware/ConvolvedDistributions.jl/issues) and the Contributing section below.
 - Want to see our code? Check out our [GitHub Repository](https://github.com/EpiAware/ConvolvedDistributions.jl).
+
+## Getting help
+
+For usage questions, ask on the [Julia Discourse](https://discourse.julialang.org)
+(the SciML or usage categories) or the [epinowcast community forum](https://community.epinowcast.org),
+our home for epidemiological modelling questions.
+Please use [GitHub issues](https://github.com/EpiAware/ConvolvedDistributions.jl/issues)
+for bug reports and feature requests only.
 
 ## Contributing
 

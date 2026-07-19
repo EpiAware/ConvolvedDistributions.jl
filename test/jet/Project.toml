@@ -2,15 +2,13 @@
 # Isolated JET environment so JET's JuliaSyntax pin does not clash with the
 # main test deps. Add any extra packages JET needs to load the target here.
 [deps]
+EpiAwareADTools = "908e2895-a690-4874-a954-ca006cb9734d"
 EpiAwarePackageTools = "7aaea248-0d11-4a0d-a7dc-86da30abb951"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 ConvolvedDistributions = "f5b942c9-bc5b-4664-8486-7f531bb06742"
 
 [sources]
 ConvolvedDistributions = {path = "../.."}
-# Until EpiAwarePackageTools is registered, it is pinned by git so
-# the env resolves out of the box. Switch to a local path to
-# develop the kit alongside this package.
 EpiAwarePackageTools = {url = "https://github.com/EpiAware/EpiAwarePackageTools.jl", rev = "main"}
 
 # Pin JET to its current 0.x series so a new minor (which is a breaking bump

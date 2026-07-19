@@ -30,6 +30,15 @@ integrands used in this package. This is the core default and needs no
 heavy dependency. Load Integrals.jl and pass an Integrals.jl algorithm
 (e.g. `QuadGKJL()`) when adaptive accuracy is wanted and AD is not.
 
+# Examples
+```@example
+using ConvolvedDistributions
+
+# A 64-node rule; integrate x^2 over [0, 1] (exact value 1/3)
+solver = ConvolvedDistributions.GaussLegendre(; n = 64)
+approx = ConvolvedDistributions.integrate(solver, x -> x^2, 0.0, 1.0)
+```
+
 # See also
 - [`gl_integrate`](@ref): The underlying quadrature reduction.
 - [`integrate`](@ref): The pluggable entry point dispatching on a solver.
@@ -153,6 +162,10 @@ tangents propagate. Returns a typed zero when `hi <= lo`.
 - `rule`: Gauss-Legendre rule to use (default: the 192-node convolution
   rule).
 
+# Returns
+- The quadrature approximation of the integral, typed by the integrand
+  (a typed zero when `hi <= lo`).
+
 # Examples
 ```@example
 using ConvolvedDistributions
@@ -189,6 +202,10 @@ calls `solve`.
 - `f`: The scalar integrand.
 - `lower`: Lower integration bound.
 - `upper`: Upper integration bound.
+
+# Returns
+- The integral approximation computed by the chosen backend, typed by
+  the integrand.
 
 # Examples
 ```@example

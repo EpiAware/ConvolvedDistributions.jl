@@ -33,7 +33,7 @@
 # `[0, 1), [1, 2), ..., [maxlag, maxlag + 1)` (scaled by `interval`), as a
 # length `maxlag + 1` vector. Masses are the raw CDF differences
 # `F((k + 1) interval) - F(k interval)` (no silent renormalise), routed
-# through `_cdf_ad_safe` so `Dual`/tracked CDF values survive (no `Float64`
+# through `cdf_ad_safe` so `Dual`/tracked CDF values survive (no `Float64`
 # caching that would break AD).
 #
 # These CDF-difference masses are the interval-censored-secondary scheme
@@ -52,8 +52,8 @@ function _delay_pmf(delay::UnivariateDistribution, maxlag::Integer, interval)
         # Clamp at zero: numeric-CDF noise can make the difference of two
         # near-equal tail values fractionally negative, and a mass must not
         # be (matches the CensoredDistributions interval-mass behaviour).
-        mass = _cdf_ad_safe(delay, (k + 1) * step) -
-               _cdf_ad_safe(delay, k * step)
+        mass = cdf_ad_safe(delay, (k + 1) * step) -
+               cdf_ad_safe(delay, k * step)
         max(mass, zero(mass))
     end
 end
@@ -125,6 +125,10 @@ separate verb keeps `convolved` strictly for distribution construction.
   `DiscreteUniform`, a shifted count delay).
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
+
+# Returns
+- A numeric vector of expected downstream counts, the same length as
+  `series`.
 
 # Examples
 ```@example
@@ -217,6 +221,10 @@ convolution is linear, so gradients flow through both `pmf` and
   `0, 1, 2, ...` (used as given).
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
+
+# Returns
+- A numeric vector of expected downstream counts, the same length as
+  `series`.
 
 # Examples
 ```@example
@@ -343,6 +351,10 @@ the delay parameters; a parameter change is handled by calling
   travels with the [`DelayPMF`](@ref): [`convolve_series`](@ref) reads
   the series on the PMF's own grid, and `pdf(pmf, k)` is the mass on
   `[k * interval, (k + 1) * interval)`.
+
+# Returns
+- A [`DelayPMF`](@ref) holding the `maxlag + 1` interval masses and the
+  grid width.
 
 # Examples
 ```@example

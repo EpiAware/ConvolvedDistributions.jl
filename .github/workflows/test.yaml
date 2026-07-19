@@ -23,7 +23,8 @@ jobs:
 
   downgrade-compat:
     uses: EpiAware/.github/.github/workflows/downgrade.yml@6fcdcde033ec670ac3832b239427fd2ded591bbc
-    # 1.11 not the workflow's 1.10 default, for the same [sources] reason.
+    # 1.11 not the workflow's 1.10 default while the unregistered kit is
+    # pinned via [sources] in the test envs (EpiAwarePackageTools#115).
     with:
       julia_version: '1.11'
     secrets: inherit  # pragma: allowlist secret

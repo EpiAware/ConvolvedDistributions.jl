@@ -29,7 +29,6 @@ ConvolvedDistributions.jl/
 │   ├── convolve_with_vector.jl  # timeseries form of convolved
 │   ├── solvers.jl          # AnalyticalSolver / NumericSolver method types
 │   ├── integration.jl      # shared Gauss-Legendre quadrature layer
-│   ├── gamma_ad.jl         # AD-safe gamma CDF helpers
 │   ├── TestUtils.jl        # interface-contract verifiers for the family
 │   └── public.jl           # public (non-exported) bindings
 ├── ext/                    # Package extensions (AD rules, Integrals,

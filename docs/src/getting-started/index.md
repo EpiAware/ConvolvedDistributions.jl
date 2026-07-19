@@ -162,7 +162,7 @@ Nothing else on this page needs the extension.
 ## Gradients
 
 The `cdf`, `pdf`, and `logpdf` paths are AD-safe by construction.
-The quadrature uses fixed nodes, the window clamp is shielded from the tape, and the gamma CDF carries analytic derivative rules.
+The quadrature uses fixed nodes, the window clamp is shielded from the tape, and the gamma CDF carries analytic derivative rules (supplied by [EpiAwareADTools.jl](https://github.com/EpiAware/EpiAwareADTools.jl)).
 Gradients with respect to the component parameters are tested on ForwardDiff, ReverseDiff, Enzyme (forward and reverse), and Mooncake (forward and reverse) on every CI run; the per-backend badges in the [README](https://github.com/EpiAware/ConvolvedDistributions.jl#readme) track their status.
 
 ## Learning more
@@ -171,5 +171,7 @@ Gradients with respect to the component parameters are tested on ForwardDiff, Re
 - Common questions (solver choice, the timeseries form, the extension, AD support) are answered in the [FAQ](@ref faq).
 - Want the full interface? See the [Public API](@ref public-api).
 - Curious how the numeric layer is put together? The internal quadrature (`integrate`, `gl_integrate`, `GaussLegendre`) is documented in the [Internal API](../lib/internals.md), and an Integrals.jl backend is available as an extension.
+- Want the packages ConvolvedDistributions works alongside? See
+  [Related packages](../index.md) on the home page.
 - Contributing, or adding a new member of the combination family? Start from the [developer documentation](@ref developer), the [Contributing guide](@ref contributing), and [Adding a new combination](@ref extending).
 - Want to report a problem or ask a question? Open an issue or start a discussion on the [GitHub repository](https://github.com/EpiAware/ConvolvedDistributions.jl).

@@ -110,6 +110,9 @@ and are future work.
   or [`NumericSolver`](@ref). `NumericSolver` forces numeric quadrature
   even for a `LogNormal`-`LogNormal` pair, mirroring `convolved`.
 
+# Returns
+- A [`Product`](@ref) distribution of the product `Z = X * Y`.
+
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
@@ -319,7 +322,7 @@ function _product_numeric_pdf(d::Product, z::Real)
     upper <= lower && return zero(float(typeof(z)))
 
     result = _panel_integrate(
-        y -> _pdf_ad_safe(d.x, z / y) * _pdf_ad_safe(d.y, y) / y,
+        y -> pdf_ad_safe(d.x, z / y) * pdf_ad_safe(d.y, y) / y,
         lower, upper, d.y)
     return max(result, zero(result))
 end
@@ -339,12 +342,12 @@ function _product_numeric_cdf(d::Product, z::Real)
     z >= maximum(d) && return one(float(typeof(z)))
 
     lower, upper = _product_cdf_window(d, z)
-    base = _cdf_ad_safe(d.y, upper)
+    base = cdf_ad_safe(d.y, upper)
     upper <= lower && return clamp(base, zero(base), one(base))
 
     result = base -
              _panel_integrate(
-        y -> _ccdf_ad_safe(d.x, z / y) * _pdf_ad_safe(d.y, y),
+        y -> ccdf_ad_safe(d.x, z / y) * pdf_ad_safe(d.y, y),
         lower, upper, d.y)
     return clamp(result, zero(result), one(result))
 end

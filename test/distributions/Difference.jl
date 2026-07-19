@@ -109,7 +109,7 @@ end
     # Issue #45: a `Convolved` component routes the quadrature window
     # clamp through `_window_quantile(::Convolved, p)`, whose primal
     # rebuild was handed the component's nested parameter tuples and
-    # threw a `_primal(::Tuple)` MethodError for a plain Float64
+    # threw a `primal(::Tuple)` MethodError for a plain Float64
     # argument as soon as an AD extension (here ForwardDiff) was loaded.
     x = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     y = convolved(Gamma(1.5, 1.0), Gamma(1.0, 2.0))

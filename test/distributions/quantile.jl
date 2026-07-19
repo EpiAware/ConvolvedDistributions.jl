@@ -15,7 +15,12 @@
     @test quantile(d, 0.0) == minimum(d)
     @test quantile(d, 1.0) == maximum(d)
 
-    # Analytic path agrees with the convolved reference quantile.
+    # Analytic path agrees with the convolved reference quantile. The
+    # Nelder-Mead solve converges on the probability residual (reltol
+    # 1e-8), so the quantile-scale error is far below the 1e-2 asserted
+    # here and in the analytic checks below; the loose bound stays
+    # insensitive to solver settings while still catching an inversion
+    # that lands on the wrong quantile.
     a = Normal(1.0, 2.0)
     b = Normal(-0.5, 1.5)
     da = convolved(a, b)
@@ -45,7 +50,10 @@ end
         @test quantile(d, p) ≈ quantile(ref, p) atol=1e-2
     end
 
-    # Median of a symmetric difference is 0 (analytic and numeric paths).
+    # Median of a symmetric difference is 0. The analytic path inverts a
+    # closed-form cdf, so only solver precision remains (1e-6); the
+    # numeric path stacks quadrature error on the inversion, hence the
+    # looser 1e-3.
     dsym = difference(Normal(1.0, 1.0), Normal(1.0, 1.0))
     @test quantile(dsym, 0.5) ≈ 0.0 atol=1e-6
     dsymn = difference(Gamma(2.0, 1.5), Gamma(2.0, 1.5))
@@ -184,6 +192,9 @@ end
         @test cdf(tn, q) ≈ p atol=1e-3
     end
 
+    # MC tolerances: at n = 50_000 the empirical-cdf standard error is
+    # at most ~2.2e-3 and the sample median's is ~1e-2, so 1e-2 / 0.05
+    # sit at ~5 standard errors here and in the Difference check below.
     samples = rand(rng, tn, 50_000)
     @test all(1.0 .<= samples .<= 8.0)
     for x in (2.0, 4.0, 6.0)
