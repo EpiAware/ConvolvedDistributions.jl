@@ -365,18 +365,50 @@ end
     θ₀ = [2.0, 1.0]
     d(θ) = convolved(Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4))
 
-    # The scalar path is the trusted reference. The batched gradient is
-    # the exact derivative of the batched primal (matches finite
-    # differences of it to ~1e-11); the residual gap to the scalar path
-    # is the parameter-sensitivity of the shared-panel quadrature error
-    # (measured ~2e-7 relative for this batch, ~2e-6 with the component
-    # order swapped), so the tolerance is looser than the ~1e-14
-    # eval-point agreement below.
+    # The scalar path is the trusted reference. Since #50 fixed the
+    # per-point-window-inside-one-panel case to match the scalar path
+    # exactly, batched and scalar parameter gradients agree tightly here
+    # too (previously ~2e-7 relative; component order swapped ~2e-6).
     for f in (pdf, logpdf, cdf)
         g_batch = ForwardDiff.gradient(θ -> sum(f(d(θ), obs)), θ₀)
         g_scalar = ForwardDiff.gradient(
             θ -> sum(x -> f(d(θ), x), obs), θ₀)
-        @test g_batch ≈ g_scalar rtol=1e-5
+        @test g_batch ≈ g_scalar rtol=1e-8
+    end
+
+    # Component order swapped (issue #50): same check, previously the
+    # larger of the two measured gaps (~2e-6 relative).
+    dswap(θ) = convolved(LogNormal(0.5, 0.4), Gamma(θ[1], θ[2]))
+    for f in (pdf, logpdf, cdf)
+        g_batch = ForwardDiff.gradient(θ -> sum(f(dswap(θ), obs)), θ₀)
+        g_scalar = ForwardDiff.gradient(
+            θ -> sum(x -> f(dswap(θ), x), obs), θ₀)
+        @test g_batch ≈ g_scalar rtol=1e-8
+    end
+end
+
+@testitem "Convolved batched AD wrt parameters on a wide batch (#50)" begin
+    using Distributions, ForwardDiff
+
+    # Issue #50: a wide batch whose smallest point's per-point window
+    # sits inside a single panel of the shared union-window grid used to
+    # drift from the scalar path by up to ~4e-4 relative (dominated by
+    # x = 0.5, decaying to ~1e-9 by x = 8), even though the batched
+    # primal values agreed with the scalar primal to ~1e-13 throughout
+    # and the batched gradient was the exact derivative of the batched
+    # primal (matched finite differences to ~1e-11). Routing that
+    # single-panel case through the same quantile-panelled scalar
+    # quadrature the scalar path itself uses (rather than one coarse
+    # 16-node correction) closes the gap.
+    obs = collect(0.5:0.5:8.0)
+    θ₀ = [2.0, 1.0]
+    d(θ) = convolved(Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4))
+
+    for f in (pdf, logpdf, cdf)
+        g_batch = ForwardDiff.gradient(θ -> sum(f(d(θ), obs)), θ₀)
+        g_scalar = ForwardDiff.gradient(
+            θ -> sum(x -> f(d(θ), x), obs), θ₀)
+        @test g_batch ≈ g_scalar rtol=1e-7
     end
 end
 

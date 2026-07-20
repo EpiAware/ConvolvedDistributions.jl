@@ -1,3 +1,20 @@
+## Unreleased
+
+### Bug fixes
+
+- Batched `Convolved` parameter gradients (`pdf`/`logpdf`/`cdf` over a
+  vector of points, differentiated w.r.t. component parameters) now
+  match the trusted scalar path tightly for every point, including a
+  batch's edge points. Previously a point whose per-point integration
+  window fell entirely inside one shared quadrature panel — typically
+  the smallest or largest point in a wide batch — was integrated with a
+  coarse 16-node correction instead of the scalar path's own
+  quantile-panelled rule, which showed up more in the parameter gradient
+  than in the primal value (previously up to ~4e-4 relative gradient
+  drift on a wide batch; primal values were unaffected, already agreeing
+  to ~1e-13). Closes
+  [#50](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/50).
+
 ## 0.2.0
 
 Breaking changes relative to 0.1.0, with migration notes:
