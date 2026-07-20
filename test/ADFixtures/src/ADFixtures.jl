@@ -206,24 +206,12 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
         end,
         [3.0, 1.5, 0.5, 0.4], (Constant(obs),))
 
-    # Timeseries convolution. A continuous delay is discretised
-    # explicitly with `discretise_pmf` (interval-censored-secondary
-    # CDF-difference masses, AD-safe via `_delay_pmf`), then the linear
-    # causal convolution carries the gradient through the delay
-    # parameters. The Gamma delay hits the EpiAwareADTools AD-safe
-    # gamma-CDF path, the Convolved delay the numeric quadrature CDF.
+    # Timeseries convolution. This package no longer discretises
+    # continuous delays itself (#68 — CensoredDistributions.jl owns that),
+    # so only the discrete direct-PMF path remains in scope here; the
+    # `cdf_ad_safe` machinery a caller-owned discretisation would use is
+    # already covered by the Convolved/Difference/Product fixtures above.
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-    _push!("Timeseries convolve discretised Gamma delay",
-        (θ, s) -> sum(convolve_series(
-            discretise_pmf(Gamma(θ[1], θ[2]), length(s) - 1), s)),
-        [2.0, 1.0], (Constant(series),))
-    _push!("Timeseries convolve discretised Convolved Gamma+LogNormal delay",
-        (θ, s) -> sum(convolve_series(
-            discretise_pmf(
-                convolved(
-                    Gamma(θ[1], θ[2]), LogNormal(θ[3], θ[4])),
-                length(s) - 1), s)),
-        [2.0, 1.0, 0.5, 0.4], (Constant(series),))
     # Discrete delay: the direct-PMF path reads `pdf(delay, k)` off the
     # integer grid. `pdf(::Poisson, k)` differentiates cleanly on every
     # backend (checked: ForwardDiff / ReverseDiff / Mooncake / Enzyme all

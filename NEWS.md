@@ -1,3 +1,20 @@
+## Unreleased
+
+### Breaking changes
+
+- **`discretise_pmf` is removed.** Discretising a continuous delay is a
+  censoring choice this package does not make; CensoredDistributions.jl
+  owns primary and interval censoring, including double-interval-censored
+  masses. `convolve_series` still accepts a `DiscreteUnivariateDistribution`
+  directly, and still accepts a caller-supplied PMF — as a plain vector or
+  wrapped in `DelayPMF(masses, interval)` for reuse — for a continuous
+  delay's masses, whoever builds them.
+  Migration: replace `discretise_pmf(delay, maxlag; interval)` with masses
+  built by CensoredDistributions.jl (or your own CDF-difference
+  computation), then `convolve_series(masses, series)` or
+  `ConvolvedDistributions.DelayPMF(masses, interval)`.
+  Closes [#68](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/68).
+
 ## 0.2.0
 
 Breaking changes relative to 0.1.0, with migration notes:

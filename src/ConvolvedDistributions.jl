@@ -69,10 +69,6 @@ include("docstrings.jl")
 # exported, to avoid clashing with Distributions' deprecated `Product`).
 export convolved, convolve_series, Difference, difference, product
 
-# The build-once discretised delay PMF constructor (`DelayPMF` itself is
-# public, not exported, mirroring `Convolved`).
-export discretise_pmf
-
 # Solver methods for choosing the analytic-vs-numeric backend.
 export AnalyticalSolver, NumericSolver
 
@@ -91,7 +87,8 @@ include("Difference.jl")
 include("Product.jl")
 # The timeseries form `convolve_series`: a numeric series convolved with
 # a delay PMF on the unit lag grid — direct for a discrete delay, via a
-# caller-supplied / `discretise_pmf` PMF for a continuous one (#6, #31).
+# caller-supplied PMF (e.g. from CensoredDistributions.jl) for a
+# continuous one (#6, #31, #68).
 include("convolve_with_vector.jl")
 
 # `quantile` (inverse CDF) for Convolved/Difference lives in the

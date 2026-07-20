@@ -53,7 +53,7 @@ Product/
   numeric/             (same operations)
 
 Timeseries/
-  Gamma delay          (convolve_series(discretise_pmf(delay, m), series))
+  Gamma delay          (convolve_series(pmf, series), pmf precomputed)
   Convolved delay
   Poisson delay        (discrete: convolve_series(delay, series))
 
