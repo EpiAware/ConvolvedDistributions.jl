@@ -1,7 +1,7 @@
 name = "ConvolvedDistributions"
 uuid = "f5b942c9-bc5b-4664-8486-7f531bb06742"
 authors = ["Sam Abbott", "EpiAware contributors"]
-version = "0.2.0"
+version = "0.2.1"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
