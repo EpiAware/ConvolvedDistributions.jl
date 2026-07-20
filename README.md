@@ -15,11 +15,9 @@ Raw-distribution convolution and shared numeric quadrature for any `Distribution
 ## Why ConvolvedDistributions?
 
 - A convolution is usually only available in closed form for a few matching distribution families; `convolved` builds the distribution of a sum of independent delays from any two or more `Distributions.jl` distributions, not just those pairs.
-- Closed-form convolutions (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`) are used where they exist, with an AD-safe Gauss-Legendre quadrature fallback for every other pair, so there is no accuracy trade-off for reaching for the general function.
-- Sums are not the only combination that matters: `difference` builds the `X - Y` signed gap between two independent events, and `product` the `X * Y` Mellin convolution for a delay scaled by an independent multiplicative factor.
-- Turning expected events into expected downstream counts is usually a hand-rolled discrete convolution; `convolve_series` does it directly from a numeric series and a delay's PMF (discretising a continuous delay first where needed, via `discretise_pmf` or CensoredDistributions.jl's double-interval-censored masses), with gradients flowing through the delay parameters.
-- A shared `integrate`/`gl_integrate` layer means quadrature is written once, with a lightweight fixed-node default and an optional [Integrals.jl](https://github.com/SciML/Integrals.jl) backend for harder cases.
-- Gradients flow through the component parameters on every supported AD backend (ForwardDiff, ReverseDiff, Enzyme, Mooncake), so a convolved distribution is fit-ready with no extra plumbing.
+- Closed-form convolutions (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`) are used where they exist, with an AD-safe Gauss-Legendre quadrature fallback for every other pair.
+- Sums are not the only combination we support: `difference` builds the `X - Y` signed gap between two independent events, and `product` the `X * Y` Mellin convolution for a delay scaled by an independent multiplicative factor.
+- Turning expected events into expected downstream counts is usually a hand-rolled discrete convolution; `convolve_series` does it directly from a numeric series and a delay's PMF.
 
 ## Getting started
 
@@ -30,7 +28,6 @@ The following example convolves two delays, an incubation period and a reporting
 ```julia
 using ConvolvedDistributions, Distributions
 
-# Sum of two independent delays
 incubation = Gamma(2.0, 1.0)
 reporting = LogNormal(1.0, 0.5)
 d = convolved(incubation, reporting)
@@ -38,7 +35,7 @@ d = convolved(incubation, reporting)
 (cdf(d, 5.0), pdf(d, 5.0))
 ```
 
-`difference` gives the signed gap between two independent events, for example the delay between two reporting streams:
+`difference` gives the gap between two independent events:
 
 ```julia
 z = difference(Normal(5.0, 1.0), Normal(2.0, 1.0))
@@ -47,7 +44,6 @@ z = difference(Normal(5.0, 1.0), Normal(2.0, 1.0))
 ```
 
 A `Convolved` distribution is a `UnivariateDistribution`, so it composes with `Distributions.truncated`.
-Right truncation is useful when scoring against data observed only up to a cutoff:
 
 ```julia
 d_trunc = truncated(d; upper = 10.0)
@@ -63,7 +59,7 @@ using Optimization, OptimizationOptimJL
 quantile(d, 0.5)
 ```
 
-The components and their sum can be compared visually, here with [AlgebraOfGraphics.jl](https://github.com/MakieOrg/AlgebraOfGraphics.jl):
+The components and their sum can be compared visually,
 
 ```julia
 using CairoMakie, AlgebraOfGraphics, DataFramesMeta
@@ -96,11 +92,9 @@ Distributions.jl ships a `convolve` function, but it only covers pairs with a cl
 | **Method** | Returns the closed-form distribution | Analytic fast path where a closed form exists, AD-safe Gauss-Legendre quadrature fallback otherwise |
 | **Forms** | Two positional arguments | Nested, vector, tuple, and varargs forms for sums of many delays |
 | **Differences** | Not supported | `difference` builds the `X - Y` dual |
-| **Evaluation** | Whatever the returned distribution supports | Batched `cdf` / `pdf` / `logpdf` over vectors of points |
-| **Gradients** | Depend on the returned distribution | Flow through the component parameters on all supported AD backends |
 
 For example, `Distributions.convolve(Gamma(2, 1), LogNormal(0, 1))` throws a `MethodError` and `Distributions.convolve(Gamma(2, 1), Gamma(3, 2))` throws an `ArgumentError` because the scales differ, whereas `convolved` handles both via quadrature.
-When a closed form does exist, `convolved` uses it, so there is no cost to reaching for the more general function.
+When a closed form does exist, `convolved` uses it.
 
 ## Related packages
 
@@ -119,8 +113,7 @@ When a closed form does exist, `convolved` uses it, so there is no cost to reach
 
 ## Getting help
 
-For usage questions, ask on the [Julia Discourse](https://discourse.julialang.org)
-(the SciML or usage categories) or the [epinowcast community forum](https://community.epinowcast.org),
+For usage questions, ask on the [Julia Discourse](https://discourse.julialang.org) or the [epinowcast community forum](https://community.epinowcast.org),
 our home for epidemiological modelling questions.
 Please use [GitHub issues](https://github.com/EpiAware/ConvolvedDistributions.jl/issues)
 for bug reports and feature requests only.
