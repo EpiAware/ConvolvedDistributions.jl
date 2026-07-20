@@ -113,11 +113,9 @@ This package does not discretise continuous delays itself: build the PMF with [C
 The masses depend differentiably on the delay parameters, so this composes with gradient-based fitting.
 
 ```@example getting-started
-# A stand-in for a CensoredDistributions.jl-built PMF: the raw
-# CDF-difference masses (interval-censored secondary event, exact primary).
 maxlag = length(infections) - 1
-pmf = [cdf(d, k + 1.0) - cdf(d, Float64(k)) for k in 0:maxlag]
-convolve_series(pmf, infections)
+pmf = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
+convolve_series(ConvolvedDistributions.DelayPMF(pmf, 1.0), infections)
 ```
 
 ## Choosing the solver

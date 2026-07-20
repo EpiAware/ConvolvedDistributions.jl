@@ -104,10 +104,8 @@ This package does not discretise continuous delays itself: build the PMF with [C
 `DelayPMF(masses, interval)` wraps such a PMF once for reuse across many series or lag lookups, so `convolve_series(pmf, series)` and `pdf(pmf, lag)` read the same masses without rebuilding them:
 
 ```@example faq
-# A stand-in for a CensoredDistributions.jl-built PMF: the raw
-# CDF-difference masses (interval-censored secondary event, exact primary).
 maxlag = length(infections) - 1
-masses = [cdf(d, k + 1.0) - cdf(d, Float64(k)) for k in 0:maxlag]
+masses = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
 pmf = ConvolvedDistributions.DelayPMF(masses, 1.0)
 convolve_series(pmf, infections)
 ```

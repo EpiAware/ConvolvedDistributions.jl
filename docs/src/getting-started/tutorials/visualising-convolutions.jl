@@ -186,13 +186,13 @@ draw(
 # ## Timeseries convolution
 #
 # The timeseries form `convolve_series` convolves a numeric series with a delay PMF on the unit lag grid.
-# The delay here is continuous, so we discretise it explicitly — this package leaves discretisation to CensoredDistributions.jl, so here we build the raw CDF-difference masses (interval-censored secondary event, exact primary) directly and convolve the resulting PMF; a discrete delay would be passed straight to `convolve_series`.
+# The delay here is discrete, so its PMF reads straight off `pdf.(delay, 0:maxlag)`; wrapping it in a `DelayPMF` builds it once for reuse across many series.
 # With the series an expected infection curve, the result is the expected downstream count curve, the renewal-style observation layer.
 
 t = 0:40
 infections = 100 .* exp.(-((t .- 12.0) .^ 2) ./ 30.0)
 maxlag = length(infections) - 1
-delay_masses = [cdf(d, k + 1.0) - cdf(d, Float64(k)) for k in 0:maxlag]
+delay_masses = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
 delay_pmf = ConvolvedDistributions.DelayPMF(delay_masses, 1.0)
 expected = convolve_series(delay_pmf, infections)
 
