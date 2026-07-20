@@ -109,12 +109,14 @@ convolve_series(Poisson(2.0), infections)
 ```
 
 A continuous delay carries no mass on the integer grid until it is discretised, and discretising it is an explicit modelling choice, so `convolve_series` will not do it silently.
-Discretise it first with `discretise_pmf` (raw CDF-difference masses: interval-censored secondary event, exact primary), then convolve.
-For a primary event known only to the day use CensoredDistributions.jl's double-interval-censored masses instead.
+This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve it — either as a plain vector or wrapped in a `DelayPMF` for reuse across many series.
 The masses depend differentiably on the delay parameters, so this composes with gradient-based fitting.
 
 ```@example getting-started
-pmf = discretise_pmf(d, length(infections) - 1)
+# A stand-in for a CensoredDistributions.jl-built PMF: the raw
+# CDF-difference masses (interval-censored secondary event, exact primary).
+maxlag = length(infections) - 1
+pmf = [cdf(d, k + 1.0) - cdf(d, Float64(k)) for k in 0:maxlag]
 convolve_series(pmf, infections)
 ```
 

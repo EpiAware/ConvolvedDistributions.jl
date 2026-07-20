@@ -7,8 +7,9 @@
 # `Product`; construct via the exported `product` verb.
 public Convolved, Product, AbstractConvolvedDistribution
 
-# The build-once discretised delay PMF type behind the exported
-# `discretise_pmf` constructor (`convolve_series`/`pdf` reuse it).
+# A caller-supplied PMF wrapper (masses + grid width) for repeated
+# `convolve_series`/`pdf` reuse without rebuilding; this package does not
+# discretise continuous delays itself (#68).
 public DelayPMF
 
 # Interface-contract verifiers (`TestUtils.test_convolved_interface`,

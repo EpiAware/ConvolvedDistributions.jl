@@ -1,8 +1,8 @@
 # Tests for the timeseries form `convolve_series`: convolve a numeric
 # series with a delay PMF on the unit lag grid. A discrete delay reads its
 # own PMF directly (`convolve_series(delay, series)`); a continuous delay
-# is discretised first (via `discretise_pmf`, or CensoredDistributions.jl)
-# and the resulting PMF fed to the PMF-vector method (issues #6, #31).
+# is discretised elsewhere (e.g. by CensoredDistributions.jl) and the
+# resulting PMF fed to the PMF-vector method (issues #6, #31, #68).
 
 @testsnippet ConvolveVectorRef begin
     using Distributions
@@ -19,15 +19,6 @@
             end
         end
         return out
-    end
-
-    # The interval-censored-secondary reference for a discretised
-    # continuous delay: raw CDF-difference masses (no renormalisation),
-    # matching `discretise_pmf`.
-    function reference_convolution(delay, series; interval = 1)
-        masses = [cdf(delay, (k + 1) * interval) - cdf(delay, k * interval)
-                  for k in 0:(length(series) - 1)]
-        return reference_from_masses(masses, series)
     end
 
     # The direct-PMF reference for a discrete delay: the lag-`k` mass is
@@ -88,8 +79,8 @@ end
     series = [0.0, 1.0, 3.0, 6.0, 8.0]
 
     # A continuous delay carries no mass on the integer grid until it is
-    # discretised, and discretisation is an explicit modelling choice, so
-    # the method throws and names both routes out.
+    # discretised, and discretisation is an explicit modelling choice this
+    # package does not make, so the method throws and names the route out.
     delays = (Gamma(2.0, 1.0), Exponential(1.0), Normal(2.0, 1.0),
         LogNormal(0.5, 0.4),
         convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
@@ -100,41 +91,24 @@ end
             e
         end
         @test err isa ArgumentError
-        @test occursin("discretise_pmf", err.msg)
         @test occursin("CensoredDistributions", err.msg)
+        @test occursin("DelayPMF", err.msg)
     end
-end
-
-@testitem "discretised continuous delay matches the CDF-difference reference" setup=[
-    ConvolveVectorRef] begin
-    using Distributions
-    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-    maxlag = length(series) - 1
-
-    # A plain delay distribution, discretised explicitly then convolved.
-    leaf = Gamma(2.0, 1.0)
-    out = convolve_series(discretise_pmf(leaf, maxlag), series)
-    @test out isa AbstractVector
-    @test length(out) == length(series)
-    @test out ≈ reference_convolution(leaf, series)
-
-    # A Convolved total delay: the same discretise-then-convolve contract.
-    total = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
-    @test convolve_series(discretise_pmf(total, maxlag), series) ≈
-          reference_convolution(total, series)
 end
 
 @testitem "discretised delay matches a hand-computed small case" begin
     using Distributions
 
     # Exponential(1) interval masses over the unit grid are
-    # p[k+1] = e^{-k} - e^{-(k+1)}.
+    # p[k+1] = e^{-k} - e^{-(k+1)}. Discretisation lives outside this
+    # package now (#68); the caller builds the masses however it likes
+    # and hands them to convolve_series as a plain vector.
     p1 = 1 - exp(-1.0)
     p2 = exp(-1.0) - exp(-2.0)
     p3 = exp(-2.0) - exp(-3.0)
     series = [1.0, 2.0, 3.0]
 
-    out = convolve_series(discretise_pmf(Exponential(1.0), 2), series)
+    out = convolve_series([p1, p2, p3], series)
     @test out[1] ≈ p1 * 1.0
     @test out[2] ≈ p1 * 2.0 + p2 * 1.0
     @test out[3] ≈ p1 * 3.0 + p2 * 2.0 + p3 * 1.0
@@ -145,12 +119,18 @@ end
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
     maxlag = length(series) - 1
 
+    # Caller-owned CDF-difference masses (the interval-censored-secondary
+    # scheme with an exact primary), built here only to exercise
+    # convolve_series on a caller-supplied vector — not package machinery.
+    masses(delay) = [cdf(delay, k + 1.0) - cdf(delay, Float64(k))
+                     for k in 0:maxlag]
+
     # All mass in [0, 1): lag 0, identity up to a negligible tail.
-    zero_lag = discretise_pmf(LogNormal(log(0.5), 0.01), maxlag)
+    zero_lag = masses(LogNormal(log(0.5), 0.01))
     @test convolve_series(zero_lag, series) ≈ series atol=1e-8
 
     # All mass in [2, 3): the series shifted forward by two steps.
-    two_lag = discretise_pmf(Normal(2.5, 0.01), maxlag)
+    two_lag = masses(Normal(2.5, 0.01))
     shifted = convolve_series(two_lag, series)
     @test shifted[1:2] ≈ zeros(2) atol=1e-8
     @test shifted[3:end] ≈ series[1:(end - 2)] atol=1e-8
@@ -161,11 +141,12 @@ end
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
     n = length(series)
     delay = Gamma(2.0, 1.0)
+    masses = [cdf(delay, k + 1.0) - cdf(delay, Float64(k)) for k in 0:(n - 1)]
 
     # By linearity, each series entry contributes its value times the
     # delay mass that lands inside the window; the remainder is the
     # truncated tail beyond the series end.
-    out = convolve_series(discretise_pmf(delay, n - 1), series)
+    out = convolve_series(masses, series)
     expected = sum(series[i] * cdf(delay, n - i + 1) for i in 1:n)
     @test sum(out) ≈ expected
     @test sum(out) <= sum(series)
@@ -211,37 +192,38 @@ end
     # Integer series with float masses promotes the output.
     @test convolve_series(pmf, [1, 2, 3, 4]) isa AbstractVector{Float64}
 
-    # The vector method agrees with a discretised delay when handed the
-    # same discretised masses (caller-owned discretisation).
+    # The vector method agrees with the same masses wrapped in a DelayPMF
+    # (caller-owned discretisation either way).
     using Distributions
     delay = Gamma(2.0, 1.0)
     n = length(series)
     masses = [cdf(delay, k + 1.0) - cdf(delay, Float64(k))
               for k in 0:(n - 1)]
     @test convolve_series(masses, series) ≈
-          convolve_series(discretise_pmf(delay, n - 1), series)
+          convolve_series(ConvolvedDistributions.DelayPMF(masses, 1.0), series)
 end
 
-@testitem "discretise_pmf builds a reusable DelayPMF" setup=[
-    ConvolveVectorRef] begin
+@testitem "DelayPMF wraps caller-supplied masses for reuse" begin
     using Distributions
     delay = Gamma(2.0, 1.0)
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
     maxlag = length(series) - 1
 
-    pmf = discretise_pmf(delay, maxlag)
+    # Caller-owned discretisation (here, CDF-difference masses stand in
+    # for whatever CensoredDistributions.jl or the caller builds).
+    masses = [cdf(delay, k + 1.0) - cdf(delay, Float64(k))
+              for k in 0:maxlag]
+    pmf = ConvolvedDistributions.DelayPMF(masses, 1.0)
     @test pmf isa ConvolvedDistributions.DelayPMF
     @test length(pmf) == maxlag + 1
     @test pmf.interval == 1.0
 
-    # The build-once masses match the interval-censored-secondary
-    # reference, and reuse is the raw-vector convolution of those masses.
-    @test convolve_series(pmf, series) ≈ reference_convolution(delay, series)
-    @test convolve_series(pmf, series) == convolve_series(pmf.masses, series)
+    # Reuse is the raw-vector convolution of the wrapped masses.
+    @test convolve_series(pmf, series) == convolve_series(masses, series)
 
-    # `pdf` reads the raw interval masses at integer lags.
-    @test pdf(pmf, 0) ≈ cdf(delay, 1.0) - cdf(delay, 0.0)
-    @test pdf(pmf, 3) ≈ cdf(delay, 4.0) - cdf(delay, 3.0)
+    # `pdf` reads the masses at integer lags.
+    @test pdf(pmf, 0) ≈ masses[1]
+    @test pdf(pmf, 3) ≈ masses[4]
 
     # Lags outside 0..maxlag carry no mass.
     @test pdf(pmf, -1) == 0.0
@@ -249,18 +231,11 @@ end
 
     # Vector lag lookup maps the scalar read.
     @test pdf(pmf, 0:2) ≈ [pdf(pmf, k) for k in 0:2]
-
-    # A Convolved total delay discretises the same way.
-    total = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
-    @test convolve_series(discretise_pmf(total, maxlag), series) ≈
-          reference_convolution(total, series)
 end
 
 @testitem "DelayPMF validates its inputs" begin
     using Distributions
-    delay = Gamma(2.0, 1.0)
 
-    @test_throws ArgumentError discretise_pmf(delay, -1)
     @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
         Float64[], 1.0)
     @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
@@ -271,9 +246,10 @@ end
     # half-day PMF convolves a half-day series). Lag k is the mass on
     # [k * interval, (k + 1) * interval), so the result equals the raw
     # masses pushed through the grid-agnostic vector method.
-    pmf_half = discretise_pmf(delay, 5; interval = 0.5)
+    masses_half = [0.4, 0.3, 0.2, 0.05, 0.03, 0.02]
+    pmf_half = ConvolvedDistributions.DelayPMF(masses_half, 0.5)
     @test pmf_half.interval == 0.5
-    @test pdf(pmf_half, 0) ≈ cdf(delay, 0.5)
+    @test pdf(pmf_half, 0) == masses_half[1]
     half_series = [1.0, 2.0, 4.0, 3.0]
     @test convolve_series(pmf_half, half_series) ==
           convolve_series(pmf_half.masses, half_series)
@@ -281,17 +257,22 @@ end
           pdf(pmf_half, 0) * half_series[2] + pdf(pmf_half, 1) * half_series[1]
 end
 
-@testitem "gradients flow through the discretisation and the discrete PMF" begin
+@testitem "gradients flow through a caller-supplied PMF and the discrete PMF" begin
     using Distributions, ForwardDiff
 
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
     maxlag = length(series) - 1
 
-    # Continuous delay: differentiate through the explicit discretisation.
-    discretised(θ) = sum(convolve_series(
-        discretise_pmf(Gamma(θ[1], θ[2]), maxlag), series))
-    lookup(θ) = sum(pdf(discretise_pmf(Gamma(θ[1], θ[2]), maxlag),
-        0:maxlag))
+    # Continuous delay: differentiate through caller-owned CDF-difference
+    # masses (standing in for a CensoredDistributions.jl-built PMF) fed
+    # as a plain vector into convolve_series. `cdf_ad_safe` carries the
+    # analytic gamma-CDF derivative rule Gamma needs for this to
+    # differentiate at all (plain `cdf` has no Dual method here).
+    cdf_ad_safe = ConvolvedDistributions.cdf_ad_safe
+    masses(θ) = [cdf_ad_safe(Gamma(θ[1], θ[2]), k + 1.0) -
+                 cdf_ad_safe(Gamma(θ[1], θ[2]), Float64(k))
+                 for k in 0:maxlag]
+    discretised(θ) = sum(convolve_series(masses(θ), series))
 
     θ = [2.0, 1.0]
     g = ForwardDiff.gradient(discretised, θ)
@@ -305,7 +286,6 @@ end
     fd = [(discretised(θ + ε * e) - discretised(θ - ε * e)) / (2ε)
           for e in ([1.0, 0.0], [0.0, 1.0])]
     @test g ≈ fd rtol=1e-4
-    @test !all(iszero, ForwardDiff.gradient(lookup, θ))
 
     # Discrete delay: the direct-PMF path differentiates w.r.t. the rate.
     poisson(λ) = sum(convolve_series(Poisson(λ[1]), series))
@@ -343,17 +323,8 @@ end
     @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
         Float64[], 1.0)
 
-    # discretise_pmf validates the interval up front with its own name,
-    # before any CDF work.
-    err = try
-        discretise_pmf(Gamma(2.0, 1.0), 10; interval = 0.0)
-    catch e
-        e
-    end
-    @test err isa ArgumentError
-    @test occursin("discretise_pmf", err.msg)
-
     # `pdf.(pmf, lags)` broadcasts the PMF as a scalar.
-    built = discretise_pmf(Gamma(2.0, 1.0), 5)
+    built = ConvolvedDistributions.DelayPMF([0.5, 0.3, 0.1, 0.05, 0.03, 0.02],
+        1.0)
     @test pdf.(built, 0:3) == [pdf(built, l) for l in 0:3]
 end

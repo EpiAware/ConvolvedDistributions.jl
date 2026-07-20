@@ -99,16 +99,20 @@ convolve_series(Poisson(2.0), infections)
 ```
 
 A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice, so `convolve_series(delay, series)` on a continuous delay throws rather than pick a scheme silently.
-Discretise it first and convolve the resulting PMF.
-`discretise_pmf(delay, maxlag)` builds the delay PMF once as a reusable `DelayPMF` with raw CDF-difference masses — the interval-censored-secondary scheme with an exact primary event — which `convolve_series(pmf, series)` and `pdf(pmf, lag)` then read without rediscretising:
+This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve the resulting PMF.
+`convolve_series(pmf, series)` takes any already-discretised PMF vector and only convolves, with the masses used exactly as given.
+`DelayPMF(masses, interval)` wraps such a PMF once for reuse across many series or lag lookups, so `convolve_series(pmf, series)` and `pdf(pmf, lag)` read the same masses without rebuilding them:
 
 ```@example faq
-pmf = discretise_pmf(d, length(infections) - 1)
+# A stand-in for a CensoredDistributions.jl-built PMF: the raw
+# CDF-difference masses (interval-censored secondary event, exact primary).
+maxlag = length(infections) - 1
+masses = [cdf(d, k + 1.0) - cdf(d, Float64(k)) for k in 0:maxlag]
+pmf = ConvolvedDistributions.DelayPMF(masses, 1.0)
 convolve_series(pmf, infections)
 ```
 
 The masses depend differentiably on the delay parameters, so the timeseries form composes with gradient-based fitting.
-`convolve_series(pmf, series)` also takes any already-discretised PMF vector and only convolves, with the masses used exactly as given, so a caller can instead supply CensoredDistributions.jl's double-interval-censored masses when the primary event is itself known only to the day.
 
 ## Can I use this with automatic differentiation?
 
