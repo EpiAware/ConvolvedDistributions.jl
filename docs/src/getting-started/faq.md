@@ -102,13 +102,12 @@ convolve_series(Poisson(2.0), infections)
 A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice, so `convolve_series(delay, series)` on a continuous delay throws rather than pick a scheme silently.
 This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve the resulting PMF.
 `convolve_series(pmf, series)` takes any already-discretised PMF vector and only convolves, with the masses used exactly as given.
-`DelayPMF(masses, interval)` wraps such a PMF once for reuse across many series or lag lookups, so `convolve_series(pmf, series)` and `pdf(pmf, lag)` read the same masses without rebuilding them:
+On a non-unit or shifted lag grid, pass a `Distributions.DiscreteNonParametric` instead of a bare vector — its support carries the grid — which matches the discrete-delay type ModifiedDistributions.jl uses:
 
 ```@example faq
 maxlag = length(infections) - 1
 masses = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
-pmf = ConvolvedDistributions.DelayPMF(masses, 1.0)
-convolve_series(pmf, infections)
+convolve_series(masses, infections)
 ```
 
 ```@example faq

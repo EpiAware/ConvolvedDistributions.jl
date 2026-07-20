@@ -6,14 +6,30 @@
   censoring choice this package does not make; CensoredDistributions.jl
   owns primary and interval censoring, including double-interval-censored
   masses. `convolve_series` still accepts a `DiscreteUnivariateDistribution`
-  directly, and still accepts a caller-supplied PMF — as a plain vector or
-  wrapped in `DelayPMF(masses, interval)` for reuse — for a continuous
-  delay's masses, whoever builds them.
+  directly, and still accepts a caller-supplied PMF — as a plain vector of
+  masses — for a continuous delay's masses, whoever builds them.
   Migration: replace `discretise_pmf(delay, maxlag; interval)` with masses
   built by CensoredDistributions.jl (or your own CDF-difference
-  computation), then `convolve_series(masses, series)` or
-  `ConvolvedDistributions.DelayPMF(masses, interval)`.
+  computation), then `convolve_series(masses, series)`.
   Closes [#68](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/68).
+
+- **`DelayPMF` is retired from the public surface.** A caller-supplied delay
+  PMF is now either a plain `AbstractVector{<:Real}` of masses at integer
+  lags (the common unit-grid case — `pdf.(delay, 0:maxlag)` straight in) or a
+  `Distributions.DiscreteNonParametric`, whose support carries a regular,
+  zero-aligned lag grid (covering non-unit and shifted grids, and matching
+  ModifiedDistributions' discrete-delay type for cross-package consistency).
+  `convolve_series` gains a `DiscreteNonParametric` method and drops the
+  `DelayPMF` wrapper type.
+  The raw-vector `convolve_series(pmf, series)` now warns by default when the
+  supplied masses sum far from one (more than 5% off) — the silent
+  large-mass-loss failure mode — convolving them unchanged; pass
+  `check_normalisation = false` to silence it for a deliberately truncated
+  PMF or a differentiated hot loop.
+  Migration: replace `ConvolvedDistributions.DelayPMF(masses, interval)` with
+  the plain `masses` vector, or with `DiscreteNonParametric(0:interval:stop,
+  masses)` for a non-unit grid.
+  Closes [#79](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/79).
 
 ## 0.2.0
 
