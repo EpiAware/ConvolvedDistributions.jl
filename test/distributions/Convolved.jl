@@ -549,6 +549,28 @@ end
     @test pdf(td, 4.0) > 0
 end
 
+@testitem "Convolved composes with censored (#72)" begin
+    using Distributions
+
+    # Distributions.jl's generic `censored` wrapper needs only the
+    # standard UnivariateDistribution interface (cdf/pdf/logpdf), which
+    # Convolved already implements — this package adds no bespoke
+    # censoring machinery of its own (that stays CensoredDistributions.jl's
+    # job).
+    d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    cd = censored(d, 1.0, 8.0)
+
+    @test cdf(cd, 0.5) == 0.0
+    @test cdf(cd, 8.0) == 1.0
+    # Unlike truncated, censored does not renormalise the kept region: the
+    # interior CDF matches the unclamped distribution exactly.
+    @test cdf(cd, 4.0) ≈ cdf(d, 4.0)
+    # The clamp points carry the trimmed tail mass as point masses.
+    @test pdf(cd, 1.0) ≈ cdf(d, 1.0)
+    @test pdf(cd, 8.0) ≈ ccdf(d, 8.0)
+    @test pdf(cd, 4.0) ≈ pdf(d, 4.0)
+end
+
 @testitem "Convolved moments cross-check against sampling" begin
     using Distributions, Random, Statistics
 

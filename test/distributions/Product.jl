@@ -337,6 +337,20 @@ end
     @test pdf(td, 4.0) > 0
 end
 
+@testitem "Product composes with censored (#72)" begin
+    using Distributions
+
+    d = product(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
+    cd = censored(d, 1.0, 10.0)
+
+    @test cdf(cd, 0.5) == 0.0
+    @test cdf(cd, 10.0) == 1.0
+    @test cdf(cd, 4.0) ≈ cdf(d, 4.0)
+    @test pdf(cd, 1.0) ≈ cdf(d, 1.0)
+    @test pdf(cd, 10.0) ≈ ccdf(d, 10.0)
+    @test pdf(cd, 4.0) ≈ pdf(d, 4.0)
+end
+
 @testitem "Product heavy-tailed multiplier accuracy (#49)" begin
     using Distributions
 
