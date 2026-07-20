@@ -305,22 +305,25 @@ end
 # type (mirrors the `promote_type` pattern already used for the numeric
 # quadrature paths, e.g. `_convolved_numeric_pdf_batched`), predicting the
 # type a fully-tracked evaluation should produce. That prediction does not
-# always match `entry.cdf_fn`'s ACTUAL runtime type: every formula in
-# `analytic_pairs.jl` branches on the evaluation window (the `q <= 0`
-# boundary in each of the three native pairs), and on `zero`/constant
-# values taken on one side of a branch, ReverseDiff's tracked reals detach
-# from their originating tape (a `TrackedReal` with a `Nothing` origin,
-# since a constant has no gradient to record) rather than keeping the
-# input's tape-carrying type -- so the boundary branch's result can be a
-# DIFFERENT concrete type than `T` predicts, even though both represent
-# the same mathematical value. A type ASSERTION (`value::T`) demands an
-# exact match and throws on that mismatch; `convert(T, value)::T` instead
-# performs the actual widening/coercion `T`'s own `convert` method defines
-# (a plain zero promotes cleanly into a Dual/TrackedReal with a
-# zero-derivative, precisely the correct value for a branch whose result
-# does not depend on the differentiated parameter) and the trailing `::T`
-# still narrows inference to `T`, so both inferability and the
-# branch-dependent tracer mismatch are handled together.
+# always match `entry.cdf_fn`'s ACTUAL runtime type under ReverseDiff:
+# every formula in `analytic_pairs.jl` builds its result from a mix of
+# `TrackedReal`s and plain constants (window endpoints, the `zero(...)`
+# taken on one side of the `q <= 0` boundary in each of the three native
+# pairs), and ReverseDiff's tracked reals detach from their originating
+# tape on a constant (a `TrackedReal` with a `Nothing` origin, since a
+# constant has no gradient to record) -- so the returned value can carry a
+# `Nothing`-origin type rather than the input's tape-carrying one at BOTH
+# boundary and non-boundary evaluation points (confirmed by inspecting the
+# raw pre-conversion return type directly), even though every case
+# represents the same, numerically correct value. A type ASSERTION
+# (`value::T`) demands an exact match and throws on that mismatch;
+# `convert(T, value)::T` instead performs the actual widening/coercion
+# `T`'s own `convert` method defines (a plain zero promotes cleanly into a
+# Dual/TrackedReal with a zero-derivative, precisely the correct value for
+# a branch whose result does not depend on the differentiated parameter)
+# and the trailing `::T` still narrows inference to `T`, so both
+# inferability and the ReverseDiff tracer-detachment mismatch are handled
+# together.
 function _registered_cdf(entry::_AnalyticPairEntry, d::Convolved, x::Real)
     T = promote_type(
         float(typeof(x)), partype(d.components[1]), partype(d.components[2]))
