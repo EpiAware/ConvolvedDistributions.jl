@@ -290,24 +290,41 @@ function _analytic_pair_entry(d::Convolved)
     return _registered_analytic_pair(typeof(delay), typeof(primary))
 end
 
-# Call a registered entry's closed-form CDF and assert the result is the
-# statically-known `float(typeof(x))`. `entry.cdf_fn` is read out of a
-# heterogeneous registry as an abstract `Function` (the registry holds
-# entries for arbitrarily many different concrete closed forms), so the
-# call itself infers only as `Any`. A plain conversion call (`T(value)`)
-# does NOT recover inferability here -- inference cannot narrow a generic
-# constructor call's return type from an `Any`-typed argument, since some
-# other applicable method could in principle return something else. A type
-# ASSERTION (`value::T`) is different: `Core.typeassert` is inference's own
-# primitive, so it narrows the result to `T` outright (with a runtime
-# check), regardless of how dynamic the call that produced `value` was.
-# This is what restores inferability at the `cdf`/`logcdf` call sites
-# below, and it holds every registered `cdf_fn` to actually returning the
-# element type `x` carries (including AD tracer types) -- a real contract,
-# not just a courtesy conversion.
+# Call a registered entry's closed-form CDF and coerce the result to a type
+# wide enough to hold it. `entry.cdf_fn` is read out of a heterogeneous
+# registry as an abstract `Function` (the registry holds entries for
+# arbitrarily many different concrete closed forms), so the call itself
+# infers only as `Any`; every branch of `cdf`/`logcdf` (see below) has to
+# agree on a concrete return type regardless of which branch actually runs
+# for a given `d` (`_registered_cdf`'s callee is never statically prunable,
+# since the registry is mutable global state), so leaving this `Any` would
+# make `cdf`/`logcdf` uninferable even for a `Convolved` whose components
+# are not a registered pair at all.
+#
+# `T` is `promote_type`d from `partype` of both components and `x`'s own
+# type (mirrors the `promote_type` pattern already used for the numeric
+# quadrature paths, e.g. `_convolved_numeric_pdf_batched`), predicting the
+# type a fully-tracked evaluation should produce. That prediction does not
+# always match `entry.cdf_fn`'s ACTUAL runtime type: every formula in
+# `analytic_pairs.jl` branches on the evaluation window (the `q <= 0`
+# boundary in each of the three native pairs), and on `zero`/constant
+# values taken on one side of a branch, ReverseDiff's tracked reals detach
+# from their originating tape (a `TrackedReal` with a `Nothing` origin,
+# since a constant has no gradient to record) rather than keeping the
+# input's tape-carrying type -- so the boundary branch's result can be a
+# DIFFERENT concrete type than `T` predicts, even though both represent
+# the same mathematical value. A type ASSERTION (`value::T`) demands an
+# exact match and throws on that mismatch; `convert(T, value)::T` instead
+# performs the actual widening/coercion `T`'s own `convert` method defines
+# (a plain zero promotes cleanly into a Dual/TrackedReal with a
+# zero-derivative, precisely the correct value for a branch whose result
+# does not depend on the differentiated parameter) and the trailing `::T`
+# still narrows inference to `T`, so both inferability and the
+# branch-dependent tracer mismatch are handled together.
 function _registered_cdf(entry::_AnalyticPairEntry, d::Convolved, x::Real)
-    T = float(typeof(x))
-    return entry.cdf_fn(d.components[1], d.components[2], x)::T
+    T = promote_type(
+        float(typeof(x)), partype(d.components[1]), partype(d.components[2]))
+    return convert(T, entry.cdf_fn(d.components[1], d.components[2], x))::T
 end
 
 # Fraction of probability trimmed from each tail of an unbounded

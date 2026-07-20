@@ -23,12 +23,14 @@
 # over live data, not a call into a growing method table, so it carries no
 # world-age/invalidation hazard -- which matters here because `cdf` is a path
 # Enzyme's and Mooncake's own rule machinery compile and cache per type
-# signature (this package has already hit a real Enzyme-reverse break from
-# state that grows *inside* a differentiated call; see `GaussLegendre`'s
-# docstring in `src/integration.jl`). A registry entry is looked up once per
-# top-level `cdf`/`logcdf` call -- never inside the per-node quadrature loop
-# -- so it carries the same cost profile as the `_try_convolve` dispatch it
-# sits alongside.
+# signature, and a sibling EpiAware package has hit a real Enzyme-reverse
+# break from state that grows *inside* a differentiated call (see
+# ComposedDistributions#223). `GaussLegendre`'s own design in
+# `src/integration.jl` takes the same precaution for the same reason: no
+# shared mutable cache resolved from inside the traced region. A registry
+# entry is looked up once per top-level `cdf`/`logcdf` call -- never inside
+# the per-node quadrature loop -- so it carries the same cost profile as
+# the `_try_convolve` dispatch it sits alongside.
 
 # Plain-data registry entry. Kept a `struct`, not a `NamedTuple`, so the
 # vector element type stays concrete and `filter!`/`push!` need no type

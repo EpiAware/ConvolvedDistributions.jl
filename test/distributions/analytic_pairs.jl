@@ -123,3 +123,87 @@ end
     xs = [0.5, 1.0, 2.0, 3.0]
     @test cdf(d, xs) == [cdf(d, x) for x in xs]
 end
+
+# ForwardDiff gradients of cdf/logcdf through a registered analytic pair,
+# checked against central finite differences (same pattern as the
+# Difference.jl ForwardDiff gradient test above). Each registered `cdf_fn`
+# returns whatever type its arithmetic on Dual-parameterised components
+# produces, so `_registered_cdf`'s type assertion has to be built from a
+# type that actually contains that Dual, not just `float(typeof(x))` (the
+# scalar evaluation point is a plain `Float64` in every case below; the
+# assertion previously narrowed to `Float64` and threw a `TypeError` the
+# first time this path was differentiated w.r.t. a delay parameter).
+
+@testitem "Gamma + Uniform analytic pair cdf/logcdf ForwardDiff gradient" begin
+    using Distributions, ForwardDiff
+
+    fc = θ -> cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), 3.0)
+    flc = θ -> logcdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), 3.0)
+    θ = [2.0, 1.5]
+
+    gc = ForwardDiff.gradient(fc, θ)
+    glc = ForwardDiff.gradient(flc, θ)
+    @test all(isfinite, gc)
+    @test all(isfinite, glc)
+
+    h = 1e-6
+    for i in eachindex(θ)
+        θp = copy(θ)
+        θm = copy(θ)
+        θp[i] += h
+        θm[i] -= h
+        @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol=1e-6
+        @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol=1e-6
+    end
+
+    # Batched cdf differentiates too, and matches the pointwise gradient.
+    fb = θ -> sum(cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), [1.0, 3.0]))
+    gb = ForwardDiff.gradient(fb, θ)
+    @test all(isfinite, gb)
+end
+
+@testitem "LogNormal + Uniform analytic pair cdf/logcdf ForwardDiff gradient" begin
+    using Distributions, ForwardDiff
+
+    fc = θ -> cdf(convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), 4.0)
+    flc = θ -> logcdf(convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), 4.0)
+    θ = [1.5, 0.5]
+
+    gc = ForwardDiff.gradient(fc, θ)
+    glc = ForwardDiff.gradient(flc, θ)
+    @test all(isfinite, gc)
+    @test all(isfinite, glc)
+
+    h = 1e-6
+    for i in eachindex(θ)
+        θp = copy(θ)
+        θm = copy(θ)
+        θp[i] += h
+        θm[i] -= h
+        @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol=1e-6
+        @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol=1e-6
+    end
+end
+
+@testitem "Weibull + Uniform analytic pair cdf/logcdf ForwardDiff gradient" begin
+    using Distributions, ForwardDiff
+
+    fc = θ -> cdf(convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), 2.5)
+    flc = θ -> logcdf(convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), 2.5)
+    θ = [1.5, 2.0]
+
+    gc = ForwardDiff.gradient(fc, θ)
+    glc = ForwardDiff.gradient(flc, θ)
+    @test all(isfinite, gc)
+    @test all(isfinite, glc)
+
+    h = 1e-6
+    for i in eachindex(θ)
+        θp = copy(θ)
+        θm = copy(θ)
+        θp[i] += h
+        θm[i] -= h
+        @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol=1e-6
+        @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol=1e-6
+    end
+end

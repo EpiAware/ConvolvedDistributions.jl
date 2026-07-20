@@ -41,7 +41,7 @@ using Distributions: Distributions, UnivariateDistribution,
                      ContinuousUnivariateDistribution,
                      DiscreteUnivariateDistribution, Continuous,
                      Exponential, Gamma, LogNormal, Normal, Uniform, Weibull,
-                     scale, shape, meanlogx, stdlogx, quantile
+                     scale, shape, meanlogx, stdlogx, quantile, partype
 
 using LogExpFunctions: log1mexp
 
