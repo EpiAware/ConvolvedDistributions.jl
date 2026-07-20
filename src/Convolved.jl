@@ -264,6 +264,52 @@ function _maybe_analytic(d::Convolved)
     return _analytic_convolution(d.components)
 end
 
+# ---------------------------------------------------------------------------
+# Registered analytic-pair CDF (#77)
+# ---------------------------------------------------------------------------
+#
+# A second, separate analytic fast path alongside `_maybe_analytic` above:
+# `register_analytic_pair!` (src/analytic_pairs.jl) supplies a closed-form
+# CDF only, not a full `Distributions.convolve`-style Distribution (most
+# registrable pairs -- a delay convolved with a window-restricted `Uniform`
+# primary event -- have no named resulting distribution), so it cannot
+# extend `_analytic_convolution`'s pairwise fold and is consulted
+# separately, from the cdf/logcdf paths only. Scoped to exactly two
+# components -- the shape every registrable pair here takes -- so a
+# three-or-more-component convolution keeps using the existing pairwise
+# analytic fold / numeric quadrature untouched.
+
+# The registered analytic-pair entry for `d`'s two components, or `nothing`
+# when unregistered, when `d.method` is a `NumericSolver`, or when `d` does
+# not have exactly two components. Shared by the scalar and batched
+# cdf/logcdf paths below.
+function _analytic_pair_entry(d::Convolved)
+    d.method isa NumericSolver && return nothing
+    length(d.components) == 2 || return nothing
+    delay, primary = d.components
+    return _registered_analytic_pair(typeof(delay), typeof(primary))
+end
+
+# Call a registered entry's closed-form CDF and assert the result is the
+# statically-known `float(typeof(x))`. `entry.cdf_fn` is read out of a
+# heterogeneous registry as an abstract `Function` (the registry holds
+# entries for arbitrarily many different concrete closed forms), so the
+# call itself infers only as `Any`. A plain conversion call (`T(value)`)
+# does NOT recover inferability here -- inference cannot narrow a generic
+# constructor call's return type from an `Any`-typed argument, since some
+# other applicable method could in principle return something else. A type
+# ASSERTION (`value::T`) is different: `Core.typeassert` is inference's own
+# primitive, so it narrows the result to `T` outright (with a runtime
+# check), regardless of how dynamic the call that produced `value` was.
+# This is what restores inferability at the `cdf`/`logcdf` call sites
+# below, and it holds every registered `cdf_fn` to actually returning the
+# element type `x` carries (including AD tracer types) -- a real contract,
+# not just a courtesy conversion.
+function _registered_cdf(entry::_AnalyticPairEntry, d::Convolved, x::Real)
+    T = float(typeof(x))
+    return entry.cdf_fn(d.components[1], d.components[2], x)::T
+end
+
 # Fraction of probability trimmed from each tail of an unbounded
 # integration component when clamping an infinite quadrature window.
 const _CONVOLVED_TAIL = 1e-8
@@ -579,8 +625,10 @@ end
 
 Compute the cumulative distribution function.
 
-Uses an analytical convolution when `Distributions.convolve` applies to
-all component pairs, otherwise AD-safe numeric quadrature.
+Uses an analytical convolution when `Distributions.convolve` applies to all
+component pairs, then a [`register_analytic_pair!`](@ref)-registered
+closed-form CDF for the two-component case, otherwise AD-safe numeric
+quadrature.
 
 See also: [`logcdf`](@ref)
 "
@@ -588,6 +636,10 @@ function cdf(d::Convolved, x::Real)
     analytic = _maybe_analytic(d)
     if analytic !== nothing
         return cdf(analytic, x)
+    end
+    entry = _analytic_pair_entry(d)
+    if entry !== nothing
+        return _registered_cdf(entry, d, x)
     end
     return _convolved_numeric_cdf(d, x)
 end
@@ -602,6 +654,11 @@ function logcdf(d::Convolved, x::Real)
     analytic = _maybe_analytic(d)
     if analytic !== nothing
         return logcdf(analytic, x)
+    end
+    entry = _analytic_pair_entry(d)
+    if entry !== nothing
+        c = _registered_cdf(entry, d, x)
+        return c <= 0 ? oftype(float(c), -Inf) : log(c)
     end
     c = _convolved_numeric_cdf(d, x)
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
@@ -680,6 +737,10 @@ function cdf(d::Convolved, x::AbstractVector{<:Real})
     analytic = _maybe_analytic(d)
     if analytic !== nothing
         return map(xi -> cdf(analytic, xi), x)
+    end
+    entry = _analytic_pair_entry(d)
+    if entry !== nothing
+        return map(xi -> _registered_cdf(entry, d, xi), x)
     end
     return _convolved_numeric_cdf_batched(d, x)
 end

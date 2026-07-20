@@ -25,6 +25,13 @@ public AbstractSolverMethod
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
 
+# The analytic-pair registry (#77): the registration entry point external
+# packages (e.g. CensoredDistributions, from its own extension `__init__`)
+# call to add a closed-form convolution CDF for a (delay, primary) component
+# pair, consulted by `AnalyticalSolver` ahead of the numeric quadrature
+# fallback.
+public register_analytic_pair!
+
 # The AD-safe CDF/PDF-family hooks this package used to own
 # (`_cdf_ad_safe` and friends) now live in EpiAwareADTools.jl under
 # underscore-free names (`cdf_ad_safe`, `logcdf_ad_safe`, `ccdf_ad_safe`,
