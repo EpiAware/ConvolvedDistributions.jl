@@ -7,10 +7,10 @@
 # `Product`; construct via the exported `product` verb.
 public Convolved, Product, AbstractConvolvedDistribution
 
-# A caller-supplied PMF wrapper (masses + grid width) for repeated
-# `convolve_series`/`pdf` reuse without rebuilding; this package does not
+# A caller-supplied delay PMF is a plain `AbstractVector{<:Real}` of masses,
+# or a `Distributions.DiscreteNonParametric` for a non-unit or shifted lag
+# grid (#79); `convolve_series` accepts either. This package does not
 # discretise continuous delays itself (#68).
-public DelayPMF
 
 # Interface-contract verifiers (`TestUtils.test_convolved_interface`,
 # `TestUtils.test_abstract_membership`) for downstream family members.

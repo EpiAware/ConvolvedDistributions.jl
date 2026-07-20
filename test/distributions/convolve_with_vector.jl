@@ -92,7 +92,7 @@ end
         end
         @test err isa ArgumentError
         @test occursin("CensoredDistributions", err.msg)
-        @test occursin("DelayPMF", err.msg)
+        @test occursin("DiscreteNonParametric", err.msg)
     end
 end
 
@@ -181,9 +181,12 @@ end
     @test out ≈ [0.5, 0.5 * 2 + 0.3, 0.5 * 3 + 0.3 * 2 + 0.2,
         0.5 * 4 + 0.3 * 3 + 0.2 * 2]
 
-    # Sub-normalised masses stay sub-normalised: no silent rescale.
+    # Sub-normalised masses stay sub-normalised: no silent rescale. The
+    # normalisation check would warn here, so opt out — this test is about
+    # the convolution arithmetic, not the check.
     half = [0.25, 0.25]
-    @test convolve_series(half, series) ≈ [0.25, 0.75, 1.25, 1.75]
+    @test convolve_series(half, series; check_normalisation = false) ≈
+          [0.25, 0.75, 1.25, 1.75]
 
     # A PMF longer than the series is truncated to the series window.
     long = [0.5, 0.3, 0.1, 0.05, 0.05]
@@ -191,70 +194,75 @@ end
 
     # Integer series with float masses promotes the output.
     @test convolve_series(pmf, [1, 2, 3, 4]) isa AbstractVector{Float64}
-
-    # The vector method agrees with the same masses wrapped in a DelayPMF
-    # (caller-owned discretisation either way).
-    using Distributions
-    delay = Gamma(2.0, 1.0)
-    n = length(series)
-    masses = [cdf(delay, k + 1.0) - cdf(delay, Float64(k))
-              for k in 0:(n - 1)]
-    @test convolve_series(masses, series) ≈
-          convolve_series(ConvolvedDistributions.DelayPMF(masses, 1.0), series)
 end
 
-@testitem "DelayPMF wraps caller-supplied masses for reuse" begin
+@testitem "DiscreteNonParametric delay convolves on its own regular grid" begin
     using Distributions
-    delay = Gamma(2.0, 1.0)
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-    maxlag = length(series) - 1
 
-    # Caller-owned discretisation (here, CDF-difference masses stand in
-    # for whatever CensoredDistributions.jl or the caller builds).
-    masses = [cdf(delay, k + 1.0) - cdf(delay, Float64(k))
-              for k in 0:maxlag]
-    pmf = ConvolvedDistributions.DelayPMF(masses, 1.0)
-    @test pmf isa ConvolvedDistributions.DelayPMF
-    @test length(pmf) == maxlag + 1
-    @test pmf.interval == 1.0
+    # Unit grid starting at zero: the masses convolve exactly as the plain
+    # vector of the same masses.
+    ps = [0.5, 0.3, 0.2]
+    dnp = DiscreteNonParametric([0, 1, 2], ps)
+    @test convolve_series(dnp, series) ≈ convolve_series(ps, series)
 
-    # Reuse is the raw-vector convolution of the wrapped masses.
-    @test convolve_series(pmf, series) == convolve_series(masses, series)
+    # A non-unit grid (weekly, say) carries its masses onto consecutive lags
+    # 0, 1, 2 — the grid step is the series' own sampling interval and does
+    # not enter the arithmetic, so it matches the plain-vector convolution.
+    weekly = DiscreteNonParametric([0.0, 7.0, 14.0], ps)
+    @test convolve_series(weekly, series) ≈ convolve_series(ps, series)
 
-    # `pdf` reads the masses at integer lags.
-    @test pdf(pmf, 0) ≈ masses[1]
-    @test pdf(pmf, 3) ≈ masses[4]
+    # A support starting above zero is a forward shift: leading lags carry no
+    # mass, so mass at support 2, 3 lands at lags 2, 3 (a two-step shift).
+    shifted = DiscreteNonParametric([2, 3], [0.6, 0.4])
+    @test convolve_series(shifted, series) ≈
+          convolve_series([0.0, 0.0, 0.6, 0.4], series)
 
-    # Lags outside 0..maxlag carry no mass.
-    @test pdf(pmf, -1) == 0.0
-    @test pdf(pmf, maxlag + 1) == 0.0
-
-    # Vector lag lookup maps the scalar read.
-    @test pdf(pmf, 0:2) ≈ [pdf(pmf, k) for k in 0:2]
+    # A single-point support is a unit-grid point mass at its (integer) lag.
+    point = DiscreteNonParametric([2], [1.0])
+    @test convolve_series(point, series) ≈
+          convolve_series([0.0, 0.0, 1.0], series)
 end
 
-@testitem "DelayPMF validates its inputs" begin
+@testitem "DiscreteNonParametric grid is validated" begin
     using Distributions
+    series = [1.0, 2.0, 3.0, 4.0]
 
-    @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
-        Float64[], 1.0)
-    @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
-        [1.0], 0.0)
+    # An irregular support (unequal spacing) has no single lag grid.
+    @test_throws ArgumentError convolve_series(
+        DiscreteNonParametric([0, 1, 3], [0.3, 0.3, 0.4]), series)
 
-    # A non-unit grid convolves on its own grid: the DelayPMF carries
-    # the width and the series is read at steps of that width (a
-    # half-day PMF convolves a half-day series). Lag k is the mass on
-    # [k * interval, (k + 1) * interval), so the result equals the raw
-    # masses pushed through the grid-agnostic vector method.
-    masses_half = [0.4, 0.3, 0.2, 0.05, 0.03, 0.02]
-    pmf_half = ConvolvedDistributions.DelayPMF(masses_half, 0.5)
-    @test pmf_half.interval == 0.5
-    @test pdf(pmf_half, 0) == masses_half[1]
-    half_series = [1.0, 2.0, 4.0, 3.0]
-    @test convolve_series(pmf_half, half_series) ==
-          convolve_series(pmf_half.masses, half_series)
-    @test convolve_series(pmf_half, half_series)[2] ≈
-          pdf(pmf_half, 0) * half_series[2] + pdf(pmf_half, 1) * half_series[1]
+    # A support off a zero-aligned grid (not whole multiples of the step)
+    # cannot map to integer lags.
+    @test_throws ArgumentError convolve_series(
+        DiscreteNonParametric([0.5, 1.5, 2.5], [0.3, 0.3, 0.4]), series)
+
+    # Negative lags cannot enter a causal convolution.
+    @test_throws ArgumentError convolve_series(
+        DiscreteNonParametric([-1, 0, 1], [0.2, 0.5, 0.3]), series)
+end
+
+@testitem "convolve_series warns on a mis-normalised PMF vector" begin
+    using Distributions
+    series = [1.0, 2.0, 3.0, 4.0]
+
+    # The pure predicate: masses near one pass, grossly-off masses fail, and
+    # ordinary finite-grid tail truncation (a few % short) still passes.
+    @test ConvolvedDistributions._pmf_normalisation_ok([0.5, 0.3, 0.2])
+    @test ConvolvedDistributions._pmf_normalisation_ok([0.5, 0.3, 0.17])
+    @test !ConvolvedDistributions._pmf_normalisation_ok([0.25, 0.25])
+    @test !ConvolvedDistributions._pmf_normalisation_ok([0.6, 0.6])
+
+    # The default path warns on gross mis-normalisation but still convolves
+    # the masses unchanged (no rescaling).
+    subnorm = [0.25, 0.25]
+    out = @test_logs (:warn,) match_mode = :any convolve_series(subnorm, series)
+    @test out ≈ convolve_series(subnorm, series; check_normalisation = false)
+
+    # A normalised PMF does not warn, and the opt-out silences the check for
+    # a deliberately truncated PMF.
+    @test_logs convolve_series([0.5, 0.3, 0.2], series)
+    @test_logs convolve_series(subnorm, series; check_normalisation = false)
 end
 
 @testitem "gradients flow through a caller-supplied PMF and the discrete PMF" begin
@@ -314,17 +322,8 @@ end
     pmf = [0.5, 0.3, 0.2]
     @test_throws ArgumentError convolve_series(ZeroBased(pmf), series)
     @test_throws ArgumentError convolve_series(pmf, ZeroBased(series))
-    @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
-        ZeroBased(pmf), 1.0)
 
-    # An empty PMF is a construction bug, not a zero signal: both the
-    # raw-vector path and the DelayPMF constructor reject it.
+    # An empty PMF is a construction bug, not a zero signal: reject it
+    # rather than silently returning an all-zero series.
     @test_throws ArgumentError convolve_series(Float64[], series)
-    @test_throws ArgumentError ConvolvedDistributions.DelayPMF(
-        Float64[], 1.0)
-
-    # `pdf.(pmf, lags)` broadcasts the PMF as a scalar.
-    built = ConvolvedDistributions.DelayPMF([0.5, 0.3, 0.1, 0.05, 0.03, 0.02],
-        1.0)
-    @test pdf.(built, 0:3) == [pdf(built, l) for l in 0:3]
 end

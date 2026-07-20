@@ -7,15 +7,18 @@
 # infections), the result is the expected downstream event counts at the
 # same times: the EpiNow2-style latent / renewal observation layer.
 #
-# The delay enters as a PMF over integer lags. For a DISCRETE delay the
-# lag-`k` mass is simply `pdf(delay, k)`, so the discrete method reads the
-# distribution's own PMF directly. A CONTINUOUS delay has no mass on the
-# integer grid until it is discretised, and discretisation is a modelling
-# choice this package does not make (single- vs double-interval censoring),
-# so passing a continuous delay is rejected: the caller discretises first
-# (with CensoredDistributions.jl, which owns primary/interval censoring)
-# and feeds the resulting PMF to the PMF-vector method, either directly as
-# a vector or wrapped in a build-once `DelayPMF`.
+# The delay enters as a PMF over integer lags. A caller-supplied PMF is a
+# plain `AbstractVector{<:Real}` of masses at lags `0, 1, 2, ...`; a
+# `DiscreteNonParametric` carries its own (regular) lag grid and masses,
+# matching ModifiedDistributions' discrete-delay vocabulary for free
+# cross-package consistency. For a DISCRETE parametric delay the lag-`k`
+# mass is simply `pdf(delay, k)`, so that method reads the distribution's
+# own PMF directly. A CONTINUOUS delay has no mass on the integer grid until
+# it is discretised, and discretisation is a modelling choice this package
+# does not make (single- vs double-interval censoring), so passing a
+# continuous delay is rejected: the caller discretises first (with
+# CensoredDistributions.jl, which owns primary/interval censoring) and feeds
+# the resulting PMF to the PMF-vector method.
 #
 # It has its own verb (rather than a `convolved` method) because it returns
 # a numeric series, not a distribution: `convolved` is kept strictly for
@@ -115,13 +118,15 @@ expected_counts = convolve_series(delay, infections)
 function convolve_series(
         delay::DiscreteUnivariateDistribution,
         series::AbstractVector{<:Real})
-    # The lag-`k` mass of a discrete delay is `pdf(delay, k)` directly; do
-    # NOT reuse the CDF-difference `_delay_pmf`, which would compute
-    # `F(k + 1) - F(k) = pdf(delay, k + 1)` for integer support — an
-    # off-by-one. Lags run 0..(n - 1); negative-support mass is never read
-    # (it cannot enter a causal convolution).
+    # The lag-`k` mass of a discrete delay is `pdf(delay, k)` directly; a
+    # CDF-difference `F(k + 1) - F(k) = pdf(delay, k + 1)` on integer support
+    # would be an off-by-one. Lags run 0..(n - 1); negative-support mass is
+    # never read (it cannot enter a causal convolution).
     masses = [pdf(delay, k) for k in 0:(length(series) - 1)]
-    return convolve_series(masses, series)
+    # These masses are the distribution's own PMF read on the series window,
+    # so any shortfall is deliberate window truncation, not a mis-normalised
+    # input: skip the normalisation check the caller-facing vector method runs.
+    return convolve_series(masses, series; check_normalisation = false)
 end
 
 @doc "
@@ -136,13 +141,12 @@ discretised, and discretisation is a censoring choice this package does
 not make (interval-censored-secondary with an exact primary vs. the usual
 epidemiological double-interval-censored case). The caller discretises
 first with CensoredDistributions.jl and passes the resulting PMF to
-[`convolve_series(pmf, series)`](@ref convolve_series), either as a plain
-vector or wrapped in a [`DelayPMF`](@ref) for reuse.
+[`convolve_series(pmf, series)`](@ref convolve_series), as a plain vector
+of masses or a `Distributions.DiscreteNonParametric` delay.
 
 # See also
-- [`DelayPMF`](@ref): a build-once PMF wrapper for repeated reuse
 - [`convolve_series(pmf, series)`](@ref convolve_series): convolve a
-  caller-supplied PMF
+  caller-supplied PMF vector
 "
 function convolve_series(
         delay::ContinuousUnivariateDistribution,
@@ -152,7 +156,101 @@ function convolve_series(
         "discretising a continuous delay needs an explicit censoring " *
         "scheme. Build the PMF with CensoredDistributions.jl (which " *
         "owns primary/interval censoring), then pass it — as a plain " *
-        "vector or a DelayPMF — to convolve_series(pmf, series)."))
+        "vector of masses or a DiscreteNonParametric delay — to " *
+        "convolve_series(pmf, series)."))
+end
+
+@doc "
+
+Convolve a timeseries with a `DiscreteNonParametric` delay on its own
+regular lag grid.
+
+`convolve_series(delay, series)` for a `DiscreteNonParametric` delay reads
+the masses off `probs(delay)` and the grid off `support(delay)`. The
+support must be a regular grid (equal spacing) aligned to zero — i.e. the
+support values are non-negative integer multiples of the grid step — so the
+masses sit on consecutive integer lags `0, 1, 2, ...`; a support point at
+`k * step` carries its mass to lag `k`, with unfilled lags carrying no mass
+(a delay whose support starts above zero shifts the series forward). The
+grid step is the series' own sampling interval, so a weekly-binned delay
+convolves a weekly series; it does not enter the arithmetic, exactly as a
+plain mass vector convolves positionally.
+
+Using `DiscreteNonParametric` matches ModifiedDistributions' discrete-delay
+representation, so a delay built once is reused across the org's convolution
+and reporting surfaces without a bespoke wrapper type. Its masses sum to one
+by construction, so no normalisation check is applied.
+
+# Arguments
+- `delay`: a `DiscreteNonParametric` whose support is a regular,
+  zero-aligned lag grid.
+- `series`: the input timeseries, sampled at the support's grid step from 0.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+delay = DiscreteNonParametric([0, 1, 2], [0.5, 0.3, 0.2])
+infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+expected_counts = convolve_series(delay, infections)
+```
+
+# See also
+- [`convolve_series(pmf, series)`](@ref convolve_series): the plain-vector
+  form on the unit grid
+"
+function convolve_series(
+        delay::DiscreteNonParametric, series::AbstractVector{<:Real})
+    xs = support(delay)
+    ps = probs(delay)
+    lags = _regular_grid_lags(xs)
+    # Scatter the masses onto their integer lags, leaving unfilled lags at
+    # zero (a support starting above lag 0 is a forward shift). The element
+    # type follows the masses so a differentiable mass carries through.
+    masses = zeros(eltype(ps), lags[end] + 1)
+    @inbounds for (k, p) in zip(lags, ps)
+        masses[k + 1] = p
+    end
+    # `probs` sum to one by construction, so the normalisation check would
+    # never fire; skip it.
+    return convolve_series(masses, series; check_normalisation = false)
+end
+
+# Map a sorted `DiscreteNonParametric` support to the non-negative integer
+# lags it lands on, validating that it is a regular grid aligned to zero.
+# The support is sorted and unique (a `DiscreteNonParametric` invariant), so
+# the spacing is positive; it must also be constant and divide each support
+# value into a whole number of steps from zero.
+function _regular_grid_lags(xs::AbstractVector{<:Real})
+    first(xs) >= 0 || throw(ArgumentError(
+        "convolve_series needs a delay on non-negative lags; the support " *
+        "starts at $(first(xs)) (negative lags cannot enter a causal " *
+        "convolution)"))
+    # A single support point defines no grid step, so read it as a unit-grid
+    # point mass: the value is the lag directly and must be a whole number.
+    length(xs) == 1 && return [_grid_step_index(first(xs), one(first(xs)))]
+    step = xs[2] - xs[1]
+    for i in 2:length(xs)
+        isapprox(xs[i] - xs[i - 1], step; rtol = 1e-8, atol = 1e-12) ||
+            throw(ArgumentError(
+                "convolve_series needs a DiscreteNonParametric delay on a " *
+                "regular lag grid (equal spacing); got support $(collect(xs)) " *
+                "with uneven spacing. Resample it onto a regular grid first."))
+    end
+    return [_grid_step_index(x, step) for x in xs]
+end
+
+# The integer lag a support value sits on: `x / step` rounded, checked to be
+# a non-negative whole number of steps from zero (the grid is aligned to 0).
+function _grid_step_index(x::Real, step::Real)
+    q = x / step
+    k = round(Int, q)
+    (k >= 0 && isapprox(q, k; rtol = 1e-8, atol = 1e-12)) || throw(ArgumentError(
+        "convolve_series needs a DiscreteNonParametric delay whose support " *
+        "lies on a grid aligned to zero (each support value a whole number " *
+        "of steps from 0); support value $x is not a multiple of the grid " *
+        "step $step"))
+    return k
 end
 
 @doc "
@@ -166,22 +264,33 @@ window:
 `pmf[k + 1]` is read as the delay mass at integer lag `k` on the same
 unit grid as `series`.
 
-The masses are used exactly as given: no renormalisation, no validation
-that they sum to one, and no tail correction — mass at lags beyond the
-series window (including any `pmf` entries past `length(series)`) is
-simply never used, so sub-normalised or window-truncated PMFs stay
-truncated. This is the decoupled form of
-[`convolve_series(delay, series)`](@ref convolve_series): the caller
-owns the discretisation (e.g. double-interval-censored masses from
-CensoredDistributions.jl), and this method only convolves. The
-convolution is linear, so gradients flow through both `pmf` and
-`series` under the supported AD backends.
+The masses are convolved exactly as given: no renormalisation and no tail
+correction — mass at lags beyond the series window (including any `pmf`
+entries past `length(series)`) is simply never used, so a genuinely
+window-truncated PMF stays truncated. What the method does check, by
+default, is normalisation: if the supplied masses sum to something far
+from one (more than `5%` off), it emits a one-line warning, since a PMF
+that has silently lost a large fraction of its mass is usually a mistake
+rather than intentional truncation. The masses are still used unchanged —
+the warning informs, it does not rescale. Pass `check_normalisation =
+false` to silence it for a deliberately truncated or unnormalised PMF (and
+in a differentiated hot loop, where the intent is fixed once). This is the
+decoupled form of [`convolve_series(delay, series)`](@ref convolve_series):
+the caller owns the discretisation (e.g. double-interval-censored masses
+from CensoredDistributions.jl), and this method only convolves. The
+convolution is linear, so gradients flow through both `pmf` and `series`
+under the supported AD backends.
 
 # Arguments
 - `pmf`: the discretised delay probability masses at integer lags
   `0, 1, 2, ...` (used as given).
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
+
+# Keywords
+- `check_normalisation`: warn when the masses sum far from one (default
+  `true`); set `false` to silence it for an intentionally truncated or
+  unnormalised PMF.
 
 # Returns
 - A numeric vector of expected downstream counts, the same length as
@@ -197,145 +306,31 @@ expected_counts = convolve_series(pmf, infections)
 ```
 
 # See also
-- [`DelayPMF`](@ref): wrap masses for repeated reuse without rebuilding
+- [`convolve_series(delay, series)`](@ref convolve_series): read the PMF
+  off a discrete or `DiscreteNonParametric` delay directly
 "
 function convolve_series(
-        pmf::AbstractVector{<:Real}, series::AbstractVector{<:Real})
-    # Mirror the DelayPMF constructor: an empty PMF is a construction
-    # bug upstream, not a zero signal — reject it rather than silently
-    # returning an all-zero series.
+        pmf::AbstractVector{<:Real}, series::AbstractVector{<:Real};
+        check_normalisation::Bool = true)
+    # An empty PMF is a construction bug upstream, not a zero signal —
+    # reject it rather than silently returning an all-zero series.
     isempty(pmf) &&
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
+    if check_normalisation && !_pmf_normalisation_ok(pmf)
+        @warn "convolve_series: the supplied PMF masses sum to $(sum(pmf)), " *
+              "not ≈ 1; they are convolved as given (no rescaling). Pass " *
+              "check_normalisation = false to silence this if the truncation " *
+              "is intentional." maxlog=1
+    end
     return _causal_convolve(series, pmf)
 end
 
-# --- the build-once delay PMF for repeated vector evaluation ---------------
-#
-# `convolve_series(delay, series)` rebuilds the discrete delay PMF on
-# every call. When one PMF is applied across many series, `DelayPMF` lets
-# the caller wrap it once (however it was built — e.g. by
-# CensoredDistributions.jl) and reuse it. The object is immutable and
-# holds no cache: results are identical to passing the masses as a plain
-# vector each time.
-
-@doc "
-A precomputed discretised delay PMF, built once and reused across many
-vector evaluations.
-
-`DelayPMF` wraps a caller-supplied delay PMF — masses at integer lags
-`0..m` on a grid of width `interval` — so it can be applied across many
-series or lag lookups without being rebuilt or re-passed as a bare
-vector. This package does not discretise continuous delays itself (that
-is a censoring choice CensoredDistributions.jl owns); build the masses
-there, or however else is appropriate, and wrap them with
-`DelayPMF(masses, interval)`.
-
-Apply it with [`convolve_series`](@ref) (the causal series convolution)
-or read masses at integer lags with `pdf(pmf, lag)`. The object is
-immutable and carries no mutable cache: the masses keep whatever element
-type they were built with, so gradients flow through them under the
-supported AD backends when they are themselves differentiable in some
-upstream parameter.
-
-# See also
-- [`convolve_series`](@ref): apply the PMF across a series
-"
-struct DelayPMF{V <: AbstractVector, I <: Real}
-    "The discretised interval masses over the grid `0..maxlag`."
-    masses::V
-    "The grid width the masses were discretised on."
-    interval::I
-
-    function DelayPMF(masses::V, interval::I) where {
-            V <: AbstractVector, I <: Real}
-        # `pdf(pmf, lag)` reads `masses[lag + 1]` under @inbounds, so
-        # offset axes would shift every lag and read out of bounds.
-        Base.require_one_based_indexing(masses)
-        length(masses) >= 1 ||
-            throw(ArgumentError("DelayPMF needs at least one mass"))
-        interval > 0 ||
-            throw(ArgumentError("DelayPMF interval must be positive"))
-        new{V, I}(masses, interval)
-    end
-end
-
-# The number of grid points is `maxlag + 1`; `_maxlag` is the largest
-# integer lag the PMF carries a mass for.
-Base.length(pmf::DelayPMF) = length(pmf.masses)
-_maxlag(pmf::DelayPMF) = length(pmf.masses) - 1
-
-# Broadcast as a scalar so the idiomatic `pdf.(pmf, lags)` works instead
-# of the broadcast machinery trying to iterate the PMF.
-Base.broadcastable(pmf::DelayPMF) = Ref(pmf)
-
-@doc "
-
-Convolve a timeseries with a precomputed [`DelayPMF`](@ref), reusing
-its masses without rebuilding them.
-
-`convolve_series(pmf, series)` is the causal, window-truncated
-convolution of `series` with `pmf.masses`, numerically identical to
-[`convolve_series(pmf.masses, series)`](@ref convolve_series) but
-reading the grid width off the `DelayPMF` itself. The series is
-interpreted on the PMF's own grid: entry `i` of `series` is the value
-at time `(i - 1) * pmf.interval`, and lag `k` shifts by `k` grid steps
-of that width. The grid width therefore comes from whoever built the
-`DelayPMF` — a weekly-binned PMF convolves a weekly series — and no
-separate step argument exists to conflict with it.
-
-# Arguments
-- `pmf`: a [`DelayPMF`](@ref); its `interval` is the grid the series is
-  read on.
-- `series`: the input timeseries, sampled at steps of `pmf.interval`
-  from time 0.
-
-# Examples
-```@example
-using ConvolvedDistributions
-
-pmf = ConvolvedDistributions.DelayPMF([0.5, 0.3, 0.2], 1.0)
-infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
-expected_counts = convolve_series(pmf, infections)
-```
-
-# See also
-- [`DelayPMF`](@ref): the PMF wrapper
-"
-function convolve_series(pmf::DelayPMF, series::AbstractVector{<:Real})
-    # The grid width comes from the PMF itself: the series is read on
-    # steps of `pmf.interval`, so every regular grid is coherent and no
-    # unit-width restriction applies.
-    return convolve_series(pmf.masses, series)
-end
-
-@doc "
-
-Read the [`DelayPMF`](@ref) masses at integer lags.
-
-`pdf(pmf, lag)` returns the PMF's mass at `lag` (an integer, or a vector
-of integers for a batched read). A lag outside `0..maxlag` returns a
-zero of the PMF's element type (no mass is carried there). `lag` counts
-grid steps, not time units: for a PMF built with `interval != 1`,
-`pdf(pmf, k)` is the mass on `[k * interval, (k + 1) * interval)`.
-
-# Arguments
-- `pmf`: a [`DelayPMF`](@ref).
-- `lag`: an integer lag, or a vector of integer lags.
-
-# Examples
-```@example
-using ConvolvedDistributions
-
-pmf = ConvolvedDistributions.DelayPMF([0.5, 0.3, 0.2], 1.0)
-pdf(pmf, 1)
-pdf(pmf, 0:2)
-```
-"
-function pdf(pmf::DelayPMF, lag::Integer)
-    (0 <= lag <= _maxlag(pmf)) || return zero(eltype(pmf.masses))
-    return @inbounds pmf.masses[lag + 1]
-end
-
-function pdf(pmf::DelayPMF, lags::AbstractVector{<:Integer})
-    return map(l -> pdf(pmf, l), lags)
+# Whether supplied masses sum close enough to one to pass the normalisation
+# check. The 5% band lets ordinary finite-grid tail truncation through while
+# flagging gross mis-normalisation (e.g. a PMF that lost a quarter of its
+# mass) — the silent large-mass-loss failure mode. The sum only feeds a
+# comparison, so it never touches a returned gradient, and the comparison
+# resolves to a plain `Bool` under every AD backend.
+function _pmf_normalisation_ok(pmf::AbstractVector{<:Real})
+    return isapprox(sum(pmf), one(eltype(pmf)); atol = 5e-2, rtol = 5e-2)
 end
