@@ -104,18 +104,23 @@ If the series holds the expected events at times `0, 1, ..., t` (say infections)
 A discrete delay is read straight off its own PMF (the lag-`k` mass is `pdf(delay, k)`):
 
 ```@example getting-started
-infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+t = 0:30
+infections = 100 .* exp.(-((t .- 10.0) .^ 2) ./ 40.0)
 convolve_series(Poisson(2.0), infections)
 ```
 
 A continuous delay carries no mass on the integer grid until it is discretised, and discretising it is an explicit modelling choice, so `convolve_series` will not do it silently.
-Discretise it first with `discretise_pmf` (raw CDF-difference masses: interval-censored secondary event, exact primary), then convolve.
-For a primary event known only to the day use CensoredDistributions.jl's double-interval-censored masses instead.
+This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve it — either as a plain vector or wrapped in a `DelayPMF` for reuse across many series.
 The masses depend differentiably on the delay parameters, so this composes with gradient-based fitting.
 
 ```@example getting-started
-pmf = discretise_pmf(d, length(infections) - 1)
-convolve_series(pmf, infections)
+maxlag = length(infections) - 1
+pmf = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
+convolve_series(ConvolvedDistributions.DelayPMF(pmf, 1.0), infections)
+```
+
+```@example getting-started
+sum(pmf)
 ```
 
 ## Choosing the solver
