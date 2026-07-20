@@ -140,6 +140,14 @@ td = truncated(d, 0.0, 8.0)
 logpdf(td, 5.0)
 ```
 
+`Distributions.censored` composes the same way, clamping rather than renormalising: the kept region's density is unchanged and the trimmed tails become point masses at the bounds.
+This package adds no censoring machinery of its own — that stays [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl)'s job — but the generic wrapper works out of the box because `Convolved`, `Difference`, and `Product` implement the standard `UnivariateDistribution` interface.
+
+```@example getting-started
+cd = censored(d, 0.0, 8.0)
+logpdf(cd, 5.0)
+```
+
 ## Quantiles and sampling truncated distributions
 
 There is no closed-form inverse CDF for a generic convolution, so `quantile` lives in an extension that is loaded when both Optimization.jl and OptimizationOptimJL.jl are present.

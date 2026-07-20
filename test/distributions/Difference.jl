@@ -299,6 +299,20 @@ end
     @test pdf(td, 1.0) > 0
 end
 
+@testitem "Difference composes with censored (#72)" begin
+    using Distributions
+
+    d = difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
+    cd = censored(d, -2.0, 5.0)
+
+    @test cdf(cd, -3.0) == 0.0
+    @test cdf(cd, 5.0) == 1.0
+    @test cdf(cd, 1.0) ≈ cdf(d, 1.0)
+    @test pdf(cd, -2.0) ≈ cdf(d, -2.0)
+    @test pdf(cd, 5.0) ≈ ccdf(d, 5.0)
+    @test pdf(cd, 1.0) ≈ pdf(d, 1.0)
+end
+
 @testitem "Difference heavy-tailed subtrahend accuracy (#49)" begin
     using Distributions
 
