@@ -42,7 +42,7 @@ using Distributions: Distributions, UnivariateDistribution,
                      DiscreteUnivariateDistribution, DiscreteNonParametric,
                      Continuous, Exponential, Gamma, LogNormal, Normal,
                      Uniform, Weibull, scale, shape, meanlogx, stdlogx,
-                     quantile, support, probs
+                     quantile, support, probs, partype
 
 using LogExpFunctions: log1mexp
 
