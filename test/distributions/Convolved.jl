@@ -365,18 +365,54 @@ end
     θ₀ = [2.0, 1.0]
     d(θ) = convolved(Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4))
 
-    # The scalar path is the trusted reference. The batched gradient is
-    # the exact derivative of the batched primal (matches finite
-    # differences of it to ~1e-11); the residual gap to the scalar path
-    # is the parameter-sensitivity of the shared-panel quadrature error
-    # (measured ~2e-7 relative for this batch, ~2e-6 with the component
-    # order swapped), so the tolerance is looser than the ~1e-14
-    # eval-point agreement below.
+    # The scalar path is the trusted reference. Batched and scalar
+    # parameter gradients agree to machine precision here (previously
+    # documented as ~2e-7 relative on this batch, ~2e-6 with the
+    # component order swapped; see the wide-batch test below for why
+    # that gap is gone).
     for f in (pdf, logpdf, cdf)
         g_batch = ForwardDiff.gradient(θ -> sum(f(d(θ), obs)), θ₀)
         g_scalar = ForwardDiff.gradient(
             θ -> sum(x -> f(d(θ), x), obs), θ₀)
-        @test g_batch ≈ g_scalar rtol=1e-5
+        @test g_batch ≈ g_scalar rtol=1e-10
+    end
+
+    # Component order swapped: same check.
+    dswap(θ) = convolved(LogNormal(0.5, 0.4), Gamma(θ[1], θ[2]))
+    for f in (pdf, logpdf, cdf)
+        g_batch = ForwardDiff.gradient(θ -> sum(f(dswap(θ), obs)), θ₀)
+        g_scalar = ForwardDiff.gradient(
+            θ -> sum(x -> f(dswap(θ), x), obs), θ₀)
+        @test g_batch ≈ g_scalar rtol=1e-10
+    end
+end
+
+@testitem "Convolved batched AD wrt parameters on a wide batch (#50)" begin
+    using Distributions, ForwardDiff
+
+    # Issue #50 reported up to ~4e-4 relative gradient drift between the
+    # batched and scalar paths on this exact wide batch, dominated by
+    # the smallest point (x = 0.5), with primal values unaffected
+    # (already agreeing to ~1e-13). Direct reproduction against the code
+    # #50 was filed against found no drift: pdf/logpdf/cdf gradients
+    # here, and every individual point, agree with the scalar path to
+    # ~1e-15, machine precision. The batched composite grid's equal
+    # panel spacing was replaced by quantile-panelled spacing a few
+    # hours after #50 was filed (fix for #49, commit c09d3f4), and that
+    # fix's own commit message records the batched/scalar agreement
+    # tightening "from ~7e-11 to machine precision" on the shared grid —
+    # #50 was an incidental casualty of #49's fix, not a separate bug.
+    # This test locks in that agreement so a future regression on this
+    # path shows up here rather than silently reappearing.
+    obs = collect(0.5:0.5:8.0)
+    θ₀ = [2.0, 1.0]
+    d(θ) = convolved(Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4))
+
+    for f in (pdf, logpdf, cdf)
+        g_batch = ForwardDiff.gradient(θ -> sum(f(d(θ), obs)), θ₀)
+        g_scalar = ForwardDiff.gradient(
+            θ -> sum(x -> f(d(θ), x), obs), θ₀)
+        @test g_batch ≈ g_scalar rtol=1e-10
     end
 end
 
