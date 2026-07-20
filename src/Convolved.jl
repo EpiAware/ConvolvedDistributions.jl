@@ -453,14 +453,10 @@ end
 # `f_C(t)` factors are evaluated once and reused across every point;
 # each point then sums the panels inside its own window plus small
 # end-correction integrals from its live window endpoints to the panel
-# grid — or, when its own window sits entirely inside one shared panel
-# (typically an edge point near `L` or `U`), the scalar path's own
-# quantile-panelled quadrature on that window instead of a coarse
-# correction (issue #50). Every integrand kink (a support edge of `rest`)
-# sits on a window endpoint, i.e. on a correction boundary, so each
-# integrated piece is smooth and the small per-panel rule converges
-# spectrally — this is what removes the old shared-window tail error
-# (issue #29).
+# grid. Every integrand kink (a support edge of `rest`) sits on a
+# window endpoint, i.e. on a correction boundary, so each integrated
+# piece is smooth and the small per-panel rule converges spectrally —
+# this is what removes the old shared-window tail error (issue #29).
 # Quantile spacing keeps node density proportional to `f_C`'s mass, so
 # a heavy-tailed component cannot stretch any panel across orders of
 # magnitude of density (issue #49; equal spacing drifted to ~2e-5 on
@@ -502,17 +498,8 @@ function _convolved_quadrature_composite(
         xj = x[j]
         integrand = t -> kernel(rest, xj - t) * pdf_ad_safe(last_comp, t)
         if ilo > ihi
-            # Window inside one shared panel (issue #50): the coarse
-            # 16-node `_PANEL_GL` correction used here previously was much
-            # less accurate than the scalar path's rule for an equivalent
-            # isolated window (192 nodes when the window has no interior
-            # quantile breaks of its own, or its own quantile panels when
-            # it does), and that gap showed up far more in the parameter
-            # gradient than in the primal value. Routing through
-            # `_panel_integrate` — the same function the scalar path
-            # calls — makes this point's computation match the scalar
-            # path exactly instead of approximately.
-            return z + _panel_integrate(integrand, wl, wu, last_comp)
+            # Window inside one panel: a single small solve.
+            return z + gl_integrate(integrand, wl, wu, _PANEL_GL)
         end
         acc = z
         @inbounds for p in ilo:(ihi - 1), k in 1:np
