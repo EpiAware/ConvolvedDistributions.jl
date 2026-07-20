@@ -94,7 +94,8 @@ The separate verb reflects the different return type: `convolved` always returns
 For a discrete delay the lag-`k` mass is just `pdf(delay, k)`, so the distribution is read straight off its own PMF:
 
 ```@example faq
-infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+t = 0:30
+infections = 100 .* exp.(-((t .- 10.0) .^ 2) ./ 40.0)
 convolve_series(Poisson(2.0), infections)
 ```
 
@@ -108,6 +109,10 @@ maxlag = length(infections) - 1
 masses = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
 pmf = ConvolvedDistributions.DelayPMF(masses, 1.0)
 convolve_series(pmf, infections)
+```
+
+```@example faq
+sum(masses)
 ```
 
 The masses depend differentiably on the delay parameters, so the timeseries form composes with gradient-based fitting.

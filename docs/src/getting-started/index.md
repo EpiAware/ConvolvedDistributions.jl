@@ -104,7 +104,8 @@ If the series holds the expected events at times `0, 1, ..., t` (say infections)
 A discrete delay is read straight off its own PMF (the lag-`k` mass is `pdf(delay, k)`):
 
 ```@example getting-started
-infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+t = 0:30
+infections = 100 .* exp.(-((t .- 10.0) .^ 2) ./ 40.0)
 convolve_series(Poisson(2.0), infections)
 ```
 
@@ -116,6 +117,10 @@ The masses depend differentiably on the delay parameters, so this composes with 
 maxlag = length(infections) - 1
 pmf = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
 convolve_series(ConvolvedDistributions.DelayPMF(pmf, 1.0), infections)
+```
+
+```@example getting-started
+sum(pmf)
 ```
 
 ## Choosing the solver
