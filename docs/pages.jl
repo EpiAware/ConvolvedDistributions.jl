@@ -12,7 +12,9 @@ pages = [
         "Overview" => "getting-started/index.md",
         "Installation" => "getting-started/installation.md",
         "Tutorials" => [
-            "Visualising convolutions" => "getting-started/tutorials/visualising-convolutions.md",
+            "Convolving distributions" => "getting-started/tutorials/convolving-distributions.md",
+            "The difference of two delays" => "getting-started/tutorials/difference-distributions.md",
+            "Convolving a timeseries" => "getting-started/tutorials/timeseries-convolution.md",
             "AD backends" => "getting-started/tutorials/ad-backends.md"
         ],
         "FAQ" => "getting-started/faq.md"

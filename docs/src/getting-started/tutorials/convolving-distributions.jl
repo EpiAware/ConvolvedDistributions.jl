@@ -1,20 +1,17 @@
-# # [Visualising convolutions](@id visualising-convolutions)
+# # [Convolving distributions](@id convolving-distributions)
 #
 # ## Introduction
 #
-# This tutorial shows what the package does by plotting it.
+# This tutorial shows what [`convolved`](@ref) does by plotting it.
 # A [`Convolved`](@ref ConvolvedDistributions.Convolved) distribution is the sum of independent delays, so its density sits to the right of, and is wider than, either component.
-# A [`Difference`](@ref) is the signed gap between two events, so its support runs on both sides of zero.
-# The plots below make each of these behaviours visible, and also check the analytic and numeric solver backends against each other.
+# The plots below make that visible, check that a nested convolution matches its flat equivalent, and check the analytic and numeric solver backends against each other.
 #
 # ### What are we going to do in this exercise
 #
 # 1. Overlay two component densities with their convolved density.
-# 2. Plot the density of the [`difference`](@ref) of the same pair across zero.
-# 3. Nest one convolution inside another and check it against the flat form.
-# 4. Compare the analytic and numeric solver CDFs and plot their residual.
-# 5. Compare a right-truncated convolution with the untruncated density.
-# 6. Convolve a synthetic infection curve into an expected count curve.
+# 2. Nest one convolution inside another and check it against the flat form.
+# 3. Compare the analytic and numeric solver CDFs and plot their residual.
+# 4. Compare a right-truncated convolution with the untruncated density.
 #
 # ### What might I need to know before starting
 #
@@ -55,29 +52,9 @@ draw(
 
 # The convolved density peaks later than either component and is flatter, because summing independent delays adds both their means and their variances.
 
-# ## The difference of the same pair
-#
-# [`difference`](@ref) builds `Z = X - Y`, here the reporting delay minus the incubation period.
-# Reflecting the subtracted component makes the support two-sided, so the density crosses zero.
-
-z_dist = difference(reporting, incubation)
-z = -8.0:0.05:12.0
-difference_df = DataFrame(z = z, density = pdf.(z_dist, z))
-draw(
-    data(difference_df) *
-    mapping(:z, :density) *
-    visual(Lines, linewidth = 2);
-    axis = (xlabel = "Reporting delay - incubation period (days)",
-        ylabel = "Density")
-)
-
-# The mass below zero is the probability that the reporting delay is shorter than the incubation period.
-
-cdf(z_dist, 0.0)
-
 # ## Composing on multiple distributions
 #
-# A [`Convolved`](@ref ConvolvedDistributions.Convolved) distribution is itself a `UnivariateDistribution`, so it can be a component of another [`convolved`](@ref) call, or one side of a [`difference`](@ref).
+# A [`Convolved`](@ref ConvolvedDistributions.Convolved) distribution is itself a `UnivariateDistribution`, so it can be a component of another [`convolved`](@ref) call.
 # Here the two-stage delay `d` gains an Exponential processing stage, built once by nesting (`convolved(d, processing)`) and once flat from the three leaves.
 
 processing = Exponential(2.0)
@@ -105,23 +82,6 @@ draw(
 # The quadrature folds the flat component tuple recursively, so the two forms evaluate the same integral; the moments are exact component sums either way.
 
 mean(total_nested), mean(total_flat)
-
-# The same composition applies to differences: the signed gap between the two-stage delay and a single Gamma delay is one call, with the `Convolved` as the minuend.
-
-gap = difference(d, Gamma(2.5, 1.0))
-zg = -8.0:0.25:12.0
-gap_df = DataFrame(z = zg, density = pdf.(gap, zg))
-draw(
-    data(gap_df) *
-    mapping(:z, :density) *
-    visual(Lines, linewidth = 2);
-    axis = (xlabel = "Two-stage delay - single delay (days)",
-        ylabel = "Density")
-)
-
-# The mass below zero is the probability that the two-stage delay resolves before the single delay.
-
-cdf(gap, 0.0)
 
 # ## Analytic and numeric solvers agree
 #
@@ -183,38 +143,11 @@ draw(
 
 # The truncated density is zero beyond the cutoff and sits above the untruncated density below it, since the removed tail mass is redistributed over the kept region.
 
-# ## Timeseries convolution
-#
-# The timeseries form `convolve_series` convolves a numeric series with a delay PMF on the unit lag grid.
-# The delay here is discrete, so its PMF reads straight off `pdf.(delay, 0:maxlag)`; wrapping it in a `DelayPMF` builds it once for reuse across many series.
-# With the series an expected infection curve, the result is the expected downstream count curve, the renewal-style observation layer.
-
-t = 0:40
-infections = 100 .* exp.(-((t .- 12.0) .^ 2) ./ 30.0)
-maxlag = length(infections) - 1
-delay_masses = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
-delay_pmf = ConvolvedDistributions.DelayPMF(delay_masses, 1.0)
-expected = convolve_series(delay_pmf, infections)
-
-timeseries_df = vcat(
-    DataFrame(t = t, count = infections, Series = "Infections"),
-    DataFrame(t = t, count = expected, Series = "Expected reports")
-)
-draw(
-    data(timeseries_df) *
-    mapping(:t, :count, color = :Series) *
-    visual(Lines, linewidth = 2);
-    axis = (xlabel = "Day", ylabel = "Expected count")
-)
-
-# The report curve is shifted right by the mean total delay and is flatter than the infection curve, because convolution smears each day's infections across the delay distribution.
-# Mass delayed beyond the series window is truncated rather than renormalised, so the report curve carries slightly less total mass.
-
 # ## Summary
 #
 # - Convolving two delays shifts and widens the density; the batched `pdf` and `cdf` methods evaluate a grid in one quadrature solve.
-# - [`difference`](@ref) has two-sided support and its mass below zero is directly interpretable as an ordering probability.
-# - Combinations compose: a [`Convolved`](@ref ConvolvedDistributions.Convolved) can be a component of another convolution or one side of a difference, and a nested convolution matches its flat equivalent.
+# - A [`Convolved`](@ref ConvolvedDistributions.Convolved) can be a component of another convolution, and a nested convolution matches its flat equivalent.
 # - Forcing the [`NumericSolver`](@ref) on an analytic pair reproduces the closed-form CDF to a few parts in a million.
 # - `truncated` composes with a [`Convolved`](@ref ConvolvedDistributions.Convolved) distribution for scoring under right truncation.
-# - The timeseries form turns an infection curve into an expected count curve through the discretised delay PMF.
+#
+# See also: [The difference of two delays](@ref difference-distributions), [Convolving a timeseries](@ref timeseries-convolution).

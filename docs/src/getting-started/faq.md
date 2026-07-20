@@ -33,7 +33,7 @@ gap = difference(d, Gamma(2.5, 1.0))
 mean(nested) ≈ mean(flat), cdf(nested, 8.0) ≈ cdf(flat, 8.0), mean(gap)
 ```
 
-The [Getting started](@ref getting-started) walkthrough and the [Visualising convolutions](@ref visualising-convolutions) tutorial show nesting in more detail.
+The [Getting started](@ref getting-started) walkthrough and the [Convolving distributions](@ref convolving-distributions) and [The difference of two delays](@ref difference-distributions) tutorials show nesting in more detail.
 
 ## Why is the package called ConvolvedDistributions when it also has `difference` and `product`?
 
@@ -133,7 +133,7 @@ It operates on plain `Distributions.jl` univariate distributions and knows nothi
 
 ## How can I run the tutorial notebooks?
 
-The tutorials (for example `docs/src/getting-started/tutorials/visualising-convolutions.md`) are built from Literate.jl scripts.
+The tutorials (for example `docs/src/getting-started/tutorials/convolving-distributions.md`) are built from Literate.jl scripts.
 You have two options:
 
 **Option 1: Copy and paste (easiest)**
