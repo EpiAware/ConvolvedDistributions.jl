@@ -6,14 +6,30 @@
   censoring choice this package does not make; CensoredDistributions.jl
   owns primary and interval censoring, including double-interval-censored
   masses. `convolve_series` still accepts a `DiscreteUnivariateDistribution`
-  directly, and still accepts a caller-supplied PMF — as a plain vector or
-  wrapped in `DelayPMF(masses, interval)` for reuse — for a continuous
+  directly, and still accepts a caller-supplied PMF for a continuous
   delay's masses, whoever builds them.
   Migration: replace `discretise_pmf(delay, maxlag; interval)` with masses
   built by CensoredDistributions.jl (or your own CDF-difference
-  computation), then `convolve_series(masses, series)` or
-  `ConvolvedDistributions.DelayPMF(masses, interval)`.
+  computation), then `convolve_series(masses, series)`.
   Closes [#68](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/68).
+
+- **`DelayPMF` is removed.** `convolve_series` accepts a caller-supplied
+  PMF either as a plain `AbstractVector` (the unit grid) or as a
+  `DiscreteNonParametric` (support = the delay's lag grid, regularly
+  spaced and starting at `0`; probabilities = the masses) for a coarser
+  grid, replacing `DelayPMF`'s separate `interval` field.
+  `DiscreteNonParametric` is already ModifiedDistributions' discrete-delay
+  type, so this is the same vocabulary across the org rather than a
+  bespoke wrapper.
+  Migration: replace `DelayPMF(masses, 1.0)` with `masses` passed
+  directly, and `DelayPMF(masses, interval)` for `interval != 1` with
+  `DiscreteNonParametric(0:interval:(interval * (length(masses) - 1)),
+  masses)` — note that, unlike `DelayPMF`, `DiscreteNonParametric`
+  enforces a genuine probability vector (`sum(masses) ≈ 1`) at
+  construction, so a window-truncated or otherwise sub-normalised
+  `DelayPMF` migrates to the plain-vector form instead, regardless of
+  its grid width.
+  Closes [#79](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/79).
 
 ## 0.2.0
 
