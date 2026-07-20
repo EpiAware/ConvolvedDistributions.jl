@@ -23,8 +23,14 @@ jobs:
 
   downgrade-compat:
     uses: EpiAware/.github/.github/workflows/downgrade.yml@6fcdcde033ec670ac3832b239427fd2ded591bbc
-    # 1.11 not the workflow's 1.10 default while the unregistered kit is
-    # pinned via [sources] in the test envs (EpiAwarePackageTools#115).
+    # '1' not '1.11': on a Dependabot-authored PR, julia-runtest force-latests
+    # every un-floored compat entry (downgrade.yml's `mode: deps` only floors
+    # the root Project.toml, not test/Project.toml, where JET lives). JET's
+    # wide "0.9, 0.10, 0.11" compat then force-latests to 0.11, whose
+    # PrecompileTools >=1.3.2 requirement needs a newer Julia than 1.11 --
+    # still >= 1.11 so [sources] resolution keeps working
+    # (EpiAwarePackageTools#115). Mirrors ModifiedDistributions.jl#92 and
+    # DistributionsInference.jl's downgrade-compat config.
     with:
-      julia_version: '1.11'
+      julia_version: '1'
     secrets: inherit  # pragma: allowlist secret
