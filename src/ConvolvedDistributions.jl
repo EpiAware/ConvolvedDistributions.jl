@@ -40,7 +40,8 @@ import Base: minimum, maximum
 using Distributions: Distributions, UnivariateDistribution,
                      ContinuousUnivariateDistribution,
                      DiscreteUnivariateDistribution, Continuous,
-                     Exponential, Gamma, LogNormal, Normal, scale, quantile
+                     Exponential, Gamma, LogNormal, Normal, Uniform, Weibull,
+                     scale, shape, meanlogx, stdlogx, quantile, partype
 
 using LogExpFunctions: log1mexp
 
@@ -49,10 +50,15 @@ using LogExpFunctions: log1mexp
 # AD-safe evaluation hooks are the sanctioned extension points wrapper
 # packages overload for their own component types (their Gamma methods carry
 # the analytic gamma-CDF derivative rules on every supported backend).
+# `_gamma_cdf` is the AD-safe regularised-lower-incomplete-gamma evaluator
+# the native Gamma/Weibull analytic-pair closed forms route through
+# (src/analytic_pairs.jl), so their shape-parameter derivatives carry the
+# same per-backend rules as the rest of the package.
 using EpiAwareADTools: primal, primal_distribution, pdf_ad_safe,
-                       cdf_ad_safe, ccdf_ad_safe
+                       cdf_ad_safe, ccdf_ad_safe, _gamma_cdf
 
 import FastGaussQuadrature  # Gauss-Legendre nodes for the default solver
+import SpecialFunctions     # gamma() for the native analytic-pair closed forms
 
 # DocStringExtensions symbols for the @template conventions registered by
 # src/docstrings.jl (all module-scope using/import live in this file,
@@ -81,6 +87,9 @@ include("solvers.jl")
 # The abstract family supertype `Convolved`/`Difference` subtype, carrying
 # the documented interface contract (verified by `TestUtils`).
 include("interface.jl")
+# The analytic-pair registry (#77) and the Distributions-native closed forms
+# it hosts. Before Convolved.jl, which consults it from cdf/logcdf.
+include("analytic_pairs.jl")
 include("Convolved.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.

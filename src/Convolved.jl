@@ -264,6 +264,72 @@ function _maybe_analytic(d::Convolved)
     return _analytic_convolution(d.components)
 end
 
+# ---------------------------------------------------------------------------
+# Registered analytic-pair CDF (#77)
+# ---------------------------------------------------------------------------
+#
+# A second, separate analytic fast path alongside `_maybe_analytic` above:
+# `register_analytic_pair!` (src/analytic_pairs.jl) supplies a closed-form
+# CDF only, not a full `Distributions.convolve`-style Distribution (most
+# registrable pairs -- a delay convolved with a window-restricted `Uniform`
+# primary event -- have no named resulting distribution), so it cannot
+# extend `_analytic_convolution`'s pairwise fold and is consulted
+# separately, from the cdf/logcdf paths only. Scoped to exactly two
+# components -- the shape every registrable pair here takes -- so a
+# three-or-more-component convolution keeps using the existing pairwise
+# analytic fold / numeric quadrature untouched.
+
+# The registered analytic-pair entry for `d`'s two components, or `nothing`
+# when unregistered, when `d.method` is a `NumericSolver`, or when `d` does
+# not have exactly two components. Shared by the scalar and batched
+# cdf/logcdf paths below.
+function _analytic_pair_entry(d::Convolved)
+    d.method isa NumericSolver && return nothing
+    length(d.components) == 2 || return nothing
+    delay, primary = d.components
+    return _registered_analytic_pair(typeof(delay), typeof(primary))
+end
+
+# Call a registered entry's closed-form CDF and coerce the result to a type
+# wide enough to hold it. `entry.cdf_fn` is read out of a heterogeneous
+# registry as an abstract `Function` (the registry holds entries for
+# arbitrarily many different concrete closed forms), so the call itself
+# infers only as `Any`; every branch of `cdf`/`logcdf` (see below) has to
+# agree on a concrete return type regardless of which branch actually runs
+# for a given `d` (`_registered_cdf`'s callee is never statically prunable,
+# since the registry is mutable global state), so leaving this `Any` would
+# make `cdf`/`logcdf` uninferable even for a `Convolved` whose components
+# are not a registered pair at all.
+#
+# `T` is `promote_type`d from `partype` of both components and `x`'s own
+# type (mirrors the `promote_type` pattern already used for the numeric
+# quadrature paths, e.g. `_convolved_numeric_pdf_batched`), predicting the
+# type a fully-tracked evaluation should produce. That prediction does not
+# always match `entry.cdf_fn`'s ACTUAL runtime type under ReverseDiff:
+# every formula in `analytic_pairs.jl` builds its result from a mix of
+# `TrackedReal`s and plain constants (window endpoints, the `zero(...)`
+# taken on one side of the `q <= 0` boundary in each of the three native
+# pairs), and ReverseDiff's tracked reals detach from their originating
+# tape on a constant (a `TrackedReal` with a `Nothing` origin, since a
+# constant has no gradient to record) -- so the returned value can carry a
+# `Nothing`-origin type rather than the input's tape-carrying one at BOTH
+# boundary and non-boundary evaluation points (confirmed by inspecting the
+# raw pre-conversion return type directly), even though every case
+# represents the same, numerically correct value. A type ASSERTION
+# (`value::T`) demands an exact match and throws on that mismatch;
+# `convert(T, value)::T` instead performs the actual widening/coercion
+# `T`'s own `convert` method defines (a plain zero promotes cleanly into a
+# Dual/TrackedReal with a zero-derivative, precisely the correct value for
+# a branch whose result does not depend on the differentiated parameter)
+# and the trailing `::T` still narrows inference to `T`, so both
+# inferability and the ReverseDiff tracer-detachment mismatch are handled
+# together.
+function _registered_cdf(entry::_AnalyticPairEntry, d::Convolved, x::Real)
+    T = promote_type(
+        float(typeof(x)), partype(d.components[1]), partype(d.components[2]))
+    return convert(T, entry.cdf_fn(d.components[1], d.components[2], x))::T
+end
+
 # Fraction of probability trimmed from each tail of an unbounded
 # integration component when clamping an infinite quadrature window.
 const _CONVOLVED_TAIL = 1e-8
@@ -579,8 +645,10 @@ end
 
 Compute the cumulative distribution function.
 
-Uses an analytical convolution when `Distributions.convolve` applies to
-all component pairs, otherwise AD-safe numeric quadrature.
+Uses an analytical convolution when `Distributions.convolve` applies to all
+component pairs, then a [`register_analytic_pair!`](@ref)-registered
+closed-form CDF for the two-component case, otherwise AD-safe numeric
+quadrature.
 
 See also: [`logcdf`](@ref)
 "
@@ -588,6 +656,10 @@ function cdf(d::Convolved, x::Real)
     analytic = _maybe_analytic(d)
     if analytic !== nothing
         return cdf(analytic, x)
+    end
+    entry = _analytic_pair_entry(d)
+    if entry !== nothing
+        return _registered_cdf(entry, d, x)
     end
     return _convolved_numeric_cdf(d, x)
 end
@@ -602,6 +674,11 @@ function logcdf(d::Convolved, x::Real)
     analytic = _maybe_analytic(d)
     if analytic !== nothing
         return logcdf(analytic, x)
+    end
+    entry = _analytic_pair_entry(d)
+    if entry !== nothing
+        c = _registered_cdf(entry, d, x)
+        return c <= 0 ? oftype(float(c), -Inf) : log(c)
     end
     c = _convolved_numeric_cdf(d, x)
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
@@ -680,6 +757,10 @@ function cdf(d::Convolved, x::AbstractVector{<:Real})
     analytic = _maybe_analytic(d)
     if analytic !== nothing
         return map(xi -> cdf(analytic, xi), x)
+    end
+    entry = _analytic_pair_entry(d)
+    if entry !== nothing
+        return map(xi -> _registered_cdf(entry, d, xi), x)
     end
     return _convolved_numeric_cdf_batched(d, x)
 end

@@ -25,6 +25,7 @@ Additions and improvements:
 - `cdf`/`pdf` no longer throw on distributions whose components are themselves composites (for example a `difference` of two `Convolved` totals): composite integration windows recurse over the nested components with union-bound tail trims (#45).
 - The batched `cdf`/`pdf`/`logpdf` methods now differentiate: AD tracers on component parameters survive the final convert (#43), ReverseDiff works with respect to the evaluation points (the per-point assembly no longer mutates tracked storage) (#44), and batched-path AD scenarios run on all six backend tags in CI.
 - Numeric quadrature windows are split at the integration component's quantiles, so node density follows its mass: heavy-tailed components no longer starve the transition region (worst measured case, a `Gamma` x `LogNormal(0, 1.5)` product CDF, improved from ~1.4e-2 absolute error to ~5e-11) and most scalar paths got slightly faster (#49).
+- `register_analytic_pair!` adds a load-order-safe registry mapping a `(delay_type, primary_type)` component pair to a closed-form convolution CDF, consulted by `cdf`/`logcdf` on a two-component `Convolved` ahead of the numeric quadrature fallback (mirrors the plain-data extension pattern from ComposedDistributions#189/#216, so downstream packages can register from their own extension `__init__`). Ships with the three uniform-window primary-censored closed forms built only from Distributions.jl-native families: `Gamma`+`Uniform`, `LogNormal`+`Uniform`, `Weibull`+`Uniform` (#77).
 
 ## 0.1.0
 

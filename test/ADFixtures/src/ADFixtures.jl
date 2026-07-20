@@ -20,7 +20,7 @@ __precompile__(false)
 
 using ConvolvedDistributions
 using Distributions: Distributions, Gamma, LogNormal, Normal, Poisson,
-                     mean, var, logpdf
+                     Uniform, Weibull, mean, var, logpdf, cdf, logcdf
 using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
                AutoMooncakeForward, AutoEnzyme
 using DifferentiationInterface: DifferentiationInterface, Constant
@@ -145,6 +145,34 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             mean(d) + var(d)
         end,
         [2.0, 1.5, -0.5, 0.8], (Constant(obs),))
+
+    # Registered analytic-pair CDF (#77): `AnalyticalSolver` is the default,
+    # so these three exercise `register_analytic_pair!`'s closed forms
+    # (Gamma/LogNormal/Weibull + Uniform) via `cdf`/`logcdf` rather than
+    # `logpdf` (the registry supplies only a CDF, see src/analytic_pairs.jl).
+    # `entry.cdf_fn` is read out of the registry as an abstract `Function`,
+    # so this is the one code path in the package where the differentiated
+    # call is genuinely dynamically dispatched -- the scenario this matrix
+    # exists to catch a regression on.
+    cdf_obs = [0.5, 1.5, 3.0]
+    _push!("Convolved Gamma+Uniform analytic-pair logcdf",
+        (θ, xs) -> sum(x -> logcdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
+            xs),
+        [2.0, 1.5], (Constant(cdf_obs),))
+    _push!("Convolved LogNormal+Uniform analytic-pair logcdf",
+        (θ, xs) -> sum(
+            x -> logcdf(convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), x), xs),
+        [1.5, 0.5], (Constant(cdf_obs),))
+    _push!("Convolved Weibull+Uniform analytic-pair logcdf",
+        (θ, xs) -> sum(x -> logcdf(convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), x),
+            xs),
+        [1.5, 2.0], (Constant(cdf_obs),))
+    # Batched cdf through the same registered pair (scalar and batched paths
+    # route through the same `_registered_cdf`, but are separate `cdf`
+    # methods -- see src/Convolved.jl -- so both need a differentiated check).
+    _push!("Convolved Gamma+Uniform analytic-pair batched cdf",
+        (θ, xs) -> sum(cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), xs)),
+        [2.0, 1.5], (Constant(cdf_obs),))
 
     # Difference (Z = X - Y), the dual of Convolved. The analytic Normal-Normal
     # pair differentiates through the closed-form difference; the
