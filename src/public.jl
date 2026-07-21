@@ -20,6 +20,11 @@ public TestUtils
 # in the main module.
 public AbstractSolverMethod
 
+# Queryable evaluation path (#92): reports which route (`:analytic` or
+# `:numeric`) a Convolved/Difference/Product will take for its density and
+# CDF, without evaluating either, and the boolean convenience form.
+public evaluation_path, has_closed_form
+
 # Pluggable integration: the default solver, the entry point, and the
 # quadrature helper. `GaussLegendre` stays unexported to avoid clashing with
 # `Integrals.GaussLegendre` when both are loaded; the Integrals.jl extension
