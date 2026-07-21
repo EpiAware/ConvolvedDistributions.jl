@@ -109,6 +109,10 @@ and are future work.
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the default)
   or [`NumericSolver`](@ref). `NumericSolver` forces numeric quadrature
   even for a `LogNormal`-`LogNormal` pair, mirroring `convolved`.
+- `strict`: When `true`, error (naming the component families) rather
+  than silently return an object whose density/CDF would fall back to
+  quadrature. `false` by default. See [`evaluation_path`](@ref) to check
+  the route after construction instead of asserting it up front.
 
 # Returns
 - A [`Product`](@ref) distribution of the product `Z = X * Y`.
@@ -127,11 +131,16 @@ mean(d)
 - [`Product`](@ref): The distribution type
 - [`convolved`](@ref): The sum ``X + Y``
 - [`difference`](@ref): The signed gap ``X - Y``
+- [`evaluation_path`](@ref): Check the route without asserting it.
 "
 function product(x::UnivariateDistribution, y::UnivariateDistribution;
-        method::AbstractSolverMethod = AnalyticalSolver())
-    return Product(x, y; method = method)
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
+    return _check_strict(Product(x, y; method = method), strict)
 end
+
+# The component-family names for a `strict = true` construction error
+# (see `_check_strict` in interface.jl).
+_family_names(d::Product) = (nameof(typeof(d.x)), nameof(typeof(d.y)))
 
 # ---------------------------------------------------------------------------
 # Interface: params / support / sampling

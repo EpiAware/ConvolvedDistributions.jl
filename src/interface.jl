@@ -40,3 +40,73 @@ membership with `ConvolvedDistributions.TestUtils.test_abstract_membership`.
 "
 abstract type AbstractConvolvedDistribution{F <: Distributions.VariateForm,
     S <: Distributions.ValueSupport} <: Distributions.Distribution{F, S} end
+
+# ---------------------------------------------------------------------------
+# Queryable evaluation path (#92): no silent numeric fallback
+# ---------------------------------------------------------------------------
+#
+# `evaluation_path` and `has_closed_form` both delegate directly to
+# `_maybe_analytic` (defined per concrete type in Convolved.jl/
+# Difference.jl/Product.jl), the SAME function `pdf`/`logpdf`/`cdf`/... call
+# to decide their own analytic-vs-numeric branch. There is deliberately no
+# separate "does this have a closed form" computation here: querying and
+# evaluating share one source of truth, so the reported route cannot drift
+# from the executed one. Recursion through nesting falls out for free —
+# `_maybe_analytic`'s pairwise analytic-conversion dispatch (`_try_convolve`
+# etc.) only matches concrete leaf-distribution types, so a nested
+# `Convolved`/`Difference`/`Product` component (analytic or not) never
+# matches an analytic-pair rule and the outer combination reports
+# `:numeric`, exactly mirroring what evaluation actually does.
+
+@doc "
+
+Report which route `d` will take for its density and CDF, without
+evaluating either: `:analytic` for the exact closed form, `:numeric` for
+Gauss-Legendre quadrature.
+
+Recurses through nesting: a combination with any non-analytic component
+(including a nested [`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref)
+using [`NumericSolver`](@ref), or one with no matching closed form)
+reports `:numeric`, since evaluating it does fall back to quadrature
+somewhere in the recursion.
+
+The internal `pdf`/`logpdf`/`cdf`/... methods branch on the exact same
+underlying check this function reports, so the answer cannot drift from
+what evaluation actually does.
+
+# See also
+- [`has_closed_form`](@ref): the boolean convenience form.
+"
+evaluation_path(d::AbstractConvolvedDistribution) = _maybe_analytic(d) === nothing ?
+                                                    :numeric : :analytic
+
+@doc "
+
+Whether `d` has an exact closed form for its density and CDF —
+`evaluation_path(d) === :analytic`.
+
+# See also
+- [`evaluation_path`](@ref): the full `:analytic`/`:numeric` predicate.
+"
+has_closed_form(d::AbstractConvolvedDistribution) = evaluation_path(d) === :analytic
+
+# The component-family names named in a `strict = true` construction
+# error, one method per concrete type (each knows its own fields):
+# `_family_names(d::Convolved)` in Convolved.jl, `_family_names(d::Difference)`
+# in Difference.jl, `_family_names(d::Product)` in Product.jl.
+
+# Shared strict-construction check: called by each type's outer
+# constructor function (`convolved`/`difference`/`product`) after
+# building `d`. Errors, naming the component families, rather than
+# silently returning an object that would fall back to quadrature —
+# `strict = true` promises an exact route (#92), so a forced numeric
+# route (whether from a mismatched family pair or an explicit
+# `NumericSolver`) breaks that promise equally.
+function _check_strict(d::AbstractConvolvedDistribution, strict::Bool)
+    strict || return d
+    evaluation_path(d) === :analytic && return d
+    throw(ArgumentError(
+        "$(nameof(typeof(d)))(...; strict = true) requires an exact " *
+        "closed form, but no analytic route exists for components " *
+        "$(_family_names(d)); pass strict = false to allow quadrature"))
+end
