@@ -84,6 +84,10 @@ distribution.
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the default)
   or [`NumericSolver`](@ref). `NumericSolver` forces numeric quadrature
   even when an analytic convolution is available.
+- `strict`: When `true`, error (naming the component families) rather
+  than silently return an object whose density/CDF would fall back to
+  quadrature. `false` by default. See [`evaluation_path`](@ref) to check
+  the route after construction instead of asserting it up front.
 
 # Returns
 - A [`Convolved`](@ref) distribution of the sum of the components.
@@ -108,28 +112,34 @@ cdf_numeric = cdf(dn, 2.0)
 
 # See also
 - [`Convolved`](@ref): The distribution type
+- [`evaluation_path`](@ref): Check the route without asserting it.
 "
 function convolved(
         components::AbstractVector{<:UnivariateDistribution};
-        method::AbstractSolverMethod = AnalyticalSolver())
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
     length(components) >= 2 ||
         throw(ArgumentError("convolved needs at least two components"))
-    return Convolved(Tuple(components); method = method)
+    return _check_strict(Convolved(Tuple(components); method = method), strict)
 end
 
 function convolved(
         c1::UnivariateDistribution, c2::UnivariateDistribution,
         rest::UnivariateDistribution...;
-        method::AbstractSolverMethod = AnalyticalSolver())
-    return Convolved((c1, c2, rest...); method = method)
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
+    return _check_strict(
+        Convolved((c1, c2, rest...); method = method), strict)
 end
 
 function convolved(components::Tuple;
-        method::AbstractSolverMethod = AnalyticalSolver())
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
     length(components) >= 2 ||
         throw(ArgumentError("convolved needs at least two components"))
-    return Convolved(components; method = method)
+    return _check_strict(Convolved(components; method = method), strict)
 end
+
+# The component-family names for a `strict = true` construction error
+# (see `_check_strict` in interface.jl).
+_family_names(d::Convolved) = nameof.(typeof.(d.components))
 
 # ---------------------------------------------------------------------------
 # Interface: params / support / sampling

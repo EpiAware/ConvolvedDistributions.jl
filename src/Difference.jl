@@ -95,6 +95,10 @@ non-negative delay leaf (see [`Difference`](@ref)).
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the default)
   or [`NumericSolver`](@ref). `NumericSolver` forces numeric quadrature
   even for a `Normal`-`Normal` pair, mirroring `convolved`.
+- `strict`: When `true`, error (naming the component families) rather
+  than silently return an object whose density/CDF would fall back to
+  quadrature. `false` by default. See [`evaluation_path`](@ref) to check
+  the route after construction instead of asserting it up front.
 
 # Returns
 - A [`Difference`](@ref) distribution of the signed gap `Z = X - Y`.
@@ -111,11 +115,16 @@ mean(d)
 # See also
 - [`Difference`](@ref): The distribution type
 - [`convolved`](@ref): The dual sum ``X + Y``
+- [`evaluation_path`](@ref): Check the route without asserting it.
 "
 function difference(x::UnivariateDistribution, y::UnivariateDistribution;
-        method::AbstractSolverMethod = AnalyticalSolver())
-    return Difference(x, y; method = method)
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
+    return _check_strict(Difference(x, y; method = method), strict)
 end
+
+# The component-family names for a `strict = true` construction error
+# (see `_check_strict` in interface.jl).
+_family_names(d::Difference) = (nameof(typeof(d.x)), nameof(typeof(d.y)))
 
 # ---------------------------------------------------------------------------
 # Interface: params / support / sampling
