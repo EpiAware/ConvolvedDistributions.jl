@@ -163,6 +163,20 @@ end
                 @test cdf_val >= prev_cdf - 1e-9
                 prev_cdf = cdf_val
             end
+
+            # Broadcast-batched evaluation must agree with the scalar path
+            # point-by-point, including at the grid's own ends (mirrors the
+            # same check for Convolved above). Difference has no dedicated
+            # batched method the way Convolved does, so `pdf.(d, grid)`
+            # goes through the ordinary scalar `pdf` per element rather
+            # than a shared-quadrature-grid implementation; kept anyway as
+            # a broadcast-dispatch regression guard, using the `.`-form so
+            # it does not hit Distributions.jl's deprecated bare
+            # `pdf(d, ::AbstractArray)` fallback.
+            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol=1e-8
+            @test isapprox(logpdf.(d, grid), [logpdf(d, x) for x in grid];
+                atol = 1e-6, rtol = 1e-4)
+            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol=1e-8
         end
     end
 end
@@ -233,6 +247,20 @@ end
                 @test cdf_val >= prev_cdf - 1e-9
                 prev_cdf = cdf_val
             end
+
+            # Broadcast-batched evaluation must agree with the scalar path
+            # point-by-point, including at the grid's own ends (mirrors the
+            # same check for Convolved above). Product has no dedicated
+            # batched method the way Convolved does, so `pdf.(d, grid)`
+            # goes through the ordinary scalar `pdf` per element rather
+            # than a shared-quadrature-grid implementation; kept anyway as
+            # a broadcast-dispatch regression guard, using the `.`-form so
+            # it does not hit Distributions.jl's deprecated bare
+            # `pdf(d, ::AbstractArray)` fallback.
+            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol=1e-8
+            @test isapprox(logpdf.(d, grid), [logpdf(d, x) for x in grid];
+                atol = 1e-6, rtol = 1e-4)
+            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol=1e-8
         end
     end
 end
