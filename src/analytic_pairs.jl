@@ -31,6 +31,28 @@
 # entry is looked up once per top-level `cdf`/`logcdf` call -- never inside
 # the per-node quadrature loop -- so it carries the same cost profile as
 # the `_try_convolve` dispatch it sits alongside.
+#
+# Why not multiple dispatch on wrapper types (e.g. a `struct
+# AnalyticalConvolved <: Convolved` per registered pair) instead of a data
+# registry? That alternative was considered for #77 and rejected for the
+# same reason logged above: it would add a new dispatch `Method` on a
+# shared generic function every time a downstream package registers a pair
+# from its own `__init__`, growing that method table from inside a call
+# Enzyme's and Mooncake's rule caches sit on top of. `_try_convolve` gets
+# away with real dispatch because it is a closed set, defined once in this
+# module at compile time, with no extension registering into it later. The
+# registry instead adds a row of plain data; a lookup costs a linear scan
+# over a handful of entries, not a call into a growing method table.
+#
+# Extending beyond `cdf`/`logcdf` -- e.g. a closed-form `pmf` for some
+# future discrete pair -- follows the same shape: a second, independent
+# `_PMF_PAIR_REGISTRY` plus a `register_analytic_pmf_pair!`, consulted only
+# from the `pdf`/`logpdf` path, exactly as this registry is consulted only
+# from `cdf`/`logcdf`. Not built here -- no such closed form exists yet in
+# this package or its known extensions -- but the plain-data pattern
+# generalises to it without touching `Convolved`'s dispatch on
+# `mean`/`var`/`rand`, which keep using their existing analytic-distribution
+# or numeric-quadrature paths regardless of what is registered here.
 
 # Plain-data registry entry. Kept a `struct`, not a `NamedTuple`, so the
 # vector element type stays concrete and `filter!`/`push!` need no type
