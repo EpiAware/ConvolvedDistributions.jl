@@ -23,10 +23,10 @@ module TestUtils
 
 using Test: Test, @test, @testset
 
-using Distributions: Distributions, logpdf, params
+using Distributions: Distributions, cdf, logcdf, logpdf, params, pdf
 
 using ..ConvolvedDistributions: AbstractConvolvedDistribution, Convolved,
-                                Difference, Product
+                                Difference, Product, _maybe_analytic
 
 @doc "
 
@@ -47,6 +47,35 @@ function test_convolved_interface(
         @test params(d) isa Tuple
         @test isfinite(logpdf(d, x))
         @test !isempty(sprint(show, d))
+    end
+end
+
+@doc "
+
+Assert that a combination reporting the analytic evaluation path does not
+touch the quadrature machinery: `pdf`/`logpdf`/`cdf`/`logcdf` at `x` match
+the underlying closed-form distribution's own values exactly (`===`, not
+just `≈`), rather than merely agreeing with it to within a numerical
+tolerance a quadrature computation could also hit by coincidence.
+
+A no-op when `d` has no closed form (nothing is asserted), so it can be
+called unconditionally in a sweep over both analytic and numeric cases.
+Returns the `@testset` object.
+
+# See also
+- `ConvolvedDistributions.evaluation_path`: the queryable predicate this
+  guards (#92).
+"
+function test_analytic_skips_quadrature(
+        d; name::AbstractString = string(nameof(typeof(d))), x::Real = 1.0)
+    return @testset "analytic path skips quadrature: $name" begin
+        analytic = _maybe_analytic(d)
+        if analytic !== nothing
+            @test pdf(d, x) === pdf(analytic, x)
+            @test logpdf(d, x) === logpdf(analytic, x)
+            @test cdf(d, x) === cdf(analytic, x)
+            @test logcdf(d, x) === logcdf(analytic, x)
+        end
     end
 end
 
