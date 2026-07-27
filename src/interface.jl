@@ -74,6 +74,19 @@ The internal `pdf`/`logpdf`/`cdf`/... methods branch on the exact same
 underlying check this function reports, so the answer cannot drift from
 what evaluation actually does.
 
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+# Normal + Normal has an analytic convolution
+d = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
+evaluation_path(d)
+
+# Gamma + LogNormal has no analytic convolution
+dn = convolved(Gamma(2.0, 1.0), LogNormal(1.5, 0.5))
+evaluation_path(dn)
+```
+
 # See also
 - [`has_closed_form`](@ref): the boolean convenience form.
 "
@@ -84,6 +97,14 @@ evaluation_path(d::AbstractConvolvedDistribution) = _maybe_analytic(d) === nothi
 
 Whether `d` has an exact closed form for its density and CDF —
 `evaluation_path(d) === :analytic`.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+d = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
+has_closed_form(d)
+```
 
 # See also
 - [`evaluation_path`](@ref): the full `:analytic`/`:numeric` predicate.
