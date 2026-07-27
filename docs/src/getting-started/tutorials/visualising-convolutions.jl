@@ -186,15 +186,14 @@ draw(
 # ## Timeseries convolution
 #
 # The timeseries form `convolve_series` convolves a numeric series with a delay PMF on the unit lag grid.
-# The delay here is discrete, so its PMF reads straight off `pdf.(delay, 0:maxlag)`; wrapping it in a `DelayPMF` builds it once for reuse across many series.
+# The delay here is discrete, so its PMF reads straight off `pdf.(delay, 0:maxlag)` and `convolve_series` accepts the masses directly as a plain vector.
 # With the series an expected infection curve, the result is the expected downstream count curve, the renewal-style observation layer.
 
 t = 0:40
 infections = 100 .* exp.(-((t .- 12.0) .^ 2) ./ 30.0)
 maxlag = length(infections) - 1
 delay_masses = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
-delay_pmf = ConvolvedDistributions.DelayPMF(delay_masses, 1.0)
-expected = convolve_series(delay_pmf, infections)
+expected = convolve_series(delay_masses, infections)
 
 timeseries_df = vcat(
     DataFrame(t = t, count = infections, Series = "Infections"),
