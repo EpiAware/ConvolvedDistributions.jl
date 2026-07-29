@@ -31,6 +31,19 @@
   its grid width.
   Closes [#79](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/79).
 
+### Other changes
+
+- **The `SurvivalDistributions` extension moved to EpiAwareADTools.jl.**
+  It held AD-safe `cdf`/`ccdf`/`logcdf`/`logccdf` methods for
+  `SurvivalDistributions.GeneralizedGamma`, which is AD-safety machinery
+  for a type this package does not own and has nothing to do with
+  convolution. EpiAwareADTools.jl now ships it as
+  `EpiAwareADToolsSurvivalDistributionsExt`, the shared home for exactly
+  this kind of fix.
+  No migration is needed: EpiAwareADTools.jl is already a hard dependency
+  and the compat floor is raised to the release carrying the extension, so
+  loading `SurvivalDistributions` gives the same methods as before.
+
 ## 0.2.0
 
 Breaking changes relative to 0.1.0, with migration notes:
