@@ -5,18 +5,19 @@
 # Mirrors the CensoredDistributions.jl family model: related concrete types
 # share one supertype, and the documented interface contract plus any shared
 # behaviour hang off the abstract. This package has a single family — the
-# algebraic combinations `Convolved`, `Difference`, and `Product` — so one
-# abstract type carries the contract that a future member (e.g. a min/max
-# order statistic) implements and `TestUtils.test_convolved_interface`
+# algebraic combinations `Convolved`, `Difference`, `Product`, and `Ratio` —
+# so one abstract type carries the contract that a future member (e.g. a
+# min/max order statistic) implements and `TestUtils.test_convolved_interface`
 # verifies.
 
 @doc "
 
 Supertype of the distributions of `X op Y` for independent components —
 the generalised convolutions. [`Convolved`](@ref) is the classical sum,
-[`Difference`](@ref) the reflected form (`Z = X - Y`), and
-[`Product`](@ref) the Mellin form (`Z = X * Y`); further operations
-(order statistics) fit the same family.
+[`Difference`](@ref) the reflected form (`Z = X - Y`), [`Product`](@ref)
+the Mellin form (`Z = X * Y`), and [`Ratio`](@ref) the Mellin-quotient
+form (`Z = X / Y`); further operations (order statistics) fit the same
+family.
 
 Parametric on variate form and value support (`Distribution{F, S}`), so
 the univariate members keep their `UnivariateDistribution{Continuous}`
@@ -33,8 +34,8 @@ Verify a subtype with
 membership with `ConvolvedDistributions.TestUtils.test_abstract_membership`.
 
 # See also
-- [`Convolved`](@ref), [`Difference`](@ref),
-  [`Product`](@ref): the concrete members.
+- [`Convolved`](@ref), [`Difference`](@ref), [`Product`](@ref),
+  [`Ratio`](@ref): the concrete members.
 - `ConvolvedDistributions.TestUtils`: the interface verifiers for a new
   subtype.
 "
@@ -65,7 +66,8 @@ evaluating either: `:analytic` for the exact closed form, `:numeric` for
 Gauss-Legendre quadrature.
 
 Recurses through nesting: a combination with any non-analytic component
-(including a nested [`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref)
+(including a nested
+[`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref)/[`Ratio`](@ref)
 using [`NumericSolver`](@ref), or one with no matching closed form)
 reports `:numeric`, since evaluating it does fall back to quadrature
 somewhere in the recursion.
@@ -114,7 +116,8 @@ has_closed_form(d::AbstractConvolvedDistribution) = evaluation_path(d) === :anal
 # The component-family names named in a `strict = true` construction
 # error, one method per concrete type (each knows its own fields):
 # `_family_names(d::Convolved)` in Convolved.jl, `_family_names(d::Difference)`
-# in Difference.jl, `_family_names(d::Product)` in Product.jl.
+# in Difference.jl, `_family_names(d::Product)` in Product.jl,
+# `_family_names(d::Ratio)` in Ratio.jl.
 
 # Shared strict-construction check: called by each type's outer
 # constructor function (`convolved`/`difference`/`product`) after

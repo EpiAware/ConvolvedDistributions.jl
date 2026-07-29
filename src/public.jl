@@ -1,10 +1,12 @@
 # Public API declarations for Julia 1.11+ (public but not exported). These form
 # the surface ComposedDistributions re-exports downstream, so keep it clean.
 
-# Convolution / difference / product distribution types, and the multi-base
-# algebraic-combination family supertype they subtype. `Product` is public,
-# not exported, so it never clashes with Distributions' deprecated exported
-# `Product`; construct via the exported `product` verb.
+# Convolution / difference / product / ratio distribution types, and the
+# multi-base algebraic-combination family supertype they subtype. `Product`
+# is public, not exported, so it never clashes with Distributions' deprecated
+# exported `Product`; construct via the exported `product` verb. `Ratio` is
+# exported directly (`Distributions` exports no `Ratio`), so it needs no
+# `public` declaration here.
 public Convolved, Product, AbstractConvolvedDistribution
 
 # Interface-contract verifiers (`TestUtils.test_convolved_interface`,
@@ -16,8 +18,8 @@ public TestUtils
 public AbstractSolverMethod
 
 # Queryable evaluation path (#92): reports which route (`:analytic` or
-# `:numeric`) a Convolved/Difference/Product will take for its density and
-# CDF, without evaluating either, and the boolean convenience form.
+# `:numeric`) a Convolved/Difference/Product/Ratio will take for its density
+# and CDF, without evaluating either, and the boolean convenience form.
 public evaluation_path, has_closed_form
 
 # Pluggable integration: the default solver, the entry point, and the
