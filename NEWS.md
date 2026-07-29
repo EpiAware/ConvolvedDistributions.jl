@@ -31,6 +31,14 @@
   its grid width.
   Closes [#79](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/79).
 
+### Added
+
+- `ratio(x, y)` (exported type `Ratio`) adds the quotient `Z = X / Y` for independent components.
+  Closed forms cover zero-mean `Normal` / `Normal` (`Cauchy`), `Gamma` / `Gamma` (a scaled `BetaPrime`), and `Chisq` / `Chisq` (a scaled `FDist`), with an AD-safe branch-split Gauss-Legendre quadrature otherwise.
+  Unlike `product`, either component may have two-sided support; the denominator only needs to carry no probability mass at zero.
+  `mean`/`var`/`std` throw unless an analytic pair applies, since `E[X / Y] = E[X] E[1/Y]` needs an inverse moment of the denominator that this package does not compute and that need not exist.
+  Value support is `Continuous` unconditionally.
+
 ## 0.2.0
 
 Breaking changes relative to 0.1.0, with migration notes:

@@ -1,6 +1,6 @@
 # [Getting started](@id getting-started)
 
-`ConvolvedDistributions` builds the distribution of a sum (`X + Y`, a convolution), a signed gap (`X - Y`), or a product (`X * Y`) of independent random variables, for any pair of `Distributions.jl` univariate distributions.
+`ConvolvedDistributions` builds the distribution of a sum (`X + Y`, a convolution), a signed gap (`X - Y`), a product (`X * Y`), or a ratio (`X / Y`) of independent random variables, for any pair of `Distributions.jl` univariate distributions.
 Closed forms are used where they exist and an AD-safe Gauss-Legendre quadrature everywhere else, so the results can be scored, truncated, and differentiated inside a fitting loop.
 This page walks through the main entry points; the [Public API](@ref public-api) has the full interface.
 
@@ -96,6 +96,26 @@ scaled = product(d, LogNormal(0.0, 0.2))
 mean(scaled), mean(d)
 ```
 
+## Ratios
+
+`ratio` builds the quotient member: the distribution of `Z = X / Y` for independent `X` and `Y`, as when a rate, a proportion, or a normalised measurement is formed from two independent uncertain quantities.
+`Normal(0, σx)` / `Normal(0, σy)` uses the closed form (a `Cauchy`); `Gamma` / `Gamma` and `Chisq` / `Chisq` also have closed forms; everything else uses the numeric branch-split quadrature.
+Unlike `product`, either component may have two-sided support — the denominator only needs to avoid probability mass at zero.
+
+```@example getting-started
+r = ratio(Gamma(3.0, 1.0), Gamma(2.0, 1.0))
+mean(r), cdf(r, 2.0)
+```
+
+The sign-crossing headline pair — a `Ratio` of two zero-mean `Normal`s — matches its `Cauchy` closed form exactly, including when the numerator or denominator itself straddles zero.
+
+```@example getting-started
+rc = ratio(Normal(0.0, 2.0), Normal(0.0, 0.5))
+cdf(rc, 0.0), cdf(Cauchy(0.0, 4.0), 0.0)
+```
+
+`mean`/`var`/`std` throw unless an analytic pair applies: `E[X / Y] = E[X] E[1/Y]` needs an inverse moment of the denominator, which this package does not compute and which need not exist.
+
 ## Convolving a timeseries
 
 `convolve_series` causally convolves a numeric series with a delay PMF on the unit lag grid.
@@ -137,7 +157,7 @@ cdf(da, 2.0), cdf(dn, 2.0)
 
 ## Truncation and scoring
 
-`Convolved`, `Difference`, and `Product` compose with `Distributions.truncated`, so right-truncated (or doubly truncated) scoring works out of the box.
+`Convolved`, `Difference`, `Product`, and `Ratio` compose with `Distributions.truncated`, so right-truncated (or doubly truncated) scoring works out of the box.
 This is the usual pattern for fitting delay data observed up to a cut-off.
 
 ```@example getting-started
@@ -146,7 +166,7 @@ logpdf(td, 5.0)
 ```
 
 `Distributions.censored` composes the same way, clamping rather than renormalising: the kept region's density is unchanged and the trimmed tails become point masses at the bounds.
-This package adds no censoring machinery of its own — that stays [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl)'s job — but the generic wrapper works out of the box because `Convolved`, `Difference`, and `Product` implement the standard `UnivariateDistribution` interface.
+This package adds no censoring machinery of its own — that stays [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl)'s job — but the generic wrapper works out of the box because `Convolved`, `Difference`, `Product`, and `Ratio` implement the standard `UnivariateDistribution` interface.
 
 ```@example getting-started
 cd = censored(d, 0.0, 8.0)
@@ -170,7 +190,7 @@ length(rand(truncated(d, 0.0, 8.0), 100))
 ```
 
 Nothing else on this page needs the extension.
-`rand` on a bare `Convolved`, `Difference`, or `Product` samples the components directly.
+`rand` on a bare `Convolved`, `Difference`, `Product`, or `Ratio` samples the components directly.
 
 ## Gradients
 

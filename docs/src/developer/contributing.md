@@ -26,6 +26,8 @@ ConvolvedDistributions.jl/
 │   ├── interface.jl        # AbstractConvolvedDistribution family supertype
 │   ├── Convolved.jl        # convolved and the Convolved type
 │   ├── Difference.jl       # difference and the Difference type
+│   ├── Product.jl          # product and the Product type
+│   ├── Ratio.jl            # ratio and the Ratio type
 │   ├── convolve_with_vector.jl  # timeseries form of convolved
 │   ├── solvers.jl          # AnalyticalSolver / NumericSolver method types
 │   ├── integration.jl      # shared Gauss-Legendre quadrature layer
@@ -36,8 +38,8 @@ ConvolvedDistributions.jl/
 ├── test/
 │   ├── Project.toml        # Test environment
 │   ├── runtests.jl         # Main test entry (TestItemRunner)
-│   ├── distributions/      # Unit tests (Convolved, Difference, quantile,
-│   │                       # timeseries convolution)
+│   ├── distributions/      # Unit tests (Convolved, Difference, Product,
+│   │                       # Ratio, quantile, timeseries convolution)
 │   ├── integration/        # Quadrature-layer tests
 │   ├── package/            # Quality gates plus the family interface test
 │   ├── ad/                 # AD gradient harness (own environment)
@@ -106,7 +108,7 @@ task benchmark
 
 ### Test organisation
 
-- **Unit tests**: In `test/distributions/` (`Convolved.jl`, `Difference.jl`, `quantile.jl`, `convolve_with_vector.jl`) plus the quadrature-layer tests in `test/integration/`
+- **Unit tests**: In `test/distributions/` (`Convolved.jl`, `Difference.jl`, `Product.jl`, `Ratio.jl`, `quantile.jl`, `convolve_with_vector.jl`) plus the quadrature-layer tests in `test/integration/`
 - **Quality tests**: Located in `test/package/`, tagged `:quality`, alongside the family interface test (`interface.jl`)
 - **AD gradient tests**: Located in `test/ad/`, tagged `:ad`, with their own environment and dedicated per-backend CI
 
