@@ -150,4 +150,4 @@ draw(
 # - Forcing the [`NumericSolver`](@ref) on an analytic pair reproduces the closed-form CDF to a few parts in a million.
 # - `truncated` composes with a [`Convolved`](@ref ConvolvedDistributions.Convolved) distribution for scoring under right truncation.
 #
-# See also: [The difference of two delays](@ref difference-distributions), [Convolving a timeseries](@ref timeseries-convolution).
+# See also: [The difference of two delays](@ref difference-distributions), [The product of two delays](@ref product-distributions), [Convolving a timeseries](@ref timeseries-convolution).
