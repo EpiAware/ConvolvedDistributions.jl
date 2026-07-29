@@ -52,6 +52,13 @@ Product/
                         logpdf/cdf broadcast, rand, mean)
   numeric/             (same operations)
 
+Ratio/
+  analytic/            (construction, logpdf/cdf scalar,
+                        logpdf/cdf broadcast, rand, mean)
+  numeric/             (construction, logpdf/cdf scalar,
+                        logpdf/cdf broadcast, rand -- no mean row:
+                        the numeric pair has no closed-form moment)
+
 Timeseries/
   Gamma delay          (convolve_series(pmf, series), pmf precomputed)
   Convolved delay

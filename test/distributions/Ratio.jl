@@ -312,14 +312,28 @@ end
 @testitem "Ratio nested in another combination" begin
     using Distributions
 
-    # A well-behaved (non-negative numerator, strictly positive
-    # denominator -- `Gamma`'s own minimum is 0, not strictly positive,
-    # so a bounded-away-from-zero denominator such as `Uniform(1, 2)` is
-    # needed here) Ratio as the trailing (integration) component of an
-    # outer Convolved evaluates fine: its own `_window_quantile` never
-    # falls into the throwing branch.
-    ok = convolved(Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), Uniform(1.0, 2.0)))
+    # A well-behaved (non-negative numerator, non-negative denominator)
+    # Ratio as the trailing (integration) component of an outer
+    # Convolved evaluates fine: its own `_window_quantile` never falls
+    # into the throwing branch. This includes a denominator whose
+    # infimum is exactly zero (`Gamma`) -- `_check_denominator` already
+    # forbids mass sitting at zero, so the composite quantile bound is
+    # finite even though the denominator's support touches zero, and it
+    # covers the package's own registered analytic pairs.
+    ok = convolved(Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), Gamma(3.0, 1.0)))
     @test isfinite(cdf(ok, 2.0))
+
+    # A bounded-away-from-zero denominator also nests, as a narrower
+    # instance of the same non-negative regime.
+    ok2 = convolved(
+        Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), Uniform(1.0, 2.0)))
+    @test isfinite(cdf(ok2, 2.0))
+
+    # The workhorse numeric (non-analytic) pair nests too: the guard is
+    # about sign, not about whether an analytic pair applies.
+    ok3 = convolved(
+        Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), LogNormal(0.0, 1.0)))
+    @test isfinite(cdf(ok3, 2.0))
 
     # `_window_quantile(::Ratio, p)` is only reached when the Ratio is
     # the outer combination's trailing (integration) component: that is
@@ -336,4 +350,17 @@ end
     end
     @test err isa ArgumentError
     @test occursin("Normal", err.msg)
+
+    # A denominator reaching below zero throws even with a non-negative
+    # numerator: `Y` must be confined to `[0, Inf)`, not just avoid an
+    # atom at zero.
+    bad2 = convolved(
+        Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), Uniform(-1.0, 2.0)))
+    err2 = try
+        cdf(bad2, 2.0)
+    catch e
+        e
+    end
+    @test err2 isa ArgumentError
+    @test occursin("Uniform", err2.msg)
 end

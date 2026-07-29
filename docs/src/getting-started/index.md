@@ -116,6 +116,8 @@ cdf(rc, 0.0), cdf(Cauchy(0.0, 4.0), 0.0)
 
 `mean`/`var`/`std` throw unless an analytic pair applies: `E[X / Y] = E[X] E[1/Y]` needs an inverse moment of the denominator, which this package does not compute and which need not exist.
 
+A `Ratio` can itself be a component of another combination only when both its numerator and its denominator are non-negative: outside that regime the ratio's tails are Cauchy-like, so nesting it throws rather than silently narrowing the outer window (see the [FAQ](@ref faq)).
+
 ## Convolving a timeseries
 
 `convolve_series` causally convolves a numeric series with a delay PMF on the unit lag grid.

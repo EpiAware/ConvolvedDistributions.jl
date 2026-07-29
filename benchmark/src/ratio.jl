@@ -10,11 +10,16 @@
 # `_ratio_moment_source` in src/Ratio.jl — so only the analytic variant
 # gets a `mean` row.
 #
-# `ConvolvedDistributions.ratio` is qualified throughout this file:
-# `BenchmarkTools` exports its own `ratio` (trial-comparison helper),
-# and `benchmark/benchmarks.jl` loads both unqualified, so the bare name
-# is ambiguous here -- the one naming clash the design spec's `names(Base)`/
-# `names(Distributions)` check (src/Ratio.jl §3) did not anticipate.
+# `BenchmarkTools` exports its own `ratio` (trial-comparison helper), and
+# `benchmark/benchmarks.jl` loads both unqualified, so the bare name is
+# ambiguous here -- the one naming clash the design spec's `names(Base)`/
+# `names(Distributions)` check (src/Ratio.jl §3) did not anticipate. The
+# `const` below shadows the bare name with `ConvolvedDistributions.ratio`
+# for the rest of this file (and any file included after it in the same
+# benchmark run), so it is qualified once here rather than at every call
+# site; nothing else in this suite currently needs
+# `BenchmarkTools.ratio`, but a later file that does would silently pick
+# up the distribution constructor instead unless it re-qualifies.
 const ratio = ConvolvedDistributions.ratio
 
 SUITE["Ratio"] = BenchmarkGroup()

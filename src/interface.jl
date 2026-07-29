@@ -48,15 +48,16 @@ abstract type AbstractConvolvedDistribution{F <: Distributions.VariateForm,
 #
 # `evaluation_path` and `has_closed_form` both delegate directly to
 # `_maybe_analytic` (defined per concrete type in Convolved.jl/
-# Difference.jl/Product.jl), the SAME function `pdf`/`logpdf`/`cdf`/... call
-# to decide their own analytic-vs-numeric branch. There is deliberately no
-# separate "does this have a closed form" computation here: querying and
-# evaluating share one source of truth, so the reported route cannot drift
-# from the executed one. Recursion through nesting falls out for free —
-# `_maybe_analytic`'s pairwise analytic-conversion dispatch (`_try_convolve`
-# etc.) only matches concrete leaf-distribution types, so a nested
-# `Convolved`/`Difference`/`Product` component (analytic or not) never
-# matches an analytic-pair rule and the outer combination reports
+# Difference.jl/Product.jl/Ratio.jl), the SAME function `pdf`/`logpdf`/
+# `cdf`/... call to decide their own analytic-vs-numeric branch. There is
+# deliberately no separate "does this have a closed form" computation
+# here: querying and evaluating share one source of truth, so the
+# reported route cannot drift from the executed one. Recursion through
+# nesting falls out for free — `_maybe_analytic`'s pairwise
+# analytic-conversion dispatch (`_try_convolve` etc.) only matches
+# concrete leaf-distribution types, so a nested
+# `Convolved`/`Difference`/`Product`/`Ratio` component (analytic or not)
+# never matches an analytic-pair rule and the outer combination reports
 # `:numeric`, exactly mirroring what evaluation actually does.
 
 @doc "
@@ -120,8 +121,8 @@ has_closed_form(d::AbstractConvolvedDistribution) = evaluation_path(d) === :anal
 # `_family_names(d::Ratio)` in Ratio.jl.
 
 # Shared strict-construction check: called by each type's outer
-# constructor function (`convolved`/`difference`/`product`) after
-# building `d`. Errors, naming the component families, rather than
+# constructor function (`convolved`/`difference`/`product`/`ratio`)
+# after building `d`. Errors, naming the component families, rather than
 # silently returning an object that would fall back to quadrature —
 # `strict = true` promises an exact route (#92), so a forced numeric
 # route (whether from a mismatched family pair or an explicit

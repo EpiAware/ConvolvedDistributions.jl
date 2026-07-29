@@ -19,11 +19,10 @@ rejecting it (see *Density and CDF computation* below). The support of
 `Z` is the interval quotient of the component supports (division by an
 interval straddling zero gives all of ``\\mathbb{R}``).
 
-Value support is [`Continuous`](@ref Distributions.Continuous)
-unconditionally, including when both components are discrete: the ratio
-of two integer-valued variables is supported on the rationals, which is
-not a lattice, so a `Discrete` declaration could not honour the
-`pdf`-as-probability-mass contract.
+Value support is `Continuous` unconditionally, including when both
+components are discrete: the ratio of two integer-valued variables is
+supported on the rationals, which is not a lattice, so a `Discrete`
+declaration could not honour the `pdf`-as-probability-mass contract.
 
 # Independence
 
@@ -74,6 +73,18 @@ The `method` field selects the backend: an [`AnalyticalSolver`](@ref)
 (the default) uses the analytic ratio where one exists and falls back
 to quadrature otherwise, while a [`NumericSolver`](@ref) forces the
 numeric path even for an analytic pair (useful for validation).
+
+# Nesting
+
+A `Ratio` can be a component of another combination's numeric
+quadrature only when both the numerator and the denominator are
+non-negative (this includes the `Gamma`/`Gamma` and `Chisq`/`Chisq`
+analytic pairs and any non-negative numeric pair, but not the two-sided
+`Normal`/`Normal` pair). Outside that regime the ratio's tails are
+Cauchy-like, so no cheap effective-support bound is conservative and
+nesting throws an `ArgumentError` naming the offending component,
+rather than silently narrowing the outer window. Used as the outermost
+distribution, a `Ratio` has no such restriction.
 
 # See also
 - [`ratio`](@ref): Constructor function
@@ -527,29 +538,35 @@ end
 # ---------------------------------------------------------------------------
 
 # `Ratio` with a numerator confined to `[0, Inf)` and a denominator
-# confined to `(0, Inf)` is monotone (increasing in X, decreasing in Y),
+# confined to `[0, Inf)` is monotone (increasing in X, decreasing in Y),
 # so pairing `p` in the numerator with `1 - p` in the denominator bounds
 # the ratio quantile by a union bound, trimming at most
 # `2 * _CONVOLVED_TAIL` — the multiplicative analogue of
 # `_window_quantile(::Difference, p)` (subtraction pairs opposing tails;
-# division does the same). Outside that regime the tails are Cauchy-like
-# and no cheap quantile bound is conservative, so this throws rather than
-# silently corrupting an outer combination's window (only relevant when
-# `d` is nested as a component of another combination's numeric
-# quadrature; used as the outermost distribution it is unaffected).
+# division does the same). The denominator's infimum may be exactly
+# zero (e.g. `Gamma`, `Chisq`): `_check_denominator` already forbids any
+# probability mass sitting at zero, so `_window_quantile(d.y, 1 - p)`
+# for `p` bounded away from `1` is finite and strictly positive, and the
+# union bound still holds (it is only wider than the strictly-positive
+# case, never wrong). Outside `minimum(d.x) >= 0 && minimum(d.y) >= 0`
+# the tails are Cauchy-like and no cheap quantile bound is conservative,
+# so this throws rather than silently corrupting an outer combination's
+# window (only relevant when `d` is nested as a component of another
+# combination's numeric quadrature; used as the outermost distribution
+# it is unaffected).
 @noinline function _window_quantile(d::Ratio, p::Real)
-    (minimum(d.x) >= 0 && minimum(d.y) > 0) || _throw_ratio_window(d)
+    (minimum(d.x) >= 0 && minimum(d.y) >= 0) || _throw_ratio_window(d)
     return _window_quantile(d.x, p) / _window_quantile(d.y, 1 - p)
 end
 
 function _throw_ratio_window(d::Ratio)
     throw(ArgumentError(
         "a Ratio with numerator $(nameof(typeof(d.x))) reaching below " *
-        "zero, or denominator $(nameof(typeof(d.y))) reaching zero, " *
-        "has no cheap effective-support bound, so it cannot be a " *
+        "zero, or denominator $(nameof(typeof(d.y))) reaching below " *
+        "zero, has no cheap effective-support bound, so it cannot be a " *
         "component of another combination's numeric quadrature; use a " *
-        "non-negative numerator with a strictly positive denominator, " *
-        "or place the ratio outermost"))
+        "non-negative numerator with a non-negative denominator, or " *
+        "place the ratio outermost"))
 end
 
 # ---------------------------------------------------------------------------
