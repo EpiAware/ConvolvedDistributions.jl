@@ -265,6 +265,88 @@ end
     end
 end
 
+@testitem "Ratio log methods consistency across component families" begin
+    using Distributions
+
+    function consistency_grid(d; n = 12)
+        lo, hi = minimum(d), maximum(d)
+        interior = if isfinite(lo) && isfinite(hi)
+            collect(range(lo + 1e-6, hi - 1e-6; length = n))
+        elseif isfinite(lo)
+            collect(range(lo + 1e-6, lo + 15.0; length = n))
+        elseif isfinite(hi)
+            collect(range(hi - 15.0, hi - 1e-6; length = n))
+        else
+            collect(range(-10.0, 10.0; length = n))
+        end
+        return vcat(interior[1], interior, interior[end])
+    end
+
+    cases = [
+        "Normal/Normal (analytic, sign-crossing)" => ratio(
+            Normal(0.0, 2.0), Normal(0.0, 0.5)),
+        "Gamma/Gamma (analytic)" => ratio(Gamma(2.0, 1.5), Gamma(3.0, 0.5)),
+        "Gamma/LogNormal (numeric)" => ratio(
+            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+        "LogNormal/Uniform(0, 2) (numeric, zero-touching denominator)" =>
+            ratio(LogNormal(0.5, 0.4), Uniform(0.0, 2.0)),
+        "Ratio of a Convolved numerator (deeper nesting)" => ratio(
+            convolved(Gamma(2.0, 1.0), Uniform(0.0, 1.0)), Gamma(3.0, 1.0))
+    ]
+
+    for (name, d) in cases
+        @testset "$name" begin
+            grid = consistency_grid(d)
+
+            prev_cdf = -Inf
+            for x in grid
+                pdf_val = pdf(d, x)
+                logpdf_val = logpdf(d, x)
+                @test pdf_val >= 0.0
+                if pdf_val > 0
+                    @test logpdf_val≈log(pdf_val) rtol=1e-8
+                else
+                    @test logpdf_val == -Inf
+                end
+
+                cdf_val = cdf(d, x)
+                logcdf_val = logcdf(d, x)
+                if cdf_val > 0
+                    @test logcdf_val≈log(cdf_val) atol=1e-8
+                else
+                    @test logcdf_val == -Inf
+                end
+
+                ccdf_val = ccdf(d, x)
+                logccdf_val = logccdf(d, x)
+                if ccdf_val > 0
+                    @test logccdf_val≈log(ccdf_val) atol=1e-6
+                else
+                    @test logccdf_val == -Inf
+                end
+
+                @test cdf_val + ccdf_val≈1.0 atol=1e-8
+                @test cdf_val >= prev_cdf - 1e-9
+                prev_cdf = cdf_val
+            end
+
+            # Broadcast-batched evaluation must agree with the scalar path
+            # point-by-point, including at the grid's own ends (mirrors the
+            # same check for Convolved above). Ratio has no dedicated
+            # batched method the way Convolved does, so `pdf.(d, grid)`
+            # goes through the ordinary scalar `pdf` per element rather
+            # than a shared-quadrature-grid implementation; kept anyway as
+            # a broadcast-dispatch regression guard, using the `.`-form so
+            # it does not hit Distributions.jl's deprecated bare
+            # `pdf(d, ::AbstractArray)` fallback.
+            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol=1e-8
+            @test isapprox(logpdf.(d, grid), [logpdf(d, x) for x in grid];
+                atol = 1e-6, rtol = 1e-4)
+            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol=1e-8
+        end
+    end
+end
+
 @testitem "Convolved wide-batch consistency at shared panel-grid edges" begin
     using Distributions
 
@@ -292,7 +374,7 @@ end
     end
 end
 
-@testitem "Convolved/Difference/Product consistency at quantile panel-boundary points (#49/#50)" begin
+@testitem "Convolved/Difference/Product/Ratio consistency at quantile panel-boundary points (#49/#50)" begin
     using Distributions
     using ConvolvedDistributions: _PANEL_PROBS
 
@@ -312,6 +394,8 @@ end
         ("Difference", difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)),
             LogNormal(0.5, 0.4)),
         ("Product", product(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            LogNormal(0.5, 0.4)),
+        ("Ratio", ratio(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
             LogNormal(0.5, 0.4))
     ]
 
@@ -342,8 +426,13 @@ end
 
                 # Continuity across the break itself: the panel split is a
                 # quadrature implementation detail and must not introduce a
-                # visible jump in either the CDF or the density.
-                @test cdf(d, b - 1e-6)≈cdf(d, b + 1e-6) atol=1e-6
+                # visible jump in either the CDF or the density. `2e-6`
+                # (not `1e-6`) because a genuinely smooth CDF already
+                # changes by `pdf(d, b) * 2e-6` over this step, and the
+                # Ratio case's density near its break points (~0.5-0.6)
+                # pushes that product to ~1.2e-6 on its own -- a real
+                # slope, not a jump.
+                @test cdf(d, b - 1e-6)≈cdf(d, b + 1e-6) atol=2e-6
                 @test isapprox(pdf(d, b - 1e-6), pdf(d, b + 1e-6);
                     atol = 1e-6, rtol = 1e-3)
             end
@@ -351,7 +440,7 @@ end
     end
 end
 
-@testitem "Convolved/Difference/Product log methods at out-of-support and extreme values" begin
+@testitem "Convolved/Difference/Product/Ratio log methods at out-of-support and extreme values" begin
     using Distributions
 
     # Mirrors CensoredDistributions' log-methods extreme-value coverage
@@ -373,7 +462,11 @@ end
         "Product: Gamma*LogNormal (numeric, half-line support)" => product(
             Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
         "Product: LogNormal*LogNormal (analytic, half-line support)" => product(
-            LogNormal(0.5, 0.4), LogNormal(1.0, 0.3))
+            LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)),
+        "Ratio: Gamma/LogNormal (numeric, half-line support)" => ratio(
+            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+        "Ratio: Normal/Normal (analytic, full-line support)" => ratio(
+            Normal(0.0, 2.0), Normal(0.0, 0.5))
     ]
 
     for (name, d) in cases
