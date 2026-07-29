@@ -24,6 +24,13 @@
     test_convolved_interface(
         product(LogNormal(0.5, 0.4), LogNormal(0.0, 0.3));
         name = "Product (analytic)", x = 2.0)
+    test_convolved_interface(
+        ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)); x = 1.0)
+    test_convolved_interface(
+        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0));
+        name = "Ratio (analytic)", x = 0.5)
     @test ConvolvedDistributions.Product <:
+          ConvolvedDistributions.AbstractConvolvedDistribution
+    @test ConvolvedDistributions.Ratio <:
           ConvolvedDistributions.AbstractConvolvedDistribution
 end
