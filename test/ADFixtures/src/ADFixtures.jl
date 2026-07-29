@@ -20,7 +20,7 @@ __precompile__(false)
 
 using ConvolvedDistributions
 using Distributions: Distributions, Gamma, LogNormal, Normal, Poisson,
-                     Uniform, Weibull, mean, var, logpdf, cdf, logcdf
+                     Uniform, Weibull, mean, var, pdf, logpdf, cdf, logcdf
 using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
                AutoMooncakeForward, AutoEnzyme
 using DifferentiationInterface: DifferentiationInterface, Constant
