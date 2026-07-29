@@ -32,21 +32,28 @@ function _try_convolve(a::Gamma, b::Gamma)
 end
 
 @doc "
-
     convolved_cdf(d1, d2, x, method)
-    convolved_logcdf(d1, d2, x, method)
-    convolved_ccdf(d1, d2, x, method)
-    convolved_logccdf(d1, d2, x, method)
-    convolved_pdf(d1, d2, x, method)
-    convolved_logpdf(d1, d2, x, method)
 
-The named quantity of `d1 + d2` at `x`, dispatched on the solver method
-`method`. `AnalyticalSolver` prefers a named-distribution or
-component-specific analytic method, falling back to `NumericSolver`
-quadrature. Public so a downstream package (e.g.
-CensoredDistributions.jl) can add its own analytic pair by defining a
-method more specific than `(UnivariateDistribution,
-UnivariateDistribution, Real, AnalyticalSolver)`.
+The CDF of `d1 + d2` at `x`, dispatched on the solver method `method`.
+`AnalyticalSolver` prefers a named-distribution or component-specific
+analytic method, falling back to `NumericSolver` quadrature. Public,
+alongside its `logcdf`/`ccdf`/`logccdf`/`pdf`/`logpdf` siblings, so a
+downstream package (e.g. CensoredDistributions.jl) can add its own
+analytic pair by defining a method more specific than
+`(UnivariateDistribution, UnivariateDistribution, Real,
+AnalyticalSolver)`.
+
+# Arguments
+- `d1`, `d2`: The two components of the sum `d1 + d2`.
+- `x`: Evaluation point.
+- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+convolved_cdf(Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
+```
 
 See also: [`Convolved`](@ref), [`AnalyticalSolver`](@ref),
 [`NumericSolver`](@ref)
@@ -68,6 +75,11 @@ function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
     return _convolved_numeric_cdf(Convolved((d1, d2); method = method), x)
 end
 
+@doc "
+    convolved_logcdf(d1, d2, x, method)
+
+The log CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+"
 function convolved_logcdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
     error("convolved_logcdf not implemented for method type $(typeof(method))")
@@ -86,6 +98,11 @@ function convolved_logcdf(d1::UnivariateDistribution,
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
 end
 
+@doc "
+    convolved_ccdf(d1, d2, x, method)
+
+The complementary CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+"
 function convolved_ccdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
     error("convolved_ccdf not implemented for method type $(typeof(method))")
@@ -103,6 +120,11 @@ function convolved_ccdf(d1::UnivariateDistribution,
     return 1 - convolved_cdf(d1, d2, x, method)
 end
 
+@doc "
+    convolved_logccdf(d1, d2, x, method)
+
+The log complementary CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+"
 function convolved_logccdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
     error(
@@ -124,6 +146,11 @@ function convolved_logccdf(d1::UnivariateDistribution,
     return log1mexp(l)
 end
 
+@doc "
+    convolved_pdf(d1, d2, x, method)
+
+The density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+"
 function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::Real, method::AbstractSolverMethod)
     error("convolved_pdf not implemented for method type $(typeof(method))")
@@ -141,6 +168,11 @@ function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
     return _convolved_numeric_pdf(Convolved((d1, d2); method = method), x)
 end
 
+@doc "
+    convolved_logpdf(d1, d2, x, method)
+
+The log density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+"
 function convolved_logpdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
     error("convolved_logpdf not implemented for method type $(typeof(method))")
@@ -162,7 +194,6 @@ function convolved_logpdf(d1::UnivariateDistribution,
 end
 
 @doc "
-
     convolved_quantile(d1, d2, p, method)
 
 The quantile of `d1 + d2` at `p`. Skeleton methods 1-2 only: the
@@ -170,6 +201,18 @@ The quantile of `d1 + d2` at `p`. Skeleton methods 1-2 only: the
 `ConvolvedDistributionsOptimizationExt` extension, so a non-analytic
 pair's quantile is unavailable until Optimization.jl is loaded, while an
 analytic pair (`_try_convolve`) works without it.
+
+# Arguments
+- `d1`, `d2`: The two components of the sum `d1 + d2`.
+- `p`: Probability in `[0, 1]`.
+- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+convolved_quantile(Normal(1.0, 2.0), Normal(3.0, 4.0), 0.5, AnalyticalSolver())
+```
 
 See also: [`convolved_cdf`](@ref)
 "
@@ -186,9 +229,14 @@ function convolved_quantile(d1::UnivariateDistribution,
     return convolved_quantile(d1, d2, p, NumericSolver(method.solver))
 end
 
-# S1.4: a quantity with no evaluation point takes no `x`/`p` argument at
-# all. Demonstrates the shape compiles; not wired into `minimum`, which
-# is already exact by summation (S2.5).
+@doc "
+    convolved_minimum(d1, d2, method)
+
+The minimum of `d1 + d2`. S1.4: a quantity with no evaluation point
+takes no `x`/`p` argument at all -- this demonstrates the shape
+compiles; it is not wired into `minimum`, which is already exact by
+summation (S2.5).
+"
 function convolved_minimum(d1::UnivariateDistribution,
         d2::UnivariateDistribution, method::AbstractSolverMethod)
     error(
