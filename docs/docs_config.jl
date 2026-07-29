@@ -16,7 +16,9 @@ const LIGHT_TUTORIALS = String[]
 # Heavy tutorials (live MCMC fits, multi-backend AD, plotting) are each
 # executed once in a fresh subprocess so native/memory state cannot accumulate.
 const HEAVY_TUTORIALS = [
-    "visualising-convolutions.jl",
+    "convolving-distributions.jl",
+    "difference-distributions.jl",
+    "timeseries-convolution.jl",
     "ad-backends.jl"
 ]
 
@@ -29,7 +31,9 @@ const TUTORIALS_SUBDIR = joinpath("getting-started", "tutorials")
 # `"# [Title](@id my-anchor)"`) so cross-references from other pages still
 # resolve in a fast build.
 const TUTORIAL_STUBS = [
-    "visualising-convolutions.md" => "# [Visualising convolutions](@id visualising-convolutions)",
+    "convolving-distributions.md" => "# [Convolving distributions](@id convolving-distributions)",
+    "difference-distributions.md" => "# [The difference of two delays](@id difference-distributions)",
+    "timeseries-convolution.md" => "# [Convolving a timeseries](@id timeseries-convolution)",
     "ad-backends.md" => "# [Automatic differentiation backends](@id ad-backends)"
 ]
 

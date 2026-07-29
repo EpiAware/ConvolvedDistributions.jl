@@ -45,7 +45,7 @@ mean(total), mean(d3), cdf(total, 8.0), cdf(d3, 8.0)
 ```
 
 Nesting is how a multi-stage delay built in one part of a model is reused in another without unpacking its components.
-The [Visualising convolutions](@ref visualising-convolutions) tutorial plots a nested convolution against its flat equivalent.
+The [Convolving distributions](@ref convolving-distributions) tutorial plots a nested convolution against its flat equivalent.
 
 Evaluating `cdf` or `pdf` over a vector of points shares one quadrature window solve across the batch, which is much cheaper than mapping the scalar call.
 
