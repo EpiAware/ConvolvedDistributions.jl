@@ -1,63 +1,6 @@
-# Tests for the analytic-pair registry (#77): the load-order-safe
-# registration mechanism itself, plus the three Distributions.jl-native
-# closed forms it hosts (Gamma/LogNormal/Weibull + Uniform).
-
-@testitem "register_analytic_pair! load order and override semantics" begin
-    using ConvolvedDistributions
-    using ConvolvedDistributions: register_analytic_pair!, _ANALYTIC_PAIR_REGISTRY,
-                                  _registered_analytic_pair
-    using Distributions
-
-    # A synthetic pair the package does not ship, registered exactly as an
-    # extension's __init__ would: after the package has already loaded.
-    struct _TestDelay <: ContinuousUnivariateDistribution end
-    struct _TestPrimary <: ContinuousUnivariateDistribution end
-    Distributions.minimum(::_TestDelay) = 0.0
-    Distributions.maximum(::_TestDelay) = 1.0
-    Distributions.minimum(::_TestPrimary) = 0.0
-    Distributions.maximum(::_TestPrimary) = 1.0
-    Distributions.cdf(::_TestDelay, x::Real) = clamp(x, 0.0, 1.0)
-    Distributions.pdf(::_TestDelay, x::Real) = 0.0 <= x <= 1.0 ? 1.0 : 0.0
-    Distributions.cdf(::_TestPrimary, x::Real) = clamp(x, 0.0, 1.0)
-    Distributions.pdf(::_TestPrimary, x::Real) = 0.0 <= x <= 1.0 ? 1.0 : 0.0
-    Distributions.params(::_TestDelay) = ()
-    Distributions.params(::_TestPrimary) = ()
-    Distributions.quantile(::_TestDelay, p::Real) = clamp(p, 0.0, 1.0)
-    Distributions.quantile(::_TestPrimary, p::Real) = clamp(p, 0.0, 1.0)
-
-    n_before = length(_ANALYTIC_PAIR_REGISTRY)
-    @test _registered_analytic_pair(_TestDelay, _TestPrimary) === nothing
-
-    # A closed form deliberately wrong (a constant) so a numeric-vs-analytic
-    # comparison unambiguously shows whether the registry was consulted.
-    sentinel_value = 0.987654321
-    register_analytic_pair!(_TestDelay, _TestPrimary, (d, p, x) -> sentinel_value)
-    @test length(_ANALYTIC_PAIR_REGISTRY) == n_before + 1
-
-    entry = _registered_analytic_pair(_TestDelay, _TestPrimary)
-    @test entry !== nothing
-    @test entry.cdf_fn(_TestDelay(), _TestPrimary(), 0.5) == sentinel_value
-
-    d = convolved(_TestDelay(), _TestPrimary())
-    @test cdf(d, 0.5) == sentinel_value
-    @test logcdf(d, 0.5) ≈ log(sentinel_value)
-    @test cdf(d, [0.3, 0.5]) == [sentinel_value, sentinel_value]
-
-    # NumericSolver bypasses the registry entirely.
-    dn = convolved(_TestDelay(), _TestPrimary(); method = NumericSolver())
-    @test cdf(dn, 0.5) != sentinel_value
-
-    # Re-registering the same pair replaces, not duplicates, the entry.
-    register_analytic_pair!(_TestDelay, _TestPrimary, (d, p, x) -> sentinel_value + 1)
-    @test length(_ANALYTIC_PAIR_REGISTRY) == n_before + 1
-    @test cdf(d, 0.5) == sentinel_value + 1
-
-    # A 3-component convolution never consults the registry (scoped to
-    # exactly two components), even when the first two match a registered
-    # pair.
-    d3 = convolved(_TestDelay(), _TestPrimary(), Normal(0.0, 1.0))
-    @test cdf(d3, 0.5) != sentinel_value + 1
-end
+# Tests for the uniform-window analytic pair methods (#77):
+# Gamma/LogNormal/Weibull + Uniform for the CDF, any delay + Uniform for
+# the density, and the solver-method dispatch scoping they run through.
 
 @testitem "Gamma + Uniform analytic pair matches numeric quadrature" begin
     using Distributions
@@ -111,28 +54,22 @@ end
 
 @testitem "Native analytic pairs are picked up by AnalyticalSolver by default" begin
     using ConvolvedDistributions
-    using ConvolvedDistributions: _analytic_pair_entry
+    using ConvolvedDistributions: evaluation_path
     using Distributions
 
     d = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
     @test d.method isa AnalyticalSolver
-    @test _analytic_pair_entry(d) !== nothing
+    @test evaluation_path(d, cdf) === :analytic
 
     # Batched and scalar CDF agree exactly (both route through the same
-    # registered closed form, no quadrature panel-grid drift possible).
+    # closed form, no quadrature panel-grid drift possible).
     xs = [0.5, 1.0, 2.0, 3.0]
     @test cdf(d, xs) == [cdf(d, x) for x in xs]
 end
 
-# ForwardDiff gradients of cdf/logcdf through a registered analytic pair,
-# checked against central finite differences (same pattern as the
-# Difference.jl ForwardDiff gradient test above). Each registered `cdf_fn`
-# returns whatever type its arithmetic on Dual-parameterised components
-# produces, so `_registered_cdf`'s type assertion has to be built from a
-# type that actually contains that Dual, not just `float(typeof(x))` (the
-# scalar evaluation point is a plain `Float64` in every case below; the
-# assertion previously narrowed to `Float64` and threw a `TypeError` the
-# first time this path was differentiated w.r.t. a delay parameter).
+# ForwardDiff gradients of cdf/logcdf through the closed form, checked
+# against central finite differences (same pattern as the Difference.jl
+# ForwardDiff gradient test).
 
 @testitem "Gamma + Uniform analytic pair cdf/logcdf ForwardDiff gradient" begin
     using Distributions, ForwardDiff
@@ -205,5 +142,186 @@ end
         θm[i] -= h
         @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol=1e-6
         @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol=1e-6
+    end
+end
+
+@testitem "solver dispatch scoping: NumericSolver bypass" begin
+    using ConvolvedDistributions: evaluation_path
+    using Distributions
+
+    d = convolved(
+        Gamma(2.0, 1.5), Uniform(0.0, 2.0); method = NumericSolver())
+    @test evaluation_path(d, cdf) === :numeric
+    @test evaluation_path(d, pdf) === :numeric
+
+    # The scalar/batched cdf and pdf therefore differ from the analytic
+    # pair's exact values (they run quadrature instead).
+    da = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
+    @test cdf(d, 3.0) ≈ cdf(da, 3.0) atol=1e-9
+    @test cdf(d, 3.0) != cdf(da, 3.0)
+end
+
+@testitem "solver dispatch scoping: three-component bypass" begin
+    using ConvolvedDistributions: evaluation_path
+    using Distributions
+
+    d3 = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0), Normal(0.0, 1.0))
+    @test evaluation_path(d3, cdf) === :numeric
+    @test evaluation_path(d3, pdf) === :numeric
+end
+
+@testitem "solver dispatch scoping: reversed component order" begin
+    using ConvolvedDistributions: evaluation_path
+    using Distributions
+
+    forward = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
+    reversed = convolved(Uniform(0.0, 2.0), Gamma(2.0, 1.5))
+
+    @test evaluation_path(reversed, cdf) === :analytic
+    @test cdf(reversed, 3.0) ≈ cdf(forward, 3.0)
+    @test pdf(reversed, 3.0) ≈ pdf(forward, 3.0)
+    @test logpdf(reversed, 3.0) ≈ logpdf(forward, 3.0)
+end
+
+@testitem "solver dispatch scoping: Difference/Product get no swap retry" begin
+    using ConvolvedDistributions: evaluation_path
+    using Distributions
+
+    # Difference/Product are not commutative, so a swapped-order match
+    # would silently compute the wrong quantity. Neither pair here has a
+    # closed form for cdf (Difference/Product never try the S1
+    # component-swap retry), so this confirms the plain fallback runs.
+    d = difference(Gamma(2.0, 1.0), Uniform(0.0, 2.0))
+    p = product(Gamma(2.0, 1.0), Uniform(0.0, 2.0))
+    @test evaluation_path(d, cdf) === :numeric
+    @test evaluation_path(p, cdf) === :numeric
+end
+
+@testitem "@inferred cdf/pdf for closed-form and non-closed-form pairs" begin
+    using Distributions, Test
+
+    for d in (convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
+        convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
+        @test (@inferred(cdf(d, 1.0)); true)
+        @test (@inferred(pdf(d, 1.0)); true)
+        @test (@inferred(logpdf(d, 1.0)); true)
+    end
+end
+
+@testitem "uniform-window density matches quadrature across delay families" begin
+    using Distributions
+
+    cases = [
+        Gamma(2.0, 1.5) => Uniform(0.0, 2.0),
+        LogNormal(1.5, 0.5) => Uniform(0.0, 3.0),
+        Weibull(1.5, 2.0) => Uniform(0.0, 1.5),
+        Normal(2.0, 1.0) => Uniform(-1.0, 1.0),
+        Exponential(2.0) => Uniform(0.0, 2.0)
+    ]
+
+    for (delay, primary) in cases
+        d = convolved(delay, primary)
+        dn = convolved(delay, primary; method = NumericSolver())
+        for x in (-5.0, -1.0, 0.5, 1.0, 3.0, 6.0, 15.0)
+            @test pdf(d, x)≈pdf(dn, x) atol=1e-6 rtol=1e-4
+            @test logpdf(d, x)≈logpdf(dn, x) atol=1e-4 rtol=1e-4
+            @test pdf(d, x) >= 0.0
+        end
+    end
+end
+
+@testitem "uniform-window density narrow-window sweep stays accurate" begin
+    using Distributions
+
+    # w shrinking from 1e-1 to 1e-6: the linear-space subtraction that
+    # would cancel is exactly what the closed form's cancellation guard
+    # exists for. Reference each point against `NumericSolver`, which
+    # itself degrades as the window narrows, so the tolerance loosens
+    # with `w` -- what matters is that the closed form does not degrade
+    # faster than quadrature does, and never returns NaN/negative.
+    delay = Gamma(2.0, 1.5)
+    for w in (1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6)
+        d = convolved(delay, Uniform(0.0, w))
+        dn = convolved(delay, Uniform(0.0, w); method = NumericSolver())
+        for x in (0.1, 3.0, 10.0)
+            p = pdf(d, x)
+            @test isfinite(p)
+            @test p >= 0.0
+            @test p≈pdf(dn, x) rtol=1e-3
+            @test isfinite(logpdf(d, x))
+        end
+    end
+end
+
+@testitem "uniform-window density deep tails stay finite and accurate" begin
+    using Distributions
+
+    # Far enough into the tail that a component's own AD-safe CDF/CCDF
+    # loses precision (Gamma's logccdf_ad_safe saturates to -Inf around
+    # here); the closed form must not inherit that as a spurious zero.
+    cases = [
+        Gamma(2.0, 1.5) => 100.0,
+        LogNormal(1.5, 0.5) => 1.0e6,
+        Weibull(1.5, 2.0) => 100.0,
+        Normal(2.0, 1.0) => 60.0,
+        Exponential(2.0) => 800.0
+    ]
+
+    for (delay, x) in cases
+        primary = Uniform(0.0, 2.0)
+        d = convolved(delay, primary)
+        dn = convolved(delay, primary; method = NumericSolver())
+
+        p, pn = pdf(d, x), pdf(dn, x)
+        lp, lpn = logpdf(d, x), logpdf(dn, x)
+        @test isfinite(lp)
+        @test !isnan(p)
+        # The numeric path sums densities in linear space and can
+        # underflow to exactly zero this deep even when the analytic
+        # log-space form still resolves a finite (very negative) value
+        # -- that asymmetry is expected, not a bug, so only check
+        # agreement when the numeric path itself stayed finite.
+        if isfinite(lpn)
+            @test lp≈lpn rtol=1e-2
+        end
+    end
+
+    # Below the delay's support and at +-Inf: genuinely zero, not a
+    # numerical artifact of the guard above.
+    d = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
+    @test pdf(d, -10.0) == 0.0
+    @test logpdf(d, -10.0) == -Inf
+    @test pdf(d, Inf) == 0.0
+    @test logpdf(d, Inf) == -Inf
+    @test pdf(d, -Inf) == 0.0
+    @test logpdf(d, -Inf) == -Inf
+end
+
+@testitem "Uniform-window analytic path is faster than quadrature (S9b.6)" begin
+    using Distributions
+    using BenchmarkTools
+
+    # A generous factor: not a tight timing pin, just enough to catch the
+    # analytic path being silently bypassed (mirrors CensoredDistributions'
+    # `primarycensored_cdf` performance test). Uses the batched `cdf`
+    # (route resolved once, not once per point, see `_convolved_route`)
+    # since the scalar path pays a `which`-based route lookup on every
+    # call, which can rival a cheap closed form's own cost and is not a
+    # reliable win at this batch size (documented on `_convolved_pair`).
+    cases = [
+        (Gamma(2.0, 1.5), "Gamma"), (LogNormal(1.5, 0.5), "LogNormal"),
+        (Weibull(1.5, 2.0), "Weibull")
+    ]
+    for (delay, name) in cases
+        @testset "$name + Uniform cdf speedup" begin
+            primary = Uniform(0.0, 2.0)
+            d_analytic = convolved(delay, primary)
+            d_numeric = convolved(delay, primary; method = NumericSolver())
+            xs = rand(delay, 200)
+
+            t_a = @belapsed cdf($d_analytic, $xs)
+            t_n = @belapsed cdf($d_numeric, $xs)
+            @test t_a < t_n / 2
+        end
     end
 end

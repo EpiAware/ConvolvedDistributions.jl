@@ -20,8 +20,8 @@ const QA_CONFIG = (
     # non-publicly (kit-check order dependence; see EpiAwarePackageTools
     # issue on deterministic ExplicitImports scope).
     # - _gamma_cdf: EpiAwareADTools-internal AD-safe gamma CDF helper the
-    #   native Gamma/Weibull analytic-pair closed forms (#77,
-    #   src/analytic_pairs.jl) call directly so the per-backend AD rules
+    #   native Gamma/Weibull uniform-window closed forms (#77,
+    #   src/uniform_window.jl) call directly so the per-backend AD rules
     #   keyed on it fire, mirroring CensoredDistributions' own use of it.
     ei_ignore = (:_gamma_cdf,),
 

@@ -146,33 +146,43 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
         end,
         [2.0, 1.5, -0.5, 0.8], (Constant(obs),))
 
-    # Registered analytic-pair CDF (#77): `AnalyticalSolver` is the default,
-    # so these three exercise `register_analytic_pair!`'s closed forms
-    # (Gamma/LogNormal/Weibull + Uniform) via `cdf`/`logcdf` rather than
-    # `logpdf` (the registry supplies only a CDF, see src/analytic_pairs.jl).
-    # `entry.cdf_fn` is read out of the registry as an abstract `Function`,
-    # so this is the one code path in the package where the differentiated
-    # call is genuinely dynamically dispatched -- the scenario this matrix
-    # exists to catch a regression on.
+    # Uniform-window closed form (#77): `AnalyticalSolver` is the default,
+    # so these exercise the `convolved_cdf`/`convolved_pdf`/
+    # `convolved_logpdf` methods in src/uniform_window.jl (Gamma/
+    # LogNormal/Weibull + Uniform for cdf; any delay + Uniform for
+    # pdf/logpdf).
     cdf_obs = [0.5, 1.5, 3.0]
-    _push!("Convolved Gamma+Uniform analytic-pair logcdf",
+    _push!("Convolved Gamma+Uniform closed-form logcdf",
         (θ, xs) -> sum(x -> logcdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
             xs),
         [2.0, 1.5], (Constant(cdf_obs),))
-    _push!("Convolved LogNormal+Uniform analytic-pair logcdf",
+    _push!("Convolved LogNormal+Uniform closed-form logcdf",
         (θ, xs) -> sum(
             x -> logcdf(convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), x), xs),
         [1.5, 0.5], (Constant(cdf_obs),))
-    _push!("Convolved Weibull+Uniform analytic-pair logcdf",
+    _push!("Convolved Weibull+Uniform closed-form logcdf",
         (θ, xs) -> sum(x -> logcdf(convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), x),
             xs),
         [1.5, 2.0], (Constant(cdf_obs),))
-    # Batched cdf through the same registered pair (scalar and batched paths
-    # route through the same `_registered_cdf`, but are separate `cdf`
-    # methods -- see src/Convolved.jl -- so both need a differentiated check).
-    _push!("Convolved Gamma+Uniform analytic-pair batched cdf",
+    # Batched cdf through the same closed form (scalar and batched paths
+    # are separate `cdf` methods -- see src/Convolved.jl -- so both need
+    # a differentiated check).
+    _push!("Convolved Gamma+Uniform closed-form batched cdf",
         (θ, xs) -> sum(cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), xs)),
         [2.0, 1.5], (Constant(cdf_obs),))
+    # The generic uniform-window density (S3.2): `convolved_pdf`/
+    # `convolved_logpdf` dispatch on any delay + `Uniform`, not just the
+    # three CDF families. Gamma+Uniform exercises the
+    # cancellation-guarded density; Normal+Uniform (no cdf closed form)
+    # exercises the density on a pair outside `_WINDOW_DELAY`.
+    _push!("Convolved Gamma+Uniform closed-form logpdf",
+        (θ, xs) -> sum(x -> logpdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
+            xs),
+        [2.0, 1.5], (Constant(cdf_obs),))
+    _push!("Convolved Normal+Uniform closed-form pdf",
+        (θ, xs) -> sum(x -> pdf(convolved(Normal(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
+            xs),
+        [1.0, 0.5], (Constant(cdf_obs),))
 
     # Difference (Z = X - Y), the dual of Convolved. The analytic Normal-Normal
     # pair differentiates through the closed-form difference; the
