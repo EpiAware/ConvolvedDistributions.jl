@@ -113,6 +113,42 @@ end
     @test_throws ArgumentError quantile(dp, 1.1)
 end
 
+@testitem "Ratio quantile inverts cdf" begin
+    using Distributions, Optimization, OptimizationOptimJL
+
+    # Analytic path: Gamma / Gamma has the closed form
+    # (θx / θy) * BetaPrime(αx, αy).
+    x = Gamma(2.0, 1.5)
+    y = Gamma(3.0, 0.5)
+    d = ratio(x, y)
+    ref = 3.0 * BetaPrime(2.0, 3.0)
+    for p in (0.1, 0.5, 0.9)
+        @test quantile(d, p) ≈ quantile(ref, p) atol=1e-2
+    end
+
+    # Numeric path: quantile round-trips through the quadrature cdf.
+    dn = ratio(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
+    for p in (0.1, 0.25, 0.5, 0.75, 0.9)
+        q = quantile(dn, p)
+        @test cdf(dn, q) ≈ p atol=1e-3
+    end
+
+    # Sign-crossing denominator: the opposing-tail guess is not finite
+    # (quantile(y, 1 - p) can be 0 or negative), exercising the median
+    # fallback in `_ratio_quantile_guess`.
+    dc = ratio(Normal(0.0, 2.0), Normal(0.0, 0.5))
+    refc = Cauchy(0.0, 4.0)
+    for p in (0.1, 0.5, 0.9)
+        @test quantile(dc, p) ≈ quantile(refc, p) atol=1e-2
+    end
+
+    # rand on a truncated Ratio routes through the base quantile.
+    td = truncated(dn, 1.0, 8.0)
+    q = quantile(td, 0.5)
+    @test cdf(td, q) ≈ 0.5 atol=1e-3
+    @test rand(td) isa Real
+end
+
 @testitem "Quantile is accurate in far tails" begin
     using Distributions, Optimization, OptimizationOptimJL
 
