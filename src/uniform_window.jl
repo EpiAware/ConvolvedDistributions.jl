@@ -32,7 +32,8 @@ using ConvolvedDistributions, Distributions
 delay = Gamma(2.0, 1.5)
 k, θ = shape(delay), scale(delay)
 partial_mean = t -> k * θ * cdf(Gamma(k + 1, θ), t)
-uniform_window_cdf(delay, Uniform(0.0, 2.0), 3.0, partial_mean)
+ConvolvedDistributions.uniform_window_cdf(
+    delay, Uniform(0.0, 2.0), 3.0, partial_mean)
 ```
 "
 function uniform_window_cdf(delay::UnivariateDistribution,
@@ -99,12 +100,14 @@ function convolved_cdf(delay::_WINDOW_DELAY, primary::Uniform, x::Real,
 end
 
 # f_S(x) = (F_T(x-a) - F_T(x-b)) / w, exact for any delay T. Computed
-# from `ccdf` in the upper tail so the subtraction does not cancel, and
-# replaced by a two-node Gauss-Legendre average of f_T over the window
-# (error O(w^4)) once the difference itself is at the noise floor. The
-# two-node rule needs a smooth integrand, so it only fires when the
-# whole window sits inside the delay's support; at the support edge
-# F_T(x - b) is exactly zero and there is no cancellation to fix.
+# from `ccdf` in the upper tail so the subtraction does not cancel. Once
+# the linear-space difference itself is at the noise floor, rescue it
+# with the same `logsubexp` construction `convolved_logpdf` uses. Some
+# families' AD-safe `logcdf`/`logccdf` themselves saturate this deep in
+# a tail (traded away for shape differentiability); when that leaves
+# the rescue at zero too, fall back to a two-point average of the raw
+# density, which stays accurate there since nothing cancels or
+# saturates in a direct `pdf` evaluation.
 function _uniform_window_pdf(delay, primary::Uniform, x::Real)
     a, b = minimum(primary), maximum(primary)
     w = b - a
@@ -114,6 +117,10 @@ function _uniform_window_pdf(delay, primary::Uniform, x::Real)
            ccdf_ad_safe(delay, lo) - ccdf_ad_safe(delay, hi) :
            F_hi - cdf_ad_safe(delay, lo)
     if lo > minimum(delay) && mass < sqrt(eps(typeof(mass)))
+        lg = F_hi > oftype(F_hi, 0.5) ?
+             logsubexp(logccdf_ad_safe(delay, lo), logccdf_ad_safe(delay, hi)) :
+             logsubexp(logcdf_ad_safe(delay, hi), logcdf_ad_safe(delay, lo))
+        isfinite(lg) && return exp(lg) / w
         m = x - (a + b) / 2
         δ = w / (2 * sqrt(oftype(w, 3)))
         return (pdf_ad_safe(delay, m - δ) + pdf_ad_safe(delay, m + δ)) / 2
