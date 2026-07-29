@@ -18,24 +18,13 @@
   exact `pdf`/`logpdf` for **any** delay convolved with a `Uniform`.
   Replaces the unreleased `register_analytic_pair!` registry and the
   unreleased `closed_form` seam (#77).
-- `evaluation_path`/`has_closed_form` take an optional quantity (or tuple
-  of quantities, default `(pdf, cdf)`) and answer by method lookup
-  (whether a `convolved_*` method more specific than the
-  `AnalyticalSolver` fallback matches) rather than by evaluating, so the
-  report cannot drift from what `cdf`/`pdf`/... actually do. Fixes
-  `evaluation_path` reporting `:numeric` for a `Gamma`+`Uniform` pair
-  whose `cdf` ran a closed form, and `strict = true` wrongly erroring on
-  it (#92); `strict = true` now accepts `Gamma`+`Uniform` and pairs like
-  it, which is the fix, not a regression.
-- `quantile(d::Convolved, p)` moves into core and takes the analytic
-  route (`convolved_quantile`) before falling back to the
-  Optimization-extension numeric solve, fixing a case where it ran a
-  Nelder-Mead solve even for a pair whose sum names a distribution (e.g.
-  `Normal`+`Normal`, equal-scale `Gamma`, equal-rate `Exponential`) —
-  `quantile` for those pairs now works, and is exact, without
-  Optimization.jl loaded (#92). `Difference`/`Product` `quantile` (still
-  extension-only) get the same fix: the analytic route is tried before
-  the Nelder-Mead solve.
+- `evaluation_path`/`has_closed_form` now answer by method lookup rather
+  than evaluation, fixing `Gamma`+`Uniform` wrongly reporting `:numeric`
+  and `strict = true` wrongly rejecting it; `strict = true` now accepts
+  `Gamma`+`Uniform` and pairs like it (#92).
+- `quantile(d::Convolved, p)` now takes the analytic route before the
+  Nelder-Mead solve, so `Normal`+`Normal` and other named-distribution
+  pairs get an exact quantile without Optimization.jl loaded (#92).
 
 ### Breaking changes
 
