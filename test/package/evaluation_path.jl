@@ -139,3 +139,21 @@ end
     test_analytic_skips_quadrature(
         convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)); x = 3.0)
 end
+
+@testitem "evaluation_path does not drift from cdf/pdf routing (#92)" begin
+    using ConvolvedDistributions: evaluation_path, has_closed_form
+    using Distributions
+
+    # Gamma+Uniform has a closed-form cdf and pdf (the uniform-window
+    # forms), so both must report :analytic per quantity -- the report
+    # this predicate makes must match what cdf/pdf actually do.
+    d = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
+    @test evaluation_path(d, cdf) === :analytic
+    @test evaluation_path(d, pdf) === :analytic
+    @test has_closed_form(d, cdf)
+    @test has_closed_form(d, pdf)
+
+    # The fix, not a regression: strict = true now accepts this pair.
+    d_strict = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0); strict = true)
+    @test d_strict isa ConvolvedDistributions.Convolved
+end
