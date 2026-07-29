@@ -579,7 +579,7 @@ See also: [`logcdf`](@ref)
 function cdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return _convolved_pair(convolved_cdf, d1, d2, x, d.method)
+        return convolved_cdf(d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return cdf(a, x)
@@ -595,7 +595,7 @@ See also: [`cdf`](@ref)
 function logcdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return _convolved_pair(convolved_logcdf, d1, d2, x, d.method)
+        return convolved_logcdf(d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return logcdf(a, x)
@@ -606,7 +606,7 @@ end
 function ccdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return _convolved_pair(convolved_ccdf, d1, d2, x, d.method)
+        return convolved_ccdf(d1, d2, x, d.method)
     end
     return 1 - cdf(d, x)
 end
@@ -614,7 +614,7 @@ end
 function logccdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return _convolved_pair(convolved_logccdf, d1, d2, x, d.method)
+        return convolved_logccdf(d1, d2, x, d.method)
     end
     logcdf_val = logcdf(d, x)
     if logcdf_val == -Inf
@@ -639,7 +639,7 @@ See also: [`logpdf`](@ref)
 function pdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return _convolved_pair(convolved_pdf, d1, d2, x, d.method)
+        return convolved_pdf(d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return pdf(a, x)
@@ -655,7 +655,7 @@ See also: [`pdf`](@ref), [`logcdf`](@ref)
 function logpdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return _convolved_pair(convolved_logpdf, d1, d2, x, d.method)
+        return convolved_logpdf(d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return logpdf(a, x)
@@ -682,7 +682,7 @@ See also: [`cdf`](@ref)
 function quantile(d::Convolved, p::Real)
     length(d.components) == 2 || return _convolved_general_quantile(d, p)
     d1, d2 = d.components
-    return _convolved_pair(convolved_quantile, d1, d2, p, d.method)
+    return convolved_quantile(d1, d2, p, d.method)
 end
 
 # ---------------------------------------------------------------------------
@@ -691,28 +691,27 @@ end
 
 @doc "
 
-Compute the CDF for a vector of evaluation points in one batched
+Compute the CDF for a vector of evaluation points, analytically where
+[`convolved_cdf`](@ref) has an exact route, otherwise in one batched
 composite-quadrature pass.
 
-Each point is integrated over the same window the scalar path picks,
-on a shared panel grid whose nodes and integration-component density
-are evaluated once and reused across points, plus small per-point
-end-correction integrals. Batched and scalar results therefore agree
-to well within ~1e-8 (typically near machine precision) for batches
-spanning up to ~40x point ranges; extreme spans (100x and beyond)
-stay within ~1e-6. See the FAQ.
+Each numeric point is integrated over the same window the scalar path
+picks, on a shared panel grid whose nodes and integration-component
+density are evaluated once and reused across points, plus small
+per-point end-correction integrals. Batched and scalar numeric results
+therefore agree to well within ~1e-8 (typically near machine precision)
+for batches spanning up to ~40x point ranges; extreme spans (100x and
+beyond) stay within ~1e-6. See the FAQ.
 
 See also: [`cdf`](@ref)
 "
 function cdf(d::Convolved, x::AbstractVector{<:Real})
     if length(d.components) == 2
         d1, d2 = d.components
-        has, a1, a2 = _convolved_route(convolved_cdf, d1, d2, d.method)
-        has && return map(xi -> convolved_cdf(a1, a2, xi, d.method), x)
-    else
-        a = _maybe_analytic(d)
-        a === nothing || return map(xi -> cdf(a, xi), x)
+        return convolved_cdf(d1, d2, x, d.method)
     end
+    a = _maybe_analytic(d)
+    a === nothing || return map(xi -> cdf(a, xi), x)
     return _convolved_numeric_cdf_batched(d, x)
 end
 
@@ -787,60 +786,53 @@ end
 
 @doc "
 
-Compute densities for a vector of points in one batched
-composite-quadrature pass (see the batched [`cdf`](@ref) method).
+Compute densities for a vector of points (see the batched [`cdf`](@ref)
+method for the analytic-vs-numeric routing).
 
 See also: [`pdf`](@ref)
 "
 function pdf(d::Convolved, x::AbstractVector{<:Real})
     if length(d.components) == 2
         d1, d2 = d.components
-        has, a1, a2 = _convolved_route(convolved_pdf, d1, d2, d.method)
-        has && return map(xi -> convolved_pdf(a1, a2, xi, d.method), x)
-    else
-        a = _maybe_analytic(d)
-        a === nothing || return map(xi -> pdf(a, xi), x)
+        return convolved_pdf(d1, d2, x, d.method)
     end
+    a = _maybe_analytic(d)
+    a === nothing || return map(xi -> pdf(a, xi), x)
     return _convolved_numeric_pdf_batched(d, x)
 end
 
 @doc "
 
-Compute log densities for a vector of points, reusing the batched PDF
-solve for the numeric path.
+Compute log densities for a vector of points, analytically where
+[`convolved_logpdf`](@ref) has an exact route, otherwise as the log of
+the batched PDF solve.
 
-Each point is integrated over the same window the scalar path picks
-(shared composite panels plus per-point end corrections), so batched
-and scalar log densities agree to well within ~1e-8 even for wide
-batches (typically near machine precision; extreme 100x-plus point
-spans stay within ~1e-6).
+Each numeric point is integrated over the same window the scalar path
+picks (shared composite panels plus per-point end corrections), so
+batched and scalar numeric log densities agree to well within ~1e-8
+even for wide batches (typically near machine precision; extreme
+100x-plus point spans stay within ~1e-6).
 
 See also: [`logpdf`](@ref), [`pdf`](@ref)
 "
 function logpdf(d::Convolved, x::AbstractVector{<:Real})
     if length(d.components) == 2
         d1, d2 = d.components
-        has_l, l1, l2 = _convolved_route(convolved_logpdf, d1, d2, d.method)
-        if has_l
-            return map(xi -> convolved_logpdf(l1, l2, xi, d.method), x)
-        end
-        has_p, p1, p2 = _convolved_route(convolved_pdf, d1, d2, d.method)
-        if has_p
-            return map(x) do xi
-                p = convolved_pdf(p1, p2, xi, d.method)
-                p <= 0 ? oftype(float(p), -Inf) : log(p)
-            end
-        end
-    else
-        a = _maybe_analytic(d)
-        a === nothing || return map(xi -> logpdf(a, xi), x)
+        return convolved_logpdf(d1, d2, x, d.method)
     end
+    a = _maybe_analytic(d)
+    a === nothing || return map(xi -> logpdf(a, xi), x)
+    return _batched_numeric_logpdf(d, x)
+end
 
+# Batched numeric logpdf: log of the shared composite-quadrature pdf
+# batch, promoted with its result type since `eltype(d)` misses AD
+# tracers on the component parameters (#43). Also the `NumericSolver`
+# arm of the two-component vector `convolved_logpdf` skeleton
+# (solver_dispatch.jl).
+function _batched_numeric_logpdf(d::Convolved, x::AbstractVector{<:Real})
     pdfs = _convolved_numeric_pdf_batched(d, x)
-    # Promote with the batched-PDF result type: `eltype(d)` misses
-    # AD tracers on the component parameters (#43).
     T = promote_type(eltype(x), float(eltype(d)), eltype(pdfs))
-
     return map(zip(x, pdfs)) do (xi, p)
         if !insupport(d, xi)
             T(-Inf)

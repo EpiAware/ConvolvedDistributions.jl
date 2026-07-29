@@ -9,9 +9,10 @@
   `AnalyticalSolver` tries the named-distribution route first, then falls
   back to a `NumericSolver` method, and a component-specific analytic
   method (more specific than the `AnalyticalSolver` fallback) wins by
-  ordinary dispatch. `Convolved`'s call sites try the given component
-  order and then the reversed order before settling on a route, since
-  convolution is commutative but dispatch is not. Ships a
+  ordinary dispatch. Convolution is commutative but dispatch is not, so
+  each analytic pair ships both component orders as mirrored methods,
+  resolved at compile time with no runtime route lookup (a `which`-based
+  lookup on every evaluation broke Mooncake AD; #80). Ships a
   `Gamma`/`LogNormal`/`Weibull` + `Uniform` closed-form `cdf`
   (`uniform_window_cdf`, also public, factors the shared arithmetic so a
   downstream family only supplies its partial first moment), plus an

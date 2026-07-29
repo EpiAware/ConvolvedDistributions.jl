@@ -5,8 +5,8 @@
 @testitem "Gamma + Uniform analytic pair matches numeric quadrature" begin
     using Distributions
 
-    for (shape, scale, pmin, pwidth) in ((2.0, 1.5, 0.0, 2.0), (0.5, 3.0, 1.0, 1.0), (
-        5.0, 0.8, 0.0, 4.0))
+    cases = ((2.0, 1.5, 0.0, 2.0), (0.5, 3.0, 1.0, 1.0), (5.0, 0.8, 0.0, 4.0))
+    for (shape, scale, pmin, pwidth) in cases
         delay = Gamma(shape, scale)
         primary = Uniform(pmin, pmin + pwidth)
         d_analytic = convolved(delay, primary)
@@ -25,8 +25,8 @@ end
 @testitem "LogNormal + Uniform analytic pair matches numeric quadrature" begin
     using Distributions
 
-    for (mu, sigma, pmin, pwidth) in ((1.5, 0.5, 0.0, 3.0), (0.0, 1.0, 0.0, 1.0), (
-        2.0, 0.3, 1.0, 2.0))
+    cases = ((1.5, 0.5, 0.0, 3.0), (0.0, 1.0, 0.0, 1.0), (2.0, 0.3, 1.0, 2.0))
+    for (mu, sigma, pmin, pwidth) in cases
         delay = LogNormal(mu, sigma)
         primary = Uniform(pmin, pmin + pwidth)
         d_analytic = convolved(delay, primary)
@@ -44,8 +44,8 @@ end
 @testitem "Weibull + Uniform analytic pair matches numeric quadrature" begin
     using Distributions
 
-    for (k, lambda, pmin, pwidth) in ((1.5, 2.0, 0.0, 1.5), (0.7, 1.0, 0.0, 2.0), (
-        3.0, 4.0, 1.0, 1.0))
+    cases = ((1.5, 2.0, 0.0, 1.5), (0.7, 1.0, 0.0, 2.0), (3.0, 4.0, 1.0, 1.0))
+    for (k, lambda, pmin, pwidth) in cases
         delay = Weibull(k, lambda)
         primary = Uniform(pmin, pmin + pwidth)
         d_analytic = convolved(delay, primary)
@@ -65,7 +65,7 @@ end
     end
 end
 
-@testitem "Native analytic pairs are picked up by AnalyticalSolver by default" begin
+@testitem "Native analytic pairs used by AnalyticalSolver by default" begin
     using ConvolvedDistributions
     using ConvolvedDistributions: evaluation_path
     using Distributions
@@ -107,16 +107,18 @@ end
     end
 
     # Batched cdf differentiates too, and matches the pointwise gradient.
-    fb = θ -> sum(cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), [1.0, 3.0]))
+    fb = θ -> sum(
+        cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), [1.0, 3.0]))
     gb = ForwardDiff.gradient(fb, θ)
     @test all(isfinite, gb)
 end
 
-@testitem "LogNormal + Uniform analytic pair cdf/logcdf ForwardDiff gradient" begin
+@testitem "LogNormal + Uniform pair cdf/logcdf ForwardDiff gradient" begin
     using Distributions, ForwardDiff
 
     fc = θ -> cdf(convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), 4.0)
-    flc = θ -> logcdf(convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), 4.0)
+    flc = θ -> logcdf(
+        convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), 4.0)
     θ = [1.5, 0.5]
 
     gc = ForwardDiff.gradient(fc, θ)
@@ -135,7 +137,7 @@ end
     end
 end
 
-@testitem "Weibull + Uniform analytic pair cdf/logcdf ForwardDiff gradient" begin
+@testitem "Weibull + Uniform pair cdf/logcdf ForwardDiff gradient" begin
     using Distributions, ForwardDiff
 
     fc = θ -> cdf(convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), 2.5)
@@ -221,7 +223,7 @@ end
     end
 end
 
-@testitem "uniform-window density matches quadrature across delay families" begin
+@testitem "uniform-window density matches quadrature by family" begin
     using Distributions
 
     cases = [
@@ -372,11 +374,10 @@ end
 
     # A generous factor: not a tight timing pin, just enough to catch the
     # analytic path being silently bypassed (mirrors CensoredDistributions'
-    # `primarycensored_cdf` performance test). Uses the batched `cdf`
-    # (route resolved once, not once per point, see `_convolved_route`)
-    # since the scalar path pays a `which`-based route lookup on every
-    # call, which can rival a cheap closed form's own cost and is not a
-    # reliable win at this batch size (documented on `_convolved_pair`).
+    # `primarycensored_cdf` performance test). Uses the batched `cdf`:
+    # dispatch picks the closed form per point with no route lookup
+    # (S1.5), so this is a closed-form-vs-quadrature comparison either
+    # way.
     cases = [
         (Gamma(2.0, 1.5), "Gamma"), (LogNormal(1.5, 0.5), "LogNormal"),
         (Weibull(1.5, 2.0), "Weibull")

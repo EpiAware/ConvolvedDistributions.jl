@@ -25,6 +25,13 @@
         analytic_called[] = true
         return 0.12345
     end
+    # Mirrored order (S1.5): dispatch never swaps arguments itself, so a
+    # downstream method for one order needs its mirror defined too.
+    function ConvolvedDistributions.convolved_cdf(
+            primary::Uniform, delay::DispatchTestDelay, x::Real,
+            m::AnalyticalSolver)
+        return ConvolvedDistributions.convolved_cdf(delay, primary, x, m)
+    end
 
     @testset "Dispatch to analytical method" begin
         analytic_called[] = false
@@ -58,6 +65,8 @@
     end
 
     @testset "Reversed component order" begin
+        # Resolved by the mirrored method above, at compile time --
+        # no runtime route lookup.
         forward = convolved(DispatchTestDelay(), Uniform(0.0, 1.0))
         reversed = convolved(Uniform(0.0, 1.0), DispatchTestDelay())
         @test cdf(reversed, 2.0) == cdf(forward, 2.0) == 0.12345
