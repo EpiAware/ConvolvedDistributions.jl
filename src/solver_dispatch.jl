@@ -37,26 +37,20 @@ end
 The CDF of `d1 + d2` at `x`, dispatched on the solver method `method`.
 `AnalyticalSolver` prefers a named-distribution or component-specific
 analytic method, falling back to `NumericSolver` quadrature. Public,
-alongside its `logcdf`/`ccdf`/`logccdf`/`pdf`/`logpdf` siblings, so a
-downstream package (e.g. CensoredDistributions.jl) can add its own
-analytic pair by defining a method more specific than
-`(UnivariateDistribution, UnivariateDistribution, Real,
-AnalyticalSolver)`.
-
-# Arguments
-- `d1`, `d2`: The two components of the sum `d1 + d2`.
-- `x`: Evaluation point.
-- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
+alongside its `logcdf`/`ccdf`/`logccdf`/`pdf`/`logpdf`/`quantile`
+siblings, so a downstream package adds its own analytic pair by
+defining a method more specific than `(UnivariateDistribution,
+UnivariateDistribution, Real, AnalyticalSolver)`.
 
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
 
-convolved_cdf(Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
+ConvolvedDistributions.convolved_cdf(
+    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
 ```
 
-See also: [`Convolved`](@ref), [`AnalyticalSolver`](@ref),
-[`NumericSolver`](@ref)
+See also: [`Convolved`](@ref)
 "
 function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::Real, method::AbstractSolverMethod)
@@ -78,21 +72,7 @@ end
 @doc "
     convolved_logcdf(d1, d2, x, method)
 
-The log CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref) for the
-arguments.
-
-# Arguments
-- `d1`, `d2`: The two components of the sum `d1 + d2`.
-- `x`: Evaluation point.
-- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
-
-# Examples
-```@example
-using ConvolvedDistributions, Distributions
-
-convolved_logcdf(
-    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
-```
+The log CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
 "
 function convolved_logcdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
@@ -115,21 +95,7 @@ end
 @doc "
     convolved_ccdf(d1, d2, x, method)
 
-The complementary CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref)
-for the arguments.
-
-# Arguments
-- `d1`, `d2`: The two components of the sum `d1 + d2`.
-- `x`: Evaluation point.
-- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
-
-# Examples
-```@example
-using ConvolvedDistributions, Distributions
-
-convolved_ccdf(
-    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
-```
+The complementary CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
 "
 function convolved_ccdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
@@ -152,20 +118,7 @@ end
     convolved_logccdf(d1, d2, x, method)
 
 The log complementary CDF of `d1 + d2` at `x`. See
-[`convolved_cdf`](@ref) for the arguments.
-
-# Arguments
-- `d1`, `d2`: The two components of the sum `d1 + d2`.
-- `x`: Evaluation point.
-- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
-
-# Examples
-```@example
-using ConvolvedDistributions, Distributions
-
-convolved_logccdf(
-    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
-```
+[`convolved_cdf`](@ref).
 "
 function convolved_logccdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
@@ -191,20 +144,7 @@ end
 @doc "
     convolved_pdf(d1, d2, x, method)
 
-The density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref) for the
-arguments.
-
-# Arguments
-- `d1`, `d2`: The two components of the sum `d1 + d2`.
-- `x`: Evaluation point.
-- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
-
-# Examples
-```@example
-using ConvolvedDistributions, Distributions
-
-convolved_pdf(Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
-```
+The density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
 "
 function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::Real, method::AbstractSolverMethod)
@@ -226,21 +166,7 @@ end
 @doc "
     convolved_logpdf(d1, d2, x, method)
 
-The log density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref) for
-the arguments.
-
-# Arguments
-- `d1`, `d2`: The two components of the sum `d1 + d2`.
-- `x`: Evaluation point.
-- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
-
-# Examples
-```@example
-using ConvolvedDistributions, Distributions
-
-convolved_logpdf(
-    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
-```
+The log density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
 "
 function convolved_logpdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
@@ -265,23 +191,11 @@ end
 @doc "
     convolved_quantile(d1, d2, p, method)
 
-The quantile of `d1 + d2` at `p`. Skeleton methods 1-2 only: the
-`NumericSolver` arm (method 3) needs a nonlinear solve and lives in the
+The quantile of `d1 + d2` at probability `p`. Skeleton methods 1-2
+only: the `NumericSolver` arm needs a nonlinear solve and lives in the
 `ConvolvedDistributionsOptimizationExt` extension, so a non-analytic
-pair's quantile is unavailable until Optimization.jl is loaded, while an
-analytic pair (`_try_convolve`) works without it.
-
-# Arguments
-- `d1`, `d2`: The two components of the sum `d1 + d2`.
-- `p`: Probability in `[0, 1]`.
-- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
-
-# Examples
-```@example
-using ConvolvedDistributions, Distributions
-
-convolved_quantile(Normal(1.0, 2.0), Normal(3.0, 4.0), 0.5, AnalyticalSolver())
-```
+pair's quantile is unavailable until Optimization.jl is loaded, while
+an analytic pair (`_try_convolve`) works without it.
 
 See also: [`convolved_cdf`](@ref)
 "
@@ -301,26 +215,10 @@ end
 @doc "
     convolved_minimum(d1, d2, method)
 
-The minimum of `d1 + d2`. S1.4: a quantity with no evaluation point
-takes no `x`/`p` argument at all -- this demonstrates the shape
-compiles; it is not wired into `minimum`, which is already exact by
-summation (S2.5), so only the unimplemented-method-type error (method
-1 of the skeleton) exists.
-
-# Arguments
-- `d1`, `d2`: The two components of the sum `d1 + d2`.
-- `method`: The solver method.
-
-# Examples
-```@example
-using ConvolvedDistributions, Distributions
-
-try
-    convolved_minimum(Normal(0.0, 1.0), Normal(1.0, 2.0), AnalyticalSolver())
-catch e
-    println(e)
-end
-```
+The minimum of `d1 + d2`. A quantity with no evaluation point takes no
+`x`/`p` argument at all. Not wired into `minimum`, which is already
+exact by summation; only the unimplemented-method-type error exists,
+demonstrating the shape compiles for a future zero-argument quantity.
 "
 function convolved_minimum(d1::UnivariateDistribution,
         d2::UnivariateDistribution, method::AbstractSolverMethod)
@@ -337,12 +235,8 @@ function _convolved_general_quantile end
 @doc "
 
 Whether `f(d1, d2, x, method)` resolves to a method more specific than
-the `AnalyticalSolver` generic fallback for component types `D1`/`D2` --
-an analytic route exists, checked by method lookup (`which`), never by
-evaluating `f` (#92). Julia disallows `which`/code reflection inside a
-`@generated` function body, so this cost is paid at every call rather
-than once per `(F, D1, D2)` type combination -- see the note on
-`_convolved_pair` below.
+the `AnalyticalSolver` generic fallback for component types `D1`/`D2`,
+checked by method lookup (`which`), never by evaluating `f` (#92).
 "
 function _has_analytic_route(f::F, ::Type{D1}, ::Type{D2},
         method::AnalyticalSolver) where {F, D1, D2}
@@ -357,12 +251,9 @@ end
 
 Whether an analytic route exists for `f(d1, d2, ...)` and, if so, the
 `(a1, a2)` component order to call `f` in: the named-distribution route
-(S2.3) first, since it is symmetric and cheap, then method lookup
-(`_has_analytic_route`) in each order (S1.5/S4.1). Computed once per
+first, then method lookup in each order (S1.5). Computed once per
 `(d1, d2, method)` rather than per evaluation point, so batched callers
-(`Convolved`'s vector `cdf`/`pdf`/`logpdf`) share one answer across
-their whole point vector instead of paying a `which` lookup per point.
-Falls back to `(false, d1, d2)` when neither order has a route.
+share one answer across their whole point vector.
 "
 function _convolved_route(f::F, d1, d2, method::AnalyticalSolver) where {F}
     _try_convolve(d1, d2) !== nothing && return (true, d1, d2)
@@ -378,19 +269,9 @@ _convolved_route(f::F, d1, d2, ::NumericSolver) where {F} = (false, d1, d2)
 @doc "
 
 Evaluate `f(d1, d2, extra, method)` for a two-component pair via
-[`_convolved_route`](@ref): try the given order, then (`AnalyticalSolver`
-only) the reversed order, before settling on whichever method actually
-matches. `Convolved` is commutative but dispatch is not, and the caller
-chooses the component order (S1.5); `Difference`/`Product` are not
+[`_convolved_route`](@ref): try the given order, then the reversed
+order, before settling on numeric. `Difference`/`Product` are not
 commutative and never use this.
-
-Pays a `_convolved_route` lookup per call -- for a delay family whose
-closed form is itself cheap (a handful of arithmetic ops), that lookup
-cost can be comparable to or larger than the closed form, so the
-analytic route is not guaranteed to beat quadrature on raw wall-clock
-for a small batch. It is guaranteed to be *exact* and to skip
-quadrature, which is the property `evaluation_path`/`has_closed_form`
-and the `TestUtils` skip-quadrature check verify.
 "
 function _convolved_pair(f::F, d1, d2, extra, method) where {F}
     _, a1, a2 = _convolved_route(f, d1, d2, method)

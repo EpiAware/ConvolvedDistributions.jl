@@ -93,15 +93,15 @@ using ConvolvedDistributions, Distributions
 
 # Normal + Normal has an analytic convolution
 d = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
-evaluation_path(d)
+ConvolvedDistributions.evaluation_path(d)
 
 # Gamma + Uniform has an exact cdf and pdf but no analytic convolution
 dg = convolved(Gamma(2.0, 1.0), Uniform(0.0, 2.0))
-evaluation_path(dg, cdf)
+ConvolvedDistributions.evaluation_path(dg, cdf)
 
 # Gamma + LogNormal has no closed form for either quantity
 dn = convolved(Gamma(2.0, 1.0), LogNormal(1.5, 0.5))
-evaluation_path(dn)
+ConvolvedDistributions.evaluation_path(dn)
 ```
 
 # See also
@@ -129,7 +129,7 @@ to `(pdf, cdf)`, as for [`evaluation_path`](@ref).
 using ConvolvedDistributions, Distributions
 
 d = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
-has_closed_form(d)
+ConvolvedDistributions.has_closed_form(d)
 ```
 
 # See also
