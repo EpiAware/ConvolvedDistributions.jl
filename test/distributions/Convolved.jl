@@ -28,6 +28,49 @@
           ConvolvedDistributions.Convolved
 end
 
+@testitem "single-component Convolved under NumericSolver evaluates (regression)" begin
+    using Distributions
+
+    # `convolved(...)` always builds two or more components, but
+    # `Convolved` itself is public and its inner constructor permits one.
+    # Under the default `AnalyticalSolver` this already worked (the
+    # single component short-circuits `_maybe_analytic`); under
+    # `NumericSolver` it used to throw from `Convolved(())` inside
+    # `_rest_distribution` (a pre-existing bug, reachable directly
+    # through the public `Convolved` type without the deferred `power`
+    # keyword — see #89).
+    x = Normal(1.0, 2.0)
+    d = ConvolvedDistributions.Convolved((x,); method = NumericSolver())
+    @test ConvolvedDistributions._maybe_analytic(d) === nothing
+
+    # pdf/cdf route directly through the fixed component's own pdf/cdf
+    # (bit-identical); logpdf/logcdf on the generic numeric path
+    # recompute via `log(pdf(...))`/`log(cdf(...))` rather than
+    # delegating to the component's own (more precise) logpdf/logcdf, so
+    # they agree only to floating-point precision, not bit-for-bit —
+    # true of the numeric path in general, not specific to this fix.
+    for z in (-1.0, 1.0, 3.0)
+        @test pdf(d, z) == pdf(x, z)
+        @test cdf(d, z) == cdf(x, z)
+        @test logpdf(d, z)≈logpdf(x, z) atol=1e-12
+        @test logcdf(d, z)≈logcdf(x, z) atol=1e-12
+    end
+
+    zs = [-1.0, 1.0, 3.0]
+    @test pdf(d, zs) == pdf.(Ref(x), zs)
+    @test cdf(d, zs) == cdf.(Ref(x), zs)
+    @test logpdf(d, zs) ≈ logpdf.(Ref(x), zs) atol=1e-12
+
+    # Same fix on the discrete lattice route.
+    p = Poisson(2.0)
+    dp = ConvolvedDistributions.Convolved((p,); method = NumericSolver())
+    @test Distributions.value_support(typeof(dp)) === Discrete
+    for k in 0:5
+        @test pdf(dp, k) == pdf(p, k)
+        @test cdf(dp, k) == cdf(p, k)
+    end
+end
+
 @testitem "Convolved support and params" begin
     using Distributions
 
@@ -606,6 +649,47 @@ end
     refs_pdf = [0.180646198535104, 0.0147490090653485]
     @test cdf(d, [3.0, 10.0]) ≈ refs_cdf atol=1e-8
     @test pdf(d, [3.0, 10.0]) ≈ refs_pdf atol=1e-8
+end
+
+@testitem "registered discrete analytic pairs (#85, #89)" begin
+    using ConvolvedDistributions.TestUtils: test_analytic_skips_quadrature
+    using Distributions
+
+    # Poisson + Poisson, equal-p Binomial, and equal-p NegativeBinomial
+    # are registered as analytic pairs; each reports :analytic and its
+    # density is === the reference (not merely ≈).
+    dpp = convolved(Poisson(3.0), Poisson(2.0))
+    @test ConvolvedDistributions.evaluation_path(dpp) === :analytic
+    test_analytic_skips_quadrature(dpp; x = 4)
+    @test pdf(dpp, 4) == pdf(Poisson(5.0), 4)
+
+    dbb = convolved(Binomial(4, 0.3), Binomial(5, 0.3))
+    @test ConvolvedDistributions.evaluation_path(dbb) === :analytic
+    test_analytic_skips_quadrature(dbb; x = 3)
+
+    dnn = convolved(NegativeBinomial(5, 0.5), NegativeBinomial(3, 0.5))
+    @test ConvolvedDistributions.evaluation_path(dnn) === :analytic
+    test_analytic_skips_quadrature(dnn; x = 4)
+
+    # A mismatched-p pair has no analytic form: :numeric, but still
+    # exact (the lattice fold), and still agrees with brute force.
+    dmismatch = convolved(Binomial(4, 0.3), Binomial(5, 0.4))
+    @test ConvolvedDistributions.evaluation_path(dmismatch) === :numeric
+    @test ConvolvedDistributions.is_exact(dmismatch)
+    bf = sum(pdf(Binomial(4, 0.3), k) * pdf(Binomial(5, 0.4), 6 - k)
+    for k in 0:6)
+    @test pdf(dmismatch, 6) ≈ bf
+
+    # The analytic and lattice routes agree tightly on an equal-p pair
+    # evaluated both ways (NumericSolver forces the lattice route, J5).
+    da = convolved(Binomial(4, 0.3), Binomial(5, 0.3))
+    dn = convolved(Binomial(4, 0.3), Binomial(5, 0.3); method = NumericSolver())
+    @test ConvolvedDistributions.evaluation_path(dn) === :numeric
+    @test ConvolvedDistributions.is_exact(dn)
+    for k in 0:9
+        @test pdf(da, k)≈pdf(dn, k) atol=1e-12
+        @test cdf(da, k)≈cdf(dn, k) atol=1e-12
+    end
 end
 
 # The AD-safety of the Convolved moments and densities (gradients flowing

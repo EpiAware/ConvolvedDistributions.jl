@@ -372,6 +372,47 @@ end
     @test pdf(d, 5.0) ≈ 0.0376154454208233 atol=1e-9
 end
 
+@testitem "Product of two discrete components is Discrete and exact (#85, #89)" begin
+    using Distributions
+
+    d = product(Poisson(2.0), Poisson(3.0))
+    @test Distributions.value_support(typeof(d)) === Discrete
+    @test ConvolvedDistributions.is_exact(d)
+
+    px0 = pdf(Poisson(2.0), 0)
+    py0 = pdf(Poisson(3.0), 0)
+    @test pdf(d, 0) ≈ px0 + py0 - px0 * py0
+
+    for z in 1:24
+        bf = sum(pdf(Poisson(2.0), x) * pdf(Poisson(3.0), y)
+        for x in 1:60, y in 1:60 if x * y == z)
+        @test pdf(d, z) ≈ bf atol=1e-10
+    end
+
+    masses = [pdf(d, k) for k in 0:200]
+    @test all(m -> m >= 0, masses)
+    @test isapprox(sum(masses), 1; atol = 1e-6)
+
+    running_sums = cumsum(masses)
+    for (k, running) in zip(0:200, running_sums)
+        @test cdf(d, k) ≈ running atol=1e-6
+    end
+
+    # A bounded pair matches exhaustive enumeration exactly.
+    x = Binomial(3, 0.4)
+    y = DiscreteUniform(0, 3)
+    db = product(x, y)
+    for z in 0:9
+        bf = sum((pdf(x, a) * pdf(y, b) for a in 0:3, b in 0:3 if a * b == z);
+            init = 0.0)
+        @test pdf(db, z) ≈ bf atol=1e-12
+    end
+
+    # A mixed pair stays Continuous.
+    dmix = product(Poisson(2.0), LogNormal(0.5, 0.4))
+    @test Distributions.value_support(typeof(dmix)) === Continuous
+end
+
 # The AD-safety of Product (gradients flowing through both components'
 # parameters, on the numeric Mellin quadrature path) is covered by the
 # multi-backend AD suite in `test/ADFixtures`, which has the AD backends

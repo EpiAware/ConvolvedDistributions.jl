@@ -16,6 +16,14 @@ The support of `Z` runs from ``\\min(X)\\min(Y)`` to
 ``\\max(X)\\max(Y)``, taking the value ``\\infty`` where a component is
 unbounded.
 
+# Value support
+
+Derived from the components, not hardcoded: a `Product` of two
+integer-lattice discrete distributions is itself `Discrete`, with its
+density computed by exact divisor enumeration and its CDF by an exact
+conditioning sum, both replacing quadrature (see [`is_exact`](@ref)).
+Otherwise it is `Continuous`, as before.
+
 # Independence
 
 The construction assumes `X` and `Y` are independent. The density, CDF,
@@ -64,8 +72,8 @@ validation).
 - [`Difference`](@ref): The signed gap ``X - Y``
 "
 struct Product{X <: UnivariateDistribution, Y <: UnivariateDistribution,
-    M <: AbstractSolverMethod} <:
-       AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
+    M <: AbstractSolverMethod, S <: Distributions.ValueSupport} <:
+       AbstractConvolvedDistribution{Distributions.Univariate, S}
     "The multiplicand component (the `X` in `Z = X * Y`)."
     x::X
     "The multiplier component (the `Y` in `Z = X * Y`)."
@@ -81,9 +89,17 @@ struct Product{X <: UnivariateDistribution, Y <: UnivariateDistribution,
                 "product requires components with non-negative support " *
                 "(minimum(d) >= 0 for both); sign-crossing supports are " *
                 "future work"))
-        new{X, Y, typeof(method)}(x, y, method)
+        S = _components_support((x, y))
+        new{X, Y, typeof(method), S}(x, y, method)
     end
 end
+
+# Discrete-typed alias: matches only when both `x` and `y` are
+# integer-lattice discrete distributions (see `_components_support` in
+# `src/interface.jl`). Used to dispatch to the exact divisor fold.
+const _DiscreteProduct = Product{
+    <:UnivariateDistribution, <:UnivariateDistribution,
+    <:AbstractSolverMethod, Discrete}
 
 @doc "
 
@@ -167,7 +183,7 @@ function maximum(d::Product)
 end
 
 function insupport(d::Product, z::Real)
-    return minimum(d) <= z <= maximum(d)
+    return _on_lattice(d, z) && minimum(d) <= z <= maximum(d)
 end
 
 function Base.rand(rng::AbstractRNG, d::Product)
@@ -267,12 +283,16 @@ end
 # Convolved). Unlike `_difference_window` the LOWER end also needs a
 # clamp when it is zero: the density integrand carries a 1/y factor, so
 # a zero endpoint is nudged to the matching extreme lower quantile,
-# below which Y carries no appreciable mass by construction.
+# below which Y carries no appreciable mass by construction. `float(...)`
+# on the already-set branches matches `_window_quantile`'s own
+# `float(...)` wrap, keeping the pair type-stable regardless of whether
+# `Y` is continuous or discrete (see `_difference_window`).
 function _product_mass_window(d::Product)
     ymin = minimum(d.y)
     ymax = maximum(d.y)
-    lo = ymin > 0 ? ymin : _window_quantile(d.y, _CONVOLVED_TAIL)
-    hi = isfinite(ymax) ? ymax : _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
+    lo = ymin > 0 ? float(ymin) : _window_quantile(d.y, _CONVOLVED_TAIL)
+    hi = isfinite(ymax) ? float(ymax) :
+         _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
     return lo, hi
 end
 
@@ -362,6 +382,75 @@ function _product_numeric_cdf(d::Product, z::Real)
 end
 
 # ---------------------------------------------------------------------------
+# Exact discrete divisor fold (#85, #89)
+# ---------------------------------------------------------------------------
+#
+# Only reachable for a `_DiscreteProduct` (both `x` and `y` integer-lattice
+# discrete). Both components are non-negative by construction, so their
+# integer supports lie in `0, 1, 2, ...`.
+
+# P(XY = 0) = P(X = 0) + P(Y = 0) - P(X = 0)P(Y = 0), and for z >= 1
+# P(XY = z) = Σ_{k | z} P(X = k) P(Y = z / k) over the positive divisors
+# of z, enumerated in pairs up to sqrt(z). Exact, no truncation, and
+# O(sqrt(z)) mass evaluations. The accumulator is seeded from the k = 1
+# term so the element type comes from the component masses.
+function _product_lattice_pdf(d::Product, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    insupport(d, z) || return zero(float(typeof(z)))
+    zi = Int(primal(z))
+    if zi == 0
+        px = pdf_ad_safe(d.x, 0)
+        py = pdf_ad_safe(d.y, 0)
+        return px + py - px * py
+    end
+    acc = pdf_ad_safe(d.x, 1) * pdf_ad_safe(d.y, zi)
+    zi == 1 && return acc
+    acc += pdf_ad_safe(d.x, zi) * pdf_ad_safe(d.y, 1)
+    for k in 2:isqrt(zi)
+        zi % k == 0 || continue
+        j = zi ÷ k
+        acc += pdf_ad_safe(d.x, k) * pdf_ad_safe(d.y, j)
+        j == k || (acc += pdf_ad_safe(d.x, j) * pdf_ad_safe(d.y, k))
+    end
+    return acc
+end
+
+# F_Z(z) = P(Y = 0) + Σ_{y = 1}^{m} P(Y = y) F_X(z / y) + P(Y > m) P(X = 0),
+# m = min(floor(z), max(Y)). For y > m the conditional P(X <= z/y) is
+# P(X = 0) because X is integer-valued and 0 <= z/y < 1 (m = floor(z), so
+# y > m implies z/y < 1), so the unbounded-Y tail is closed exactly
+# rather than truncated — `ccdf_ad_safe(d.y, m)` is exactly `0` once
+# `m >= max(Y)`, so a bounded Y needs no separate branch either. O(z)
+# mass/cdf evaluations (cheaper than the O(sqrt(z)) pdf fold summed up
+# to z, since each term here is O(1)). The accumulator is seeded from
+# the `y = 0` term.
+function _product_lattice_cdf(d::Product, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    z < minimum(d) && return zero(float(typeof(z)))
+    z >= maximum(d) && return one(float(typeof(z)))
+
+    zi = floor(Int, Float64(primal(z)))
+    ymax = maximum(d.y)
+    m = isfinite(ymax) ? min(zi, floor(Int, Float64(primal(ymax)))) : zi
+
+    result = pdf_ad_safe(d.y, 0)
+    for y in 1:m
+        result += pdf_ad_safe(d.y, y) * cdf_ad_safe(d.x, z / y)
+    end
+    result += ccdf_ad_safe(d.y, m) * pdf_ad_safe(d.x, 0)
+    return clamp(result, zero(result), one(result))
+end
+
+# Dispatch on the `Discrete` type parameter selects the exact divisor
+# fold; `is_exact` (`src/interface.jl`) keys off the same
+# `_exact_discrete_route` predicate, so reported and executed exactness
+# cannot drift.
+_product_pdf_route(d::Product, z::Real) = _product_numeric_pdf(d, z)
+_product_pdf_route(d::_DiscreteProduct, z::Real) = _product_lattice_pdf(d, z)
+_product_cdf_route(d::Product, z::Real) = _product_numeric_cdf(d, z)
+_product_cdf_route(d::_DiscreteProduct, z::Real) = _product_lattice_cdf(d, z)
+
+# ---------------------------------------------------------------------------
 # CDF / logcdf / pdf / logpdf
 # ---------------------------------------------------------------------------
 
@@ -382,7 +471,7 @@ function cdf(d::Product, z::Real)
     if analytic !== nothing
         return cdf(analytic, z)
     end
-    return _product_numeric_cdf(d, z)
+    return _product_cdf_route(d, z)
 end
 
 @doc "
@@ -396,7 +485,7 @@ function logcdf(d::Product, z::Real)
     if analytic !== nothing
         return logcdf(analytic, z)
     end
-    c = _product_numeric_cdf(d, z)
+    c = _product_cdf_route(d, z)
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
 end
 
@@ -429,7 +518,7 @@ function pdf(d::Product, z::Real)
     if analytic !== nothing
         return pdf(analytic, z)
     end
-    return _product_numeric_pdf(d, z)
+    return _product_pdf_route(d, z)
 end
 
 @doc "
@@ -446,6 +535,6 @@ function logpdf(d::Product, z::Real)
     if !insupport(d, z)
         return oftype(float(z), -Inf)
     end
-    p = _product_numeric_pdf(d, z)
+    p = _product_pdf_route(d, z)
     return p <= 0 ? oftype(float(z), -Inf) : log(p)
 end

@@ -13,6 +13,18 @@ pre-symptomatic transmission timing); `minimum` and `maximum` are the
 sums of the component supports, taking the value ``\\pm\\infty`` where a
 component is unbounded.
 
+# Value support
+
+The value support is DERIVED from the components, not hardcoded: when
+every component is an integer-lattice discrete distribution (discrete
+with `eltype <: Integer`), `Convolved` is itself `Discrete` and its
+density/CDF are computed by an exact fold over the integer lattice
+instead of quadrature (see [`is_exact`](@ref)). Otherwise it is
+`Continuous`, as before. The lattice fold costs `O(window)` lattice
+points per evaluation (and multiplies across nested components), so
+evaluating at a very large point is correspondingly expensive; no cap is
+imposed.
+
 # CDF computation
 
 The CDF is computed by integrating one component out against the CDF of
@@ -45,8 +57,9 @@ for validation and debugging.
 # See also
 - [`convolved`](@ref): Constructor function
 """
-struct Convolved{C <: Tuple, M <: AbstractSolverMethod} <:
-       AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
+struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
+    S <: Distributions.ValueSupport} <:
+       AbstractConvolvedDistribution{Distributions.Univariate, S}
     "Tuple of independent component distributions to be summed."
     components::C
     "Solver method choosing the analytic vs numeric quadrature backend."
@@ -64,9 +77,23 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod} <:
         all(c -> c isa UnivariateDistribution, components) ||
             throw(ArgumentError(
                 "All components must be UnivariateDistributions"))
-        new{C, typeof(method)}(components, method)
+        S = _components_support(components)
+        new{C, typeof(method), S}(components, method)
     end
 end
+
+# Discrete-typed alias: matches only when every component is an
+# integer-lattice discrete distribution (see `_components_support` in
+# `src/interface.jl`). Used to dispatch to the exact lattice fold.
+const _DiscreteConvolved = Convolved{<:Tuple, <:AbstractSolverMethod, Discrete}
+
+# Single-component alias. `convolved(...)` always builds two or more
+# components (see below), but `Convolved` itself is public and its inner
+# constructor permits one component — the recursive rebuild uses this for
+# the degenerate "rest of one" case. Used below to fix a pre-existing bug:
+# a directly-constructed, single-component `Convolved` under
+# `NumericSolver` throws instead of evaluating.
+const _SingleConvolved = Convolved{<:Tuple{UnivariateDistribution}}
 
 @doc "
 
@@ -167,7 +194,7 @@ minimum(d::Convolved) = sum(minimum, d.components)
 maximum(d::Convolved) = sum(maximum, d.components)
 
 function insupport(d::Convolved, x::Real)
-    return minimum(d) <= x <= maximum(d)
+    return _on_lattice(d, x) && minimum(d) <= x <= maximum(d)
 end
 
 function Base.rand(rng::AbstractRNG, d::Convolved)
@@ -233,10 +260,15 @@ std(d::Convolved) = sqrt(var(d))
 # closed form exists for the pair, otherwise `nothing`. Dispatch (rather
 # than `try`/`catch`) selects the analytic pairs so the path stays
 # differentiable under every AD backend — Mooncake reverse cannot
-# differentiate through `try`/`catch`. Only continuous families whose
-# `Distributions.convolve` always succeeds for the given parameters are
-# enabled; `Gamma` additionally needs equal scale (else the runtime
-# `convolve` would throw), so a parameter check guards it.
+# differentiate through `try`/`catch`. Both continuous and discrete
+# families are enabled, wherever `Distributions.convolve` always succeeds
+# for the given parameters; several families additionally need a matching
+# parameter (`Gamma`/`Exponential` equal scale, `Binomial`/
+# `NegativeBinomial` equal success probability, mirroring
+# `Distributions._check_convolution_args`'s own guard) — else the runtime
+# `convolve` would throw — so a parameter check guards those and falls
+# through to the exact discrete lattice fold (still exact, just not a
+# closed form) rather than to quadrature.
 _try_convolve(a::UnivariateDistribution, b::UnivariateDistribution) = nothing
 
 function _try_convolve(a::Normal, b::Normal)
@@ -251,6 +283,18 @@ end
 
 function _try_convolve(a::Gamma, b::Gamma)
     return scale(a) ≈ scale(b) ? Distributions.convolve(a, b) : nothing
+end
+
+function _try_convolve(a::Poisson, b::Poisson)
+    return Distributions.convolve(a, b)
+end
+
+function _try_convolve(a::Binomial, b::Binomial)
+    return succprob(a) ≈ succprob(b) ? Distributions.convolve(a, b) : nothing
+end
+
+function _try_convolve(a::NegativeBinomial, b::NegativeBinomial)
+    return succprob(a) ≈ succprob(b) ? Distributions.convolve(a, b) : nothing
 end
 
 # Reduce the component tuple to a single distribution, folding pairwise
@@ -291,8 +335,19 @@ const _CONVOLVED_TAIL = 1e-8
 # rules (the Enzyme `EnzymeRules` rule and the ChainRules
 # `@non_differentiable` mark) to attach to; if it inlined, Enzyme would
 # type-analyse `quantile`/`gamma_inc_inv` directly and abort.
+#
+# Wrapped in `float(...)`: `quantile` on a discrete distribution returns
+# an `Int` for some families (`Poisson`) and a `Float64` for others
+# (`Geometric`), so a caller that ternary-branches between this and an
+# already-finite `Float64` bound (`_finite_window` below,
+# `_difference_window`/`_product_mass_window` in Difference.jl/
+# Product.jl) would otherwise infer a `Union{Int, Float64}` result —
+# harmless for the continuous quadrature path (later arithmetic resolves
+# it) but rejected outright by Enzyme's type analysis on the exact
+# discrete lattice fold, the same class of union `_min2`/`_max2` guards
+# against.
 @noinline function _window_quantile(comp::UnivariateDistribution, p::Real)
-    return quantile(primal_distribution(comp), p)
+    return float(quantile(primal_distribution(comp), p))
 end
 
 # Composite window quantile for a `Convolved` component (issue #45). A
@@ -375,19 +430,59 @@ end
 _rest_distribution(c::Tuple{<:UnivariateDistribution}) = c[1]
 _rest_distribution(c::Tuple) = Convolved(c)
 
-# Scalar min/max helpers - keep the bound arithmetic below type stable
-# when one side is ±Inf.
-_min2(a, b) = a < b ? a : b
-_max2(a, b) = a > b ? a : b
+# Scalar min/max helpers, promoting to a common type first. Every
+# continuous-only call site historically had `a` and `b` already the
+# same type (Float64 bounds on both sides), so a bare `a < b ? a : b`
+# was type-stable in practice; a discrete component's `minimum`/`maximum`
+# is often `Int` (e.g. `minimum(Poisson) == 0`) while the other side is
+# `Float64`, and without promotion the ternary infers a
+# `Union{Int, Float64}` result. That union is harmless for the
+# continuous numeric path (later arithmetic resolves it), but it reaches
+# the differentiated closure on the exact discrete lattice fold and
+# Enzyme's type analysis rejects unions outright
+# (`IllegalTypeAnalysisException`), so promoting here — not deeper in
+# the call chain — is what keeps every route AD-safe.
+_min2(a, b) = ((pa, pb) = promote(a, b); pa < pb ? pa : pb)
+_max2(a, b) = ((pa, pb) = promote(a, b); pa > pb ? pa : pb)
+
+# ---------------------------------------------------------------------------
+# Route selection: numeric quadrature vs the exact discrete lattice fold
+# ---------------------------------------------------------------------------
+#
+# Dispatch on the `Discrete` type parameter (not a runtime `if`) selects
+# the exact lattice fold (`_convolved_lattice_pdf`/`_convolved_lattice_cdf`,
+# defined below) for an all-discrete-integer combination, and numeric
+# quadrature otherwise. `is_exact` in `src/interface.jl` keys off the SAME
+# `_exact_discrete_route` predicate these dispatch on, so a discrete
+# combination's reported exactness cannot drift from the route actually
+# executed (#85, #89).
+_convolved_pdf_route(d::Convolved, x::Real) = _convolved_numeric_pdf(d, x)
+_convolved_pdf_route(d::_DiscreteConvolved, x::Real) = _convolved_lattice_pdf(d, x)
+_convolved_cdf_route(d::Convolved, x::Real) = _convolved_numeric_cdf(d, x)
+_convolved_cdf_route(d::_DiscreteConvolved, x::Real) = _convolved_lattice_cdf(d, x)
+
+function _convolved_pdf_route(d::Convolved, x::AbstractVector{<:Real})
+    _convolved_numeric_pdf_batched(d, x)
+end
+function _convolved_pdf_route(d::_DiscreteConvolved, x::AbstractVector{<:Real})
+    map(xi -> _convolved_lattice_pdf(d, xi), x)
+end
+function _convolved_cdf_route(d::Convolved, x::AbstractVector{<:Real})
+    _convolved_numeric_cdf_batched(d, x)
+end
+function _convolved_cdf_route(d::_DiscreteConvolved, x::AbstractVector{<:Real})
+    map(xi -> _convolved_lattice_cdf(d, xi), x)
+end
 
 # Recursion bases / steps for the two kernels. For a single (degenerate)
 # component the kernel is just that component's CDF/PDF; for a nested
-# `Convolved` it recurses through the numeric routines.
+# `Convolved` it recurses through its own route, so a nested discrete
+# `rest` folds exactly (lattice) rather than through quadrature.
 _convolution_cdf(d::UnivariateDistribution, x::Real) = cdf_ad_safe(d, x)
-_convolution_cdf(d::Convolved, x::Real) = _convolved_numeric_cdf(d, x)
+_convolution_cdf(d::Convolved, x::Real) = _convolved_cdf_route(d, x)
 
 _convolution_pdf(d::UnivariateDistribution, x::Real) = pdf(d, x)
-_convolution_pdf(d::Convolved, x::Real) = _convolved_numeric_pdf(d, x)
+_convolution_pdf(d::Convolved, x::Real) = _convolved_pdf_route(d, x)
 
 # The convolution quadrature uses the shared Gauss-Legendre machinery in
 # `src/integration.jl` (`gl_integrate` and the rule constants, see there
@@ -582,6 +677,103 @@ function _convolved_numeric_pdf(d::Convolved, x::Real)
 end
 
 # ---------------------------------------------------------------------------
+# Exact discrete lattice convolution (#85, #89)
+# ---------------------------------------------------------------------------
+#
+# Only reachable for a `_DiscreteConvolved` (every component
+# integer-lattice discrete; see `_components_support`/`_exact_discrete_route`
+# in `src/interface.jl`), via the route dispatch above. Replaces the
+# quadrature integral with an exact sum over the same window the
+# quadrature path uses, so no accuracy is traded away.
+
+# Exact discrete convolution mass:
+#   f_X(x) = Σ_t f_R(x - t) f_C(t)
+# over the integer lattice points t of the integration component C, on
+# the SAME window the quadrature path uses (`_pdf_point_window`): C's
+# support intersected with the range where x - t lands in R's support.
+# With every component non-negative that window is finite and the fold
+# is exact; a component unbounded BELOW has its window clamped at the
+# `_CONVOLVED_TAIL` quantile, trimming at most ~1e-8 of mass, exactly as
+# on the quadrature path (this does not affect `is_exact` — see its
+# docstring).
+function _convolved_lattice_pdf(d::Convolved, x::Real)
+    isnan(x) && return convert(float(typeof(x)), NaN)
+    insupport(d, x) || return zero(float(typeof(x)))
+
+    last_comp = d.components[end]
+    rest = _rest_distribution(d.components[1:(end - 1)])
+
+    t0, t1 = _lattice_range(_pdf_point_window(last_comp, rest, x)...)
+    t1 < t0 && return zero(float(typeof(x)))
+
+    return _lattice_sum(
+        t -> _convolution_pdf(rest, x - t) * pdf_ad_safe(last_comp, t),
+        t0, t1)
+end
+
+# Exact discrete convolution CDF, keeping the quadrature path's
+# decomposition:
+#   F_X(x) = F_C(cut) + Σ_{cut < t <= upper} F_R(x - t) f_C(t),
+# cut = x - max(R) (F_R is exactly 1 at or below it) and
+# upper = min(max(C), x - min(R)) (F_R is exactly 0 strictly above it;
+# t = upper itself contributes f_R(min R) and is kept). The cut is
+# INCLUSIVE in `F_C(cut)`, so the fold starts strictly above it —
+# unlike the continuous path, where that single point has measure zero.
+function _convolved_lattice_cdf(d::Convolved, x::Real)
+    isnan(x) && return convert(float(typeof(x)), NaN)
+    x < minimum(d) && return zero(float(typeof(x)))
+    x >= maximum(d) && return one(float(typeof(x)))
+
+    last_comp = d.components[end]
+    rest = _rest_distribution(d.components[1:(end - 1)])
+
+    cmin = minimum(last_comp)
+    cut = x - maximum(rest)
+    upper = _min2(maximum(last_comp), x - minimum(rest))
+    saturated = cut > cmin ? cdf_ad_safe(last_comp, cut) :
+                zero(float(typeof(x)))
+    lower, upper = _finite_window(last_comp, _max2(cmin, cut), upper)
+
+    t0, t1 = cut > cmin ? _lattice_range_above(cut, upper) :
+             _lattice_range(lower, upper)
+    t1 < t0 && return clamp(saturated, zero(saturated), one(saturated))
+
+    result = saturated + _lattice_sum(
+        t -> _convolution_cdf(rest, x - t) * pdf_ad_safe(last_comp, t),
+        t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+
+# ---------------------------------------------------------------------------
+# Single-component fix: `Convolved((X,); method = NumericSolver())`
+# ---------------------------------------------------------------------------
+#
+# `convolved(...)` always builds two or more components, but `Convolved`
+# itself is public and its inner constructor permits one — reachable
+# directly, bypassing `convolved`'s check. Under the default
+# `AnalyticalSolver`, `_analytic_convolution` already short-circuits a
+# one-tuple to its single component, so `_maybe_analytic` never falls
+# through to the numeric/lattice routes for that case. Under
+# `NumericSolver`, `_maybe_analytic` always returns `nothing`, and the
+# general fold's `_rest_distribution(d.components[1:(end - 1)])` then
+# receives an EMPTY tuple and throws from `Convolved(())`
+# ("Convolved needs at least one component") — a pre-existing bug,
+# reachable today (not only through a deferred `power` keyword; see
+# #89), fixed here with a regression test.
+_convolved_numeric_pdf(d::_SingleConvolved, x::Real) = pdf(d.components[1], x)
+_convolved_numeric_cdf(d::_SingleConvolved, x::Real) = cdf(d.components[1], x)
+function _convolved_numeric_pdf_batched(
+        d::_SingleConvolved, x::AbstractVector{<:Real})
+    return map(xi -> pdf(d.components[1], xi), x)
+end
+function _convolved_numeric_cdf_batched(
+        d::_SingleConvolved, x::AbstractVector{<:Real})
+    return map(xi -> cdf(d.components[1], xi), x)
+end
+_convolved_lattice_pdf(d::_SingleConvolved, x::Real) = pdf(d.components[1], x)
+_convolved_lattice_cdf(d::_SingleConvolved, x::Real) = cdf(d.components[1], x)
+
+# ---------------------------------------------------------------------------
 # CDF / logcdf / pdf / logpdf
 # ---------------------------------------------------------------------------
 
@@ -599,7 +791,7 @@ function cdf(d::Convolved, x::Real)
     if analytic !== nothing
         return cdf(analytic, x)
     end
-    return _convolved_numeric_cdf(d, x)
+    return _convolved_cdf_route(d, x)
 end
 
 @doc "
@@ -613,7 +805,7 @@ function logcdf(d::Convolved, x::Real)
     if analytic !== nothing
         return logcdf(analytic, x)
     end
-    c = _convolved_numeric_cdf(d, x)
+    c = _convolved_cdf_route(d, x)
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
 end
 
@@ -646,7 +838,7 @@ function pdf(d::Convolved, x::Real)
     if analytic !== nothing
         return pdf(analytic, x)
     end
-    return _convolved_numeric_pdf(d, x)
+    return _convolved_pdf_route(d, x)
 end
 
 @doc "
@@ -663,7 +855,7 @@ function logpdf(d::Convolved, x::Real)
     if !insupport(d, x)
         return oftype(float(x), -Inf)
     end
-    p = _convolved_numeric_pdf(d, x)
+    p = _convolved_pdf_route(d, x)
     return p <= 0 ? oftype(float(x), -Inf) : log(p)
 end
 
@@ -691,7 +883,7 @@ function cdf(d::Convolved, x::AbstractVector{<:Real})
     if analytic !== nothing
         return map(xi -> cdf(analytic, xi), x)
     end
-    return _convolved_numeric_cdf_batched(d, x)
+    return _convolved_cdf_route(d, x)
 end
 
 # Batched numeric CDF via the composite panel grid: each point keeps the
@@ -775,7 +967,7 @@ function pdf(d::Convolved, x::AbstractVector{<:Real})
     if analytic !== nothing
         return map(xi -> pdf(analytic, xi), x)
     end
-    return _convolved_numeric_pdf_batched(d, x)
+    return _convolved_pdf_route(d, x)
 end
 
 @doc "
@@ -797,7 +989,7 @@ function logpdf(d::Convolved, x::AbstractVector{<:Real})
         return map(xi -> logpdf(analytic, xi), x)
     end
 
-    pdfs = _convolved_numeric_pdf_batched(d, x)
+    pdfs = _convolved_pdf_route(d, x)
     # Promote with the batched-PDF result type: `eltype(d)` misses
     # AD tracers on the component parameters (#43).
     T = promote_type(eltype(x), float(eltype(d)), eltype(pdfs))

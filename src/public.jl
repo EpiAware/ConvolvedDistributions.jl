@@ -18,7 +18,10 @@ public AbstractSolverMethod
 # Queryable evaluation path (#92): reports which route (`:analytic` or
 # `:numeric`) a Convolved/Difference/Product will take for its density and
 # CDF, without evaluating either, and the boolean convenience form.
-public evaluation_path, has_closed_form
+# `is_exact` (#85, #89) is the orthogonal predicate for whether that route
+# carries any quadrature error at all: true for a closed form OR the exact
+# discrete lattice/divisor fold (which reports `:numeric` route-wise).
+public evaluation_path, has_closed_form, is_exact
 
 # Pluggable integration: the default solver, the entry point, and the
 # quadrature helper. `GaussLegendre` stays unexported to avoid clashing with

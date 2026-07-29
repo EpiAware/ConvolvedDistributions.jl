@@ -8,15 +8,22 @@
 # same times: the EpiNow2-style latent / renewal observation layer.
 #
 # The delay enters as a PMF over integer lags. For a DISCRETE delay the
-# lag-`k` mass is simply `pdf(delay, k)`, so the discrete method reads the
-# distribution's own PMF directly. A CONTINUOUS delay has no mass on the
-# integer grid until it is discretised, and discretisation is a modelling
-# choice this package does not make (single- vs double-interval censoring),
-# so passing a continuous delay is rejected: the caller discretises first
-# (with CensoredDistributions.jl, which owns primary/interval censoring)
-# and feeds the resulting PMF to the PMF-vector method, either as a plain
-# vector on the unit grid or as a `DiscreteNonParametric` on any regularly
-# spaced grid (#79).
+# lag-`k` mass is simply `pdf(delay, k)`, so the discrete method below is
+# the only distribution method: it reads the distribution's own PMF
+# directly, and a `Convolved`/`Difference`/`Product` of integer-lattice
+# discrete components is itself a `DiscreteUnivariateDistribution` (#85),
+# so it flows straight through the same method. A CONTINUOUS delay has no
+# mass on the integer grid until it is discretised, and discretisation is
+# a modelling choice this package does not make (single- vs
+# double-interval censoring); rather than an eager gate that pre-emptively
+# blocks the whole input class (#95), a continuous delay simply matches no
+# method here — `convolve_series(Gamma(2.0, 1.0), series)` is a
+# `MethodError` naming what is actually missing, not a hand-rolled
+# `ArgumentError`. The caller discretises first (with
+# CensoredDistributions.jl, which owns primary/interval censoring) and
+# feeds the resulting PMF to the PMF-vector method below, either as a
+# plain vector on the unit grid or as a `DiscreteNonParametric` on any
+# regularly spaced grid (#79).
 #
 # It has its own verb (rather than a `convolved` method) because it returns
 # a numeric series, not a distribution: `convolved` is kept strictly for
@@ -81,9 +88,16 @@ integer grid is out of scope (a lag grid means masses at the integers),
 and mass at negative lags cannot enter a causal convolution, so lags
 below `0` are not read (consistent with the causal kernel).
 
-For a CONTINUOUS delay there is no mass on the integer grid until it is
-discretised, and discretisation is an explicit modelling choice; that
-method throws — see below.
+A [`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref) of
+integer-lattice discrete components is itself a
+`DiscreteUnivariateDistribution` (#85) and flows straight through this
+method, reading its exact masses. A CONTINUOUS delay has no mass on the
+integer grid until it is discretised, and discretisation is an explicit
+modelling choice this package does not make; it matches no method here,
+so `convolve_series(a_continuous_delay, series)` is a `MethodError`
+naming what is actually missing, rather than a pre-emptive gate (#95) —
+see [`convolve_series(pmf, series)`](@ref convolve_series) below for the
+caller-owned discretisation path.
 
 Unlike [`convolved`](@ref), which combines distributions into a single
 [`Convolved`](@ref) distribution, this returns a numeric series; the
@@ -123,38 +137,6 @@ function convolve_series(
     # (it cannot enter a causal convolution).
     masses = [pdf(delay, k) for k in 0:(length(series) - 1)]
     return convolve_series(masses, series)
-end
-
-@doc "
-
-Reject a continuous delay: discretising it needs an explicit censoring
-scheme.
-
-`convolve_series(delay, series)` for a `ContinuousUnivariateDistribution`
-(including a [`Convolved`](@ref) total delay) throws an `ArgumentError`.
-A continuous delay carries no mass on the integer lag grid until it is
-discretised, and discretisation is a censoring choice this package does
-not make (interval-censored-secondary with an exact primary vs. the usual
-epidemiological double-interval-censored case). The caller discretises
-first with CensoredDistributions.jl and passes the resulting PMF to
-[`convolve_series(pmf, series)`](@ref convolve_series), either as a
-plain vector on the unit grid or as a `DiscreteNonParametric` on any
-regularly spaced grid.
-
-# See also
-- [`convolve_series(pmf, series)`](@ref convolve_series): convolve a
-  caller-supplied PMF
-"
-function convolve_series(
-        delay::ContinuousUnivariateDistribution,
-        series::AbstractVector{<:Real})
-    throw(ArgumentError(
-        "convolve_series does not discretise a continuous delay: " *
-        "discretising a continuous delay needs an explicit censoring " *
-        "scheme. Build the PMF with CensoredDistributions.jl (which " *
-        "owns primary/interval censoring), then pass it — as a plain " *
-        "vector or a DiscreteNonParametric — to convolve_series(pmf, " *
-        "series)."))
 end
 
 @doc "

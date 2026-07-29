@@ -8,7 +8,10 @@ sum of independent components), [`Difference`](@ref) (the `X - Y` dual),
 components), the pluggable Gauss-Legendre `integrate`/`gl_integrate` layer,
 and the solver-method types `AnalyticalSolver`/`NumericSolver` selecting the
 analytic-vs-numeric backend. Operates on any
-`Distributions.UnivariateDistribution`; no censoring.
+`Distributions.UnivariateDistribution`; no censoring. A combination whose
+components are all integer-lattice discrete distributions is itself
+discrete and evaluates exactly (an integer-lattice fold replaces
+quadrature; see [`is_exact`](@ref)).
 
 # Examples
 ```@example
@@ -38,9 +41,9 @@ import Base: minimum, maximum
 
 # Types, constructors, and helpers used without method extension.
 using Distributions: Distributions, UnivariateDistribution,
-                     ContinuousUnivariateDistribution,
                      DiscreteUnivariateDistribution, DiscreteNonParametric,
-                     Continuous, Exponential, Gamma, LogNormal, Normal,
+                     Continuous, Discrete, Exponential, Gamma, LogNormal,
+                     Normal, Poisson, Binomial, NegativeBinomial, succprob,
                      scale, quantile, support, probs
 
 using LogExpFunctions: log1mexp
@@ -78,6 +81,11 @@ include("solvers.jl")
 # The abstract family supertype `Convolved`/`Difference` subtype, carrying
 # the documented interface contract (verified by `TestUtils`).
 include("interface.jl")
+# Shared exact-discrete-fold helpers (#85, #89): the integer-lattice sum
+# used by the additive members (Convolved/Difference) and, indirectly,
+# the Product divisor fold. Type-agnostic, so it sits before the members
+# that use it.
+include("lattice.jl")
 include("Convolved.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.

@@ -76,26 +76,51 @@ end
     @test !(out ≈ wrong)
 end
 
-@testitem "a continuous delay is rejected with an explicit-scheme message" begin
+@testitem "a continuous delay matches no convolve_series method (#95)" begin
     using Distributions
-    series = [0.0, 1.0, 3.0, 6.0, 8.0]
 
     # A continuous delay carries no mass on the integer grid until it is
-    # discretised, and discretisation is an explicit modelling choice this
-    # package does not make, so the method throws and names the route out.
+    # discretised, and discretisation is an explicit modelling choice
+    # this package does not make. Rather than an eager gate that
+    # pre-emptively blocks the whole input class, a continuous delay
+    # simply matches no method here: a `MethodError` naming what is
+    # actually missing (#95), not a hand-rolled `ArgumentError`.
+    series = [0.0, 1.0, 3.0, 6.0, 8.0]
     delays = (Gamma(2.0, 1.0), Exponential(1.0), Normal(2.0, 1.0),
         LogNormal(0.5, 0.4),
         convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
     for delay in delays
-        err = try
-            convolve_series(delay, series)
-        catch e
-            e
-        end
-        @test err isa ArgumentError
-        @test occursin("CensoredDistributions", err.msg)
-        @test occursin("DiscreteNonParametric", err.msg)
+        @test_throws MethodError convolve_series(delay, series)
     end
+end
+
+@testitem "a discrete Convolved/Difference/Product convolves via its own exact PMF (#85)" begin
+    using Distributions
+
+    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+    maxlag = length(series) - 1
+
+    # The #85 object: a discrete Convolved reads its exact lattice masses
+    # directly, matching the discrete method the same way a bare
+    # distribution does.
+    d = convolved(NegativeBinomial(5, 0.5), Poisson(2.0))
+    masses = [pdf(d, k) for k in 0:maxlag]
+    @test convolve_series(d, series) ≈ convolve_series(masses, series)
+
+    # A hand-computed small case.
+    small = [0.0, 1.0, 2.0]
+    smallmasses = [pdf(d, k) for k in 0:2]
+    out = convolve_series(d, small)
+    @test out[1] ≈ smallmasses[1] * small[1]
+    @test out[2] ≈ smallmasses[1] * small[2] + smallmasses[2] * small[1]
+    @test out[3] ≈
+          smallmasses[1] * small[3] + smallmasses[2] * small[2] +
+          smallmasses[3] * small[1]
+
+    # A discrete three-component chain.
+    d3 = convolved(Poisson(1.0), Binomial(3, 0.4), DiscreteUniform(0, 2))
+    masses3 = [pdf(d3, k) for k in 0:maxlag]
+    @test convolve_series(d3, series) ≈ convolve_series(masses3, series)
 end
 
 @testitem "discretised delay matches a hand-computed small case" begin

@@ -139,3 +139,52 @@ end
     test_analytic_skips_quadrature(
         convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)); x = 3.0)
 end
+
+@testitem "is_exact: orthogonal to evaluation_path (#85, #89)" begin
+    using ConvolvedDistributions: evaluation_path, has_closed_form, is_exact
+    using Distributions
+
+    # A closed form is always exact.
+    da = convolved(Normal(1.0, 2.0), Normal(-0.5, 1.5))
+    @test evaluation_path(da) === :analytic
+    @test is_exact(da)
+
+    # An all-discrete-integer pair with no closed form reports :numeric
+    # (evaluation_path keeps its two-valued contract — no `:lattice`
+    # value, #92), but IS exact via the discrete fold.
+    dl = convolved(Poisson(1.0), Geometric(0.3))
+    @test evaluation_path(dl) === :numeric
+    @test !has_closed_form(dl)
+    @test is_exact(dl)
+
+    # :numeric stays unchanged (and inexact) for mixed and continuous
+    # cases with no closed form.
+    dmixed = convolved(Poisson(1.0), Normal(0.0, 1.0))
+    @test evaluation_path(dmixed) === :numeric
+    @test !is_exact(dmixed)
+
+    dnum = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    @test evaluation_path(dnum) === :numeric
+    @test !is_exact(dnum)
+
+    # NumericSolver on an analytic discrete pair still reports :numeric
+    # and is still exact (the discrete fold, not quadrature — J5).
+    dforced = convolved(Poisson(1.0), Poisson(2.0); method = NumericSolver())
+    @test evaluation_path(dforced) === :numeric
+    @test is_exact(dforced)
+
+    # `strict = true` accepts the exact discrete route (no closed form,
+    # but no quadrature either), unlike a genuinely inexact pair.
+    @test convolved(Poisson(1.0), Geometric(0.3); strict = true) isa
+          ConvolvedDistributions.Convolved
+    @test_throws ArgumentError convolved(
+        Gamma(2.0, 1.0), LogNormal(0.5, 0.4); strict = true)
+
+    # Route-vs-execution guard: whenever `is_exact` reports true via the
+    # discrete route (no closed form), `pdf` actually took that route —
+    # for a representative discrete, mixed and continuous case.
+    @test is_exact(dl) && !has_closed_form(dl)
+    @test pdf(dl, 2) === ConvolvedDistributions._convolved_lattice_pdf(dl, 2)
+    @test !is_exact(dmixed)
+    @test !is_exact(dnum)
+end

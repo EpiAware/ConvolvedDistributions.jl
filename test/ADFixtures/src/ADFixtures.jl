@@ -3,9 +3,10 @@
 
 Shared AD gradient scenarios and backend metadata for ConvolvedDistributions.
 Used by `test/ad/runtests.jl`. Covers the `Convolved`, `Difference`, and
-`Product` densities and moments on both the analytic and numeric
-(Gauss-Legendre quadrature) paths, across the ForwardDiff / ReverseDiff /
-Enzyme / Mooncake backend matrix.
+`Product` densities and moments on the analytic, numeric
+(Gauss-Legendre quadrature), and exact discrete lattice/divisor fold
+(#85, #89) paths, across the ForwardDiff / ReverseDiff / Enzyme /
+Mooncake backend matrix.
 
 The reference gradient is computed with `ForwardDiff`. It propagates its
 Dual numbers through the package's own densities and matches the reverse
@@ -19,8 +20,8 @@ module ADFixtures
 __precompile__(false)
 
 using ConvolvedDistributions
-using Distributions: Distributions, Gamma, LogNormal, Normal, Poisson,
-                     mean, var, logpdf
+using Distributions: Distributions, Gamma, Geometric, LogNormal,
+                     NegativeBinomial, Normal, Poisson, mean, var, logpdf
 using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
                AutoMooncakeForward, AutoEnzyme
 using DifferentiationInterface: DifferentiationInterface, Constant
@@ -205,6 +206,32 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             mean(d) + var(d)
         end,
         [3.0, 1.5, 0.5, 0.4], (Constant(obs),))
+
+    # Exact discrete lattice fold (#85, #89): integer observation points
+    # select the lattice route rather than quadrature. Poisson+Geometric
+    # has no registered analytic pair, so it exercises the lattice fold
+    # with a gradient in the Poisson rate (the differentiated
+    # parameter); Geometric stays fixed so the scenario has one free
+    # parameter, matching the analytical scenario's shape.
+    obs_discrete = [0.0, 1.0, 2.0, 3.0, 4.0]
+    _push!("Convolved Poisson+Geometric lattice",
+        (θ, ks) -> sum(
+            k -> logpdf(convolved(Poisson(θ[1]), Geometric(0.3)), k), ks),
+        [2.0], (Constant(obs_discrete),))
+    # The #85 object itself: NegativeBinomial+Poisson, both differentiated
+    # (one parameter per component), on the lattice route.
+    _push!("Convolved NegativeBinomial+Poisson lattice (#85)",
+        (θ, ks) -> sum(
+            k -> logpdf(
+                convolved(NegativeBinomial(5.0, θ[1]), Poisson(θ[2])), k),
+            ks),
+        [0.5, 2.0], (Constant(obs_discrete),))
+    # Poisson+Poisson is newly analytic (#89): the closed-form Poisson
+    # convolution differentiates through both rates.
+    _push!("Convolved Poisson+Poisson analytical (#89)",
+        (θ, ks) -> sum(
+            k -> logpdf(convolved(Poisson(θ[1]), Poisson(θ[2])), k), ks),
+        [2.0, 1.5], (Constant(obs_discrete),))
 
     # Timeseries convolution. This package no longer discretises
     # continuous delays itself (#68 — CensoredDistributions.jl owns that),

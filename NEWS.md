@@ -2,6 +2,67 @@
 
 ### Breaking changes
 
+- **Value support is derived from the components, not hardcoded.**
+  `Convolved`, `Difference`, and `Product` used to advertise
+  `Continuous` unconditionally, mistyping `discrete ⊛ discrete` and
+  silently zeroing its density under Gauss-Legendre quadrature
+  ([#85](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/85)).
+  `value_support` is now `Discrete` when every component is an
+  integer-lattice discrete distribution (discrete with `eltype <:
+  Integer`), `Continuous` otherwise. A discrete component on a
+  non-integer grid (e.g. `DiscreteNonParametric` on halves) still gets
+  `Continuous`: no exact route can evaluate it yet (follow-up issue).
+  `insupport` on a discrete combination now rejects off-lattice points
+  (`insupport(convolved(Poisson(2.0), Poisson(3.0)), 2.5)` is `false`).
+  `Convolved{C, M}` is now `Convolved{C, M, S}` (and similarly for
+  `Difference`/`Product`): the new value-support type parameter `S` is
+  appended last, so every existing partial spelling (`Convolved{C}` in
+  `Base.eltype`, `Difference{X, Y}` in ComposedDistributions.jl's codec
+  generator) keeps matching.
+- **Exact evaluation for all-discrete-integer combinations.** `pdf`,
+  `logpdf`, `cdf`, and `logcdf` on a discrete-typed `Convolved` or
+  `Difference` now use an exact integer-lattice fold, and a discrete
+  `Product` an exact divisor fold (pmf) / conditioning sum (cdf),
+  replacing quadrature — `pdf(convolved(NegativeBinomial(5, 0.5),
+  Poisson(2.0)), 3)` stops being `0.0` and becomes the exact mass. Both
+  routes are exact (see `is_exact` below); an unbounded component's
+  window is still clamped at the same `~1e-8`-of-mass quantile the
+  continuous quadrature paths already use. `Poisson`+`Poisson`,
+  equal-success-probability `Binomial` pairs, and
+  equal-success-probability `NegativeBinomial` pairs are now registered
+  as analytic closed forms.
+- **`convolve_series`'s continuous-only gate is removed.** The eager
+  `ArgumentError` method for a `ContinuousUnivariateDistribution` delay
+  is gone
+  ([#95](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/95)):
+  a continuous delay now matches no `convolve_series` method at all, so
+  `convolve_series(a_continuous_delay, series)` is a `MethodError`
+  naming what is actually missing, rather than a pre-emptive
+  `ArgumentError`. A discrete-typed `Convolved`/`Difference`/`Product`
+  flows straight through the existing discrete method and reads its
+  exact masses directly.
+- **`is_exact` joins `evaluation_path`/`has_closed_form`.** A new
+  predicate, true for a closed form OR the exact discrete fold, false
+  only for genuine Gauss-Legendre quadrature. `evaluation_path` keeps
+  its existing two-valued `:analytic`/`:numeric` contract unchanged (an
+  exact discrete fold reports `:numeric`, the same as quadrature) — no
+  new value was added, so nothing that branches on `evaluation_path`
+  needs to change. `strict = true` accepts an all-discrete pair with no
+  closed form (the discrete fold is exact, so the promise `strict =
+  true` makes is kept).
+
+### Additions
+
+- Analytic pairs: `Poisson`+`Poisson`, equal-`p` `Binomial`, and
+  equal-`p` `NegativeBinomial` (see above).
+- `is_exact(d)`: whether evaluating `d` carries no quadrature error
+  (public, alongside `evaluation_path`/`has_closed_form`).
+
+Repeated self-convolution (a `power` keyword on `convolved`) was
+originally planned alongside this work but is deferred to its own PR;
+[#89](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/89)
+stays open for it.
+
 - **`discretise_pmf` is removed.** Discretising a continuous delay is a
   censoring choice this package does not make; CensoredDistributions.jl
   owns primary and interval censoring, including double-interval-censored

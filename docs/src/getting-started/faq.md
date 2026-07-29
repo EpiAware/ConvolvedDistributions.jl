@@ -99,7 +99,14 @@ infections = 100 .* exp.(-((t .- 10.0) .^ 2) ./ 40.0)
 convolve_series(Poisson(2.0), infections)
 ```
 
-A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice, so `convolve_series(delay, series)` on a continuous delay throws rather than pick a scheme silently.
+A `Convolved`/`Difference`/`Product` of integer-lattice discrete components is itself discrete (its value support is derived from its components, not hardcoded) and convolves directly the same way, reading its exact masses off the lattice fold:
+
+```@example faq
+discrete_total = convolved(NegativeBinomial(5, 0.5), Poisson(2.0))
+convolve_series(discrete_total, infections)
+```
+
+A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice this package does not make, so it matches no `convolve_series` method here — a `MethodError`, not a gate: `convolve_series` works through dispatch (a method for every value support it can actually handle) rather than an eager `ArgumentError` pre-emptively blocking a whole input class.
 This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve the resulting PMF.
 `convolve_series(pmf, series)` takes any already-discretised PMF vector and only convolves, with the masses used exactly as given:
 
