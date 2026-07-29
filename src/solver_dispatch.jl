@@ -78,7 +78,21 @@ end
 @doc "
     convolved_logcdf(d1, d2, x, method)
 
-The log CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+The log CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref) for the
+arguments.
+
+# Arguments
+- `d1`, `d2`: The two components of the sum `d1 + d2`.
+- `x`: Evaluation point.
+- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+convolved_logcdf(
+    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
+```
 "
 function convolved_logcdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
@@ -101,7 +115,21 @@ end
 @doc "
     convolved_ccdf(d1, d2, x, method)
 
-The complementary CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+The complementary CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref)
+for the arguments.
+
+# Arguments
+- `d1`, `d2`: The two components of the sum `d1 + d2`.
+- `x`: Evaluation point.
+- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+convolved_ccdf(
+    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
+```
 "
 function convolved_ccdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
@@ -123,7 +151,21 @@ end
 @doc "
     convolved_logccdf(d1, d2, x, method)
 
-The log complementary CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+The log complementary CDF of `d1 + d2` at `x`. See
+[`convolved_cdf`](@ref) for the arguments.
+
+# Arguments
+- `d1`, `d2`: The two components of the sum `d1 + d2`.
+- `x`: Evaluation point.
+- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+convolved_logccdf(
+    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
+```
 "
 function convolved_logccdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
@@ -149,7 +191,20 @@ end
 @doc "
     convolved_pdf(d1, d2, x, method)
 
-The density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+The density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref) for the
+arguments.
+
+# Arguments
+- `d1`, `d2`: The two components of the sum `d1 + d2`.
+- `x`: Evaluation point.
+- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+convolved_pdf(Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
+```
 "
 function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::Real, method::AbstractSolverMethod)
@@ -171,7 +226,21 @@ end
 @doc "
     convolved_logpdf(d1, d2, x, method)
 
-The log density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
+The log density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref) for
+the arguments.
+
+# Arguments
+- `d1`, `d2`: The two components of the sum `d1 + d2`.
+- `x`: Evaluation point.
+- `method`: The solver method (`AnalyticalSolver` or `NumericSolver`).
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+convolved_logpdf(
+    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
+```
 "
 function convolved_logpdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
@@ -235,7 +304,23 @@ end
 The minimum of `d1 + d2`. S1.4: a quantity with no evaluation point
 takes no `x`/`p` argument at all -- this demonstrates the shape
 compiles; it is not wired into `minimum`, which is already exact by
-summation (S2.5).
+summation (S2.5), so only the unimplemented-method-type error (method
+1 of the skeleton) exists.
+
+# Arguments
+- `d1`, `d2`: The two components of the sum `d1 + d2`.
+- `method`: The solver method.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+try
+    convolved_minimum(Normal(0.0, 1.0), Normal(1.0, 2.0), AnalyticalSolver())
+catch e
+    println(e)
+end
+```
 "
 function convolved_minimum(d1::UnivariateDistribution,
         d2::UnivariateDistribution, method::AbstractSolverMethod)
