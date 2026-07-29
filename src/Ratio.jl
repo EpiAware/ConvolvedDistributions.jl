@@ -422,12 +422,24 @@ end
 # Numeric quadrature: integration
 # ---------------------------------------------------------------------------
 
-# Integrate one branch, returning a zero typed from the integrand when
-# the window is empty. `gl_integrate` already returns `zero(f(lo))` for
-# `hi <= lo`, so both arms seed the accumulator element type from the
-# integrand itself and component `Dual`s / tangents propagate.
+# Integrate one branch, returning a typed zero when the window is empty.
+# Deliberately `zero(lower)`, NOT `zero(f(lower))`: an empty branch's
+# `lower` is always the y = 0 boundary (Y has no mass on that side), and
+# calling the integrand there evaluates a differentiated component's
+# density (`pdf_ad_safe(d.x, ...)` or `pdf_ad_safe(d.y, 0)`) exactly at
+# its own support edge. The density value is a clean 0 there (checked:
+# shape > 1 Gamma numerator/denominator), but reverse-mode backends
+# (ReverseDiff) cache a local partial for the underlying `x^(shape - 1)`
+# term that involves `log(0) = -Inf`, and `0 * -Inf = NaN` survives the
+# outer `zero(...)` wrapping even though `zero(::Dual)` (ForwardDiff)
+# discards it cleanly -- confirmed by direct comparison, not asserted.
+# `lower` itself never touches that computation (it is a window bound
+# built from `_window_quantile`-stripped or literal-support values), so
+# seeding from it side-steps the hazard while still carrying a live
+# `Dual`/tracked type on the rare window whose bound is itself a
+# differentiated parameter (e.g. a `Uniform` denominator's own bound).
 function _ratio_branch(f::F, lower, upper, comp) where {F}
-    upper <= lower && return zero(f(lower))
+    upper <= lower && return zero(lower)
     return _panel_integrate(f, lower, upper, comp)
 end
 
