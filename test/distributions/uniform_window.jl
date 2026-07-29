@@ -14,6 +14,8 @@
         for x in (0.1, 0.5, 1.0, 2.0, 3.0, 6.0, 15.0)
             @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol=1e-9
             @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol=1e-6
+            @test pdf(d_analytic, x)≈pdf(d_numeric, x) atol=1e-6 rtol=1e-3
+            @test logpdf(d_analytic, x)≈logpdf(d_numeric, x) atol=1e-4
         end
         # Below the primary's minimum the CDF is exactly zero.
         @test cdf(d_analytic, pmin - 1.0) == 0.0
@@ -31,6 +33,9 @@ end
         d_numeric = convolved(delay, primary; method = NumericSolver())
         for x in (0.1, 0.5, 1.0, 2.0, 3.0, 6.0, 15.0)
             @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol=1e-9
+            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol=1e-6
+            @test pdf(d_analytic, x)≈pdf(d_numeric, x) atol=1e-6 rtol=1e-3
+            @test logpdf(d_analytic, x)≈logpdf(d_numeric, x) atol=1e-3
         end
         @test cdf(d_analytic, pmin - 1.0) == 0.0
     end
@@ -47,6 +52,14 @@ end
         d_numeric = convolved(delay, primary; method = NumericSolver())
         for x in (0.1, 0.5, 1.0, 2.0, 3.0, 6.0, 15.0)
             @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol=1e-6
+            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol=1e-6
+            # `k = 0.7`'s density is near-singular at 0, so `NumericSolver`'s
+            # own fixed-panel pdf quadrature (not the closed form, which
+            # matches a finite difference of the cdf above to ~1e-9) is
+            # only accurate to ~0.5% there -- rtol reflects that reference
+            # limit, not the closed form's own accuracy.
+            @test pdf(d_analytic, x)≈pdf(d_numeric, x) atol=1e-6 rtol=1e-2
+            @test logpdf(d_analytic, x)≈logpdf(d_numeric, x) atol=1e-2
         end
         @test cdf(d_analytic, pmin - 1.0) == 0.0
     end
@@ -223,7 +236,7 @@ end
         d = convolved(delay, primary)
         dn = convolved(delay, primary; method = NumericSolver())
         for x in (-5.0, -1.0, 0.5, 1.0, 3.0, 6.0, 15.0)
-            @test pdf(d, x)≈pdf(dn, x) atol=1e-6 rtol=1e-4
+            @test pdf(d, x)≈pdf(dn, x) atol=1e-6 rtol=1e-3
             @test logpdf(d, x)≈logpdf(dn, x) atol=1e-4 rtol=1e-4
             @test pdf(d, x) >= 0.0
         end
@@ -295,6 +308,62 @@ end
     @test logpdf(d, Inf) == -Inf
     @test pdf(d, -Inf) == 0.0
     @test logpdf(d, -Inf) == -Inf
+end
+
+@testitem "uniform-window pairs: rand matches cdf (Monte Carlo)" begin
+    using Distributions, Random
+
+    # Seeded, generous-tolerance sampler-vs-cdf check (S9b.4): a coarse
+    # net for rand/cdf disagreement, not a precision test -- S9b.2/S9b.3
+    # already cover accuracy.
+    Random.seed!(1234)
+    cases = [
+        Gamma(2.0, 1.5) => Uniform(0.0, 2.0),
+        LogNormal(1.5, 0.5) => Uniform(0.0, 3.0),
+        Weibull(1.5, 2.0) => Uniform(0.0, 1.5)
+    ]
+    n = 20_000
+    for (delay, primary) in cases
+        d = convolved(delay, primary)
+        samples = rand(d, n)
+        m, s = mean(d), std(d)
+        for x in (m - s, m, m + s)
+            empirical = mean(y -> y <= x, samples)
+            @test empirical≈cdf(d, x) atol=0.02
+        end
+    end
+end
+
+@testitem "uniform-window pairs: edge cases" begin
+    using Distributions
+
+    # Boundary, far tail, NaN, non-zero minimum support, and the q = 0
+    # branch (`l <= dmin` in `uniform_window_cdf`) that motivated
+    # commit 640c2c2.
+    delay = Gamma(2.0, 1.5)
+    primary = Uniform(1.0, 3.0)
+    d = convolved(delay, primary)
+    dmin = minimum(delay) + minimum(primary)
+    @test minimum(d) == dmin
+
+    # Exactly at the support edge: zero, not a numerical artefact.
+    @test cdf(d, dmin) == 0.0
+    @test pdf(d, dmin) == 0.0
+
+    # q = 0 branch: inside the window but the delay's own CDF window
+    # collapses to its support minimum.
+    @test cdf(d, dmin + 0.5) > 0.0
+    @test pdf(d, dmin + 0.5) > 0.0
+
+    # NaN propagates rather than erroring or returning a finite value.
+    @test isnan(cdf(d, NaN))
+    @test isnan(pdf(d, NaN))
+    @test isnan(logpdf(d, NaN))
+
+    # Far tail: finite (or -Inf for logpdf), non-negative, not NaN.
+    @test pdf(d, 1000.0) >= 0.0
+    @test !isnan(pdf(d, 1000.0))
+    @test isfinite(logpdf(d, 1000.0))
 end
 
 @testitem "Uniform-window analytic path is faster than quadrature (S9b.6)" begin

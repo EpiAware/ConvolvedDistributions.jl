@@ -1,6 +1,12 @@
 # Tests for the solver-method dispatch mechanism itself (#77/#92), not
 # the specific analytic pairs it hosts (see uniform_window.jl). Mirrors
-# CensoredDistributions' `test/censoring/primarycensored_cdf.jl`.
+# CensoredDistributions' `test/censoring/primarycensored_cdf.jl`; its
+# "Solver is actually used" testset (proving a custom solver payload
+# reaches quadrature) has no equivalent here, since `NumericSolver`
+# rejects any non-default payload at construction (S4.5) rather than
+# threading one through -- "Force numerical method" below is the
+# closest analogue, proving the numeric path is reached and differs
+# from the analytic sentinel value.
 
 @testitem "Convolved cdf dispatch" begin
     using ConvolvedDistributions: convolved_cdf, AnalyticalSolver,
