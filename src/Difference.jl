@@ -48,17 +48,23 @@ F_Z(z) = \\int F_X(z + y)\\, f_Y(y)\\, \\mathrm{d}y .
 For a `Normal`-`Normal` pair the closed form
 ``\\mathrm{Normal}(\\mu_X - \\mu_Y, \\sqrt{\\sigma_X^2 + \\sigma_Y^2})`` is
 used directly unless a [`NumericSolver`](@ref) method is set. All other
-cases use AD-safe fixed-node Gauss-Legendre quadrature (`gl_integrate`),
-the same construction [`Convolved`](@ref) uses: the integral is mapped
-from the fixed reference domain ``(-1, 1)`` onto the integration bounds
-inside the integrand and reduced as a bare weighted dot product, so every
-AD backend specialises on the integrand's own type and component `Dual`s
-and tangents propagate.
+`Continuous`-typed cases use AD-safe fixed-node Gauss-Legendre quadrature
+(`gl_integrate`), the same construction [`Convolved`](@ref) uses: the
+integral is mapped from the fixed reference domain ``(-1, 1)`` onto the
+integration bounds inside the integrand and reduced as a bare weighted
+dot product, so every AD backend specialises on the integrand's own type
+and component `Dual`s and tangents propagate. A `Discrete`-typed
+`Difference` never reaches quadrature at all — see \"Value support\"
+above.
 
 The `method` field selects the backend: an [`AnalyticalSolver`](@ref) (the
 default) uses the analytic difference where one exists and falls back to
-quadrature otherwise, while a [`NumericSolver`](@ref) forces the numeric
-path even for a `Normal`-`Normal` pair (useful for validation).
+the numeric path otherwise, while a [`NumericSolver`](@ref) forces that
+numeric path even for a `Normal`-`Normal` pair (useful for validation).
+For a `Continuous`-typed `Difference` the numeric path is quadrature;
+for a `Discrete`-typed one it is the exact integer-lattice fold, never
+quadrature — `NumericSolver` means \"skip the closed form\", not \"run
+Gauss-Legendre\".
 
 # See also
 - [`difference`](@ref): Constructor function
@@ -148,8 +154,13 @@ _family_names(d::Difference) = (nameof(typeof(d.x)), nameof(typeof(d.y)))
 
 params(d::Difference) = (params(d.x), params(d.y))
 
+# The element type of the DIFFERENCE, not a bare `promote_type` of the
+# components: for `Bernoulli`-`Bernoulli` (`eltype == Bool` each),
+# `promote_type(Bool, Bool) == Bool`, too narrow for a difference that
+# reaches -1 and throws `InexactError` from `rand`. `Base.promote_op(-,
+# ...)` infers the type `-` actually produces (`Int64` for two `Bool`s).
 function Base.eltype(::Type{<:Difference{X, Y}}) where {X, Y}
-    return promote_type(eltype(X), eltype(Y))
+    return Base.promote_op(-, eltype(X), eltype(Y))
 end
 
 # Reflecting Y is what gives the two-sided support: the largest difference

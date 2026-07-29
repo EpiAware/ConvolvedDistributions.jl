@@ -131,3 +131,32 @@ end
     @test !insupport(d, 4.5)
     @test !insupport(d, -1)
 end
+
+@testitem "rand does not InexactError on a Bool-eltype discrete combination" begin
+    using Distributions, Random
+
+    # `Bernoulli` has `eltype == Bool`; a bare `promote_type(Bool, Bool)`
+    # for the combined `eltype` is too narrow for the RESULT of the
+    # operation (`Convolved` reaches 2, `Difference` reaches -1), so
+    # `Distributions.rand(d, n)` (which allocates `Array{eltype(d)}` for
+    # a `Discrete`-typed `d`) threw `InexactError` the first time a draw
+    # left `{false, true}`. Regression test: `Base.eltype` must reflect
+    # the type the operation actually produces, not a bare promotion of
+    # the component element types.
+    Random.seed!(1234)
+
+    dc = convolved(Bernoulli(0.5), Bernoulli(0.5))
+    @test eltype(typeof(dc)) === Int
+    @test all(v -> v in (0, 1, 2), rand(dc, 200))
+
+    dc3 = convolved(Bernoulli(0.4), Bernoulli(0.6), Bernoulli(0.5))
+    @test eltype(typeof(dc3)) === Int
+    @test all(v -> v in (0, 1, 2, 3), rand(dc3, 200))
+
+    dd = difference(Bernoulli(0.4), Bernoulli(0.6))
+    @test eltype(typeof(dd)) === Int
+    @test all(v -> v in (-1, 0, 1), rand(dd, 200))
+
+    dp = product(Bernoulli(0.4), Bernoulli(0.6))
+    @test all(v -> v in (0, 1), rand(dp, 200))
+end

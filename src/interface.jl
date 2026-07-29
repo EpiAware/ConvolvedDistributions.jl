@@ -19,8 +19,15 @@ the generalised convolutions. [`Convolved`](@ref) is the classical sum,
 (order statistics) fit the same family.
 
 Parametric on variate form and value support (`Distribution{F, S}`), so
-the univariate members keep their `UnivariateDistribution{Continuous}`
-supertype and existing dispatch is unchanged.
+the univariate members stay `UnivariateDistribution`s and existing
+dispatch is unchanged. `S` is DERIVED from a member's own components via
+`ConvolvedDistributions._components_support`: `Discrete` when every
+component is an integer-lattice discrete distribution (discrete with
+`eltype <: Integer`), `Continuous` otherwise — never hardcoded. A member
+typed `Discrete` MUST provide an exact route for its density and CDF,
+because [`is_exact`](@ref) reports exactness from the `S` type parameter
+alone; a `Discrete`-typed member with no exact route makes that report a
+lie.
 
 Required of a concrete subtype:
 
@@ -53,7 +60,8 @@ abstract type AbstractConvolvedDistribution{F <: Distributions.VariateForm,
 # integer lattice, and typing a combination `Discrete` with no route that
 # can actually evaluate it is exactly what #85 was about (a discrete⊛discrete
 # combination mistyped `Continuous` and silently zeroed under quadrature —
-# the inverse failure mode). Dispatch (not a runtime `if`) computes this so
+# the inverse failure mode). See #117 for extending the exact route to a
+# non-integer grid. Dispatch (not a runtime `if`) computes this so
 # it folds to a compile-time constant inside each inner constructor; see
 # Risk 1 in the PR description for why that matters (`@code_warntype`/JET).
 

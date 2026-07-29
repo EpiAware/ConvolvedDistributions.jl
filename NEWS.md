@@ -11,7 +11,8 @@
   integer-lattice discrete distribution (discrete with `eltype <:
   Integer`), `Continuous` otherwise. A discrete component on a
   non-integer grid (e.g. `DiscreteNonParametric` on halves) still gets
-  `Continuous`: no exact route can evaluate it yet (follow-up issue).
+  `Continuous`: no exact route can evaluate it yet
+  ([#117](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/117)).
   `insupport` on a discrete combination now rejects off-lattice points
   (`insupport(convolved(Poisson(2.0), Poisson(3.0)), 2.5)` is `false`).
   `Convolved{C, M}` is now `Convolved{C, M, S}` (and similarly for
@@ -51,18 +52,6 @@
   closed form (the discrete fold is exact, so the promise `strict =
   true` makes is kept).
 
-### Additions
-
-- Analytic pairs: `Poisson`+`Poisson`, equal-`p` `Binomial`, and
-  equal-`p` `NegativeBinomial` (see above).
-- `is_exact(d)`: whether evaluating `d` carries no quadrature error
-  (public, alongside `evaluation_path`/`has_closed_form`).
-
-Repeated self-convolution (a `power` keyword on `convolved`) was
-originally planned alongside this work but is deferred to its own PR;
-[#89](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/89)
-stays open for it.
-
 - **`discretise_pmf` is removed.** Discretising a continuous delay is a
   censoring choice this package does not make; CensoredDistributions.jl
   owns primary and interval censoring, including double-interval-censored
@@ -91,6 +80,18 @@ stays open for it.
   `DelayPMF` migrates to the plain-vector form instead, regardless of
   its grid width.
   Closes [#79](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/79).
+
+### Additions
+
+- Analytic pairs: `Poisson`+`Poisson`, equal-`p` `Binomial`, and
+  equal-`p` `NegativeBinomial` (see above).
+- `is_exact(d)`: whether evaluating `d` carries no quadrature error
+  (public, alongside `evaluation_path`/`has_closed_form`).
+
+Repeated self-convolution (a `power` keyword on `convolved`) was
+originally planned alongside this work but is deferred to its own PR;
+[#89](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/89)
+stays open for it.
 
 ## 0.2.0
 

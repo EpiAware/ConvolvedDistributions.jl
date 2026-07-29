@@ -10,6 +10,10 @@ module ConvolvedDistributionsOptimizationExt
 # scoring never need it, so the core package stays dependency-light and
 # only consumers that need inverse-CDF sampling pull the solver. Ported
 # from CensoredDistributions `src/utils/quantile_optimization.jl`.
+#
+# For a `Discrete`-typed `d` this inverts an EXACT cdf (#85, #89) but
+# still returns a non-lattice `Float64`, not the exact integer quantile;
+# see #116 for a dedicated lattice-scan quantile.
 
 using ConvolvedDistributions: Convolved, Difference, Product
 import Distributions

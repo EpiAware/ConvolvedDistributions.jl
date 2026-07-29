@@ -32,6 +32,11 @@ dependent components.
 
 # Density and CDF computation
 
+This section describes the `Continuous`-typed path (see
+\"Value support\" above for the `Discrete` case: an exact divisor
+enumeration for the density, and an exact conditioning sum, `O(z)` mass
+evaluations, for the CDF).
+
 The density is the Mellin convolution of the two component densities:
 
 ```math
@@ -52,19 +57,23 @@ integrand stays bounded when `Y`'s density diverges at zero
 For a `LogNormal`-`LogNormal` pair the closed form
 ``\\mathrm{LogNormal}(\\mu_X + \\mu_Y, \\sqrt{\\sigma_X^2 + \\sigma_Y^2})``
 is used directly unless a [`NumericSolver`](@ref) method is set. All
-other cases use AD-safe fixed-node Gauss-Legendre quadrature
-(`gl_integrate`), the same construction [`Convolved`](@ref) and
-[`Difference`](@ref) use: the integral is mapped from the fixed
+other `Continuous`-typed cases use AD-safe fixed-node Gauss-Legendre
+quadrature (`gl_integrate`), the same construction [`Convolved`](@ref)
+and [`Difference`](@ref) use: the integral is mapped from the fixed
 reference domain ``(-1, 1)`` onto the integration bounds inside the
 integrand and reduced as a bare weighted dot product, so every AD
 backend specialises on the integrand's own type and component `Dual`s
-and tangents propagate.
+and tangents propagate. A `Discrete`-typed `Product` never reaches
+quadrature at all — see \"Value support\" above.
 
 The `method` field selects the backend: an [`AnalyticalSolver`](@ref)
 (the default) uses the analytic product where one exists and falls back
-to quadrature otherwise, while a [`NumericSolver`](@ref) forces the
-numeric path even for a `LogNormal`-`LogNormal` pair (useful for
-validation).
+to the numeric path otherwise, while a [`NumericSolver`](@ref) forces
+that numeric path even for a `LogNormal`-`LogNormal` pair (useful for
+validation). For a `Continuous`-typed `Product` the numeric path is
+quadrature; for a `Discrete`-typed one it is the exact divisor/
+conditioning-sum fold, never quadrature — `NumericSolver` means \"skip
+the closed form\", not \"run Gauss-Legendre\".
 
 # See also
 - [`product`](@ref): Constructor function
@@ -164,8 +173,12 @@ _family_names(d::Product) = (nameof(typeof(d.x)), nameof(typeof(d.y)))
 
 params(d::Product) = (params(d.x), params(d.y))
 
+# The element type of the PRODUCT, not a bare `promote_type` of the
+# components (see the matching note on `Convolved`/`Difference`
+# `Base.eltype`): `Base.promote_op(*, ...)` infers the type `*` actually
+# produces.
 function Base.eltype(::Type{<:Product{X, Y}}) where {X, Y}
-    return promote_type(eltype(X), eltype(Y))
+    return Base.promote_op(*, eltype(X), eltype(Y))
 end
 
 # With non-negative supports the product is monotone in both factors, so

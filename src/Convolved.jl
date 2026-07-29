@@ -40,19 +40,25 @@ components the remaining convolution is folded recursively.
 
 Where an analytical convolution is available (`Distributions.convolve`
 applies, e.g. `Normal`+`Normal`, equal-scale `Gamma`, equal-rate
-`Exponential`) the two-component result is taken directly from the
+`Exponential`, `Poisson`+`Poisson`, equal-`p` `Binomial`/
+`NegativeBinomial`) the two-component result is taken directly from the
 convolved distribution unless a [`NumericSolver`](@ref) method is set. All
-other cases use AD-safe fixed-node Gauss-Legendre quadrature: the integral
-is mapped from the fixed reference domain ``(-1, 1)`` onto the real bounds
-inside the integrand and reduced as a bare weighted dot product
-(`gl_integrate`), which lets every AD backend specialise on the integrand's
-own type so component `Dual`s and tangents propagate.
+other `Continuous`-typed cases use AD-safe fixed-node Gauss-Legendre
+quadrature: the integral is mapped from the fixed reference domain
+``(-1, 1)`` onto the real bounds inside the integrand and reduced as a
+bare weighted dot product (`gl_integrate`), which lets every AD backend
+specialise on the integrand's own type so component `Dual`s and tangents
+propagate. A `Discrete`-typed `Convolved` never reaches quadrature at
+all — see "Value support" above.
 
 The `method` field selects the CDF/PDF backend: an [`AnalyticalSolver`](@ref)
 (the default) uses the analytic convolution when one exists and falls back to
-quadrature otherwise, while a [`NumericSolver`](@ref) forces the numeric
-quadrature path even when an analytic convolution exists; the latter is useful
-for validation and debugging.
+the numeric path otherwise, while a [`NumericSolver`](@ref) forces that
+numeric path even when an analytic convolution exists; the latter is useful
+for validation and debugging. For a `Continuous`-typed `Convolved` the
+numeric path is quadrature; for a `Discrete`-typed one it is the exact
+integer-lattice fold, never quadrature — `NumericSolver` means "skip the
+closed form", not "run Gauss-Legendre".
 
 # See also
 - [`convolved`](@ref): Constructor function
@@ -186,8 +192,13 @@ rather than clashing with it.
 """
 components(d::Convolved) = d.components
 
+# The element type of the SUM, not a bare `promote_type` of the
+# components: for `Bernoulli`+`Bernoulli` (`eltype == Bool` each),
+# `promote_type(Bool, Bool) == Bool`, too narrow for a sum that reaches
+# 2 and throws `InexactError` from `rand`. `Base.promote_op(+, ...)`
+# infers the type `+` actually produces (`Int64` for two `Bool`s).
 function Base.eltype(::Type{<:Convolved{C}}) where {C <: Tuple}
-    return mapreduce(eltype, promote_type, fieldtypes(C))
+    return Base.promote_op(+, map(eltype, fieldtypes(C))...)
 end
 
 minimum(d::Convolved) = sum(minimum, d.components)

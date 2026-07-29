@@ -23,7 +23,10 @@ module TestUtils
 
 using Test: Test, @test, @testset
 
-using Distributions: Distributions, Discrete, cdf, logcdf, logpdf, params, pdf
+using Random: Random
+
+using Distributions: Distributions, Discrete, cdf, insupport, logcdf, logpdf,
+                     params, pdf
 
 using ..ConvolvedDistributions: AbstractConvolvedDistribution, Convolved,
                                 Difference, Product, _maybe_analytic,
@@ -103,7 +106,11 @@ same tolerance; the half-integer point just above `first(support)`
 carries zero density (`pdf` `0`, `logpdf` `-Inf`); and
 [`is_exact`](@ref ConvolvedDistributions.is_exact)`(d)` — evaluating `d`
 carries no quadrature error, whether from a registered closed form or
-the exact discrete fold. `support` should cover enough of `d`'s mass for
+the exact discrete fold; and that `rand(d, 20)` draws land in `d`'s
+support (a `Base.eltype` that merely `promote_type`s the component
+element types, rather than the type the combining operation actually
+produces, is too narrow for some `Discrete`-typed members and throws
+`InexactError` here). `support` should cover enough of `d`'s mass for
 the sum-to-one check to be meaningful (the full support for a bounded
 combination, a wide enough range for an unbounded one). Returns the
 `@testset` object.
@@ -129,6 +136,16 @@ function test_discrete_pmf(d; support::AbstractVector{<:Integer},
         @test logpdf(d, off_lattice) == -Inf
 
         @test is_exact(d)
+
+        # `rand(d, n)` must not throw: a `Base.eltype` that merely
+        # `promote_type`s the component element types (rather than the
+        # type the combining operation actually produces) is too narrow
+        # for a `Discrete`-typed member built from e.g. `Bernoulli`
+        # components (`eltype == Bool`), and `Distributions.rand`
+        # allocates `Array{eltype(d)}` for a discrete distribution, so
+        # the first out-of-range draw throws `InexactError`.
+        draws = Base.rand(Random.default_rng(), d, 20)
+        @test all(x -> insupport(d, x), draws)
     end
 end
 

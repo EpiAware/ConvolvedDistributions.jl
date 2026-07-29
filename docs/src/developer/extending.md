@@ -142,16 +142,27 @@ Verify the contract with the shipped `TestUtils` verifiers, the same entry point
 
 ```julia
 using ConvolvedDistributions.TestUtils: test_convolved_interface,
-                                        test_abstract_membership
+                                        test_abstract_membership,
+                                        test_discrete_pmf
 
 test_convolved_interface(largest(Gamma(2.0, 1.0), LogNormal(0.5, 0.4));
     x = 3.0)
 test_abstract_membership()
+
+# When the member can be typed `Discrete` (every component
+# integer-lattice discrete) and ships an exact route, also verify it
+# with `test_discrete_pmf` — NOT on the illustrative `Largest` sketch
+# above (it has no exact discrete route, so `test_discrete_pmf` would
+# fail on it); this is what a real member with a lattice fold looks
+# like, e.g. the built-in `Convolved`:
+test_discrete_pmf(convolved(Poisson(2.0), Poisson(3.0));
+    support = 0:30)
 ```
 
 `test_convolved_interface(d; x)` checks the subtyping, `params`, a finite `logpdf` at the in-support point `x`, and a non-empty `show`.
 `test_abstract_membership` asserts the built-in members sit in the right place in the hierarchy; when adding a member to this package, add your type to its tuple in `src/TestUtils.jl` so the meta-test covers it.
-A downstream package defining its own member calls `test_convolved_interface` on its instances directly.
+`test_discrete_pmf(d; support)` is the verifier for any `Discrete`-typed family member: it asserts `value_support(typeof(d)) === Discrete`, non-negative masses summing to `≈ 1` over `support`, `cdf` matching the running mass sum, an off-lattice point carrying no mass, and `is_exact(d)`; that last assertion is what catches a `Discrete`-typed member that forgot to ship an exact route (see the checklist item above).
+A downstream package defining its own member calls `test_convolved_interface` (and, when discrete, `test_discrete_pmf`) on its instances directly.
 
 ## Checklist
 
@@ -166,6 +177,6 @@ A downstream package defining its own member calls `test_convolved_interface` on
 - [ ] `quantile` method in the Optimization extension if inverse-CDF support is wanted
 - [ ] Docstrings in the house style (`@doc` blocks, `# Examples`, `# See also`)
 - [ ] Export the verb; mark the type `public` in `src/public.jl`
-- [ ] Tests under `test/distributions/`, `test_convolved_interface` coverage in `test/package/interface.jl`, membership in `src/TestUtils.jl`, and ADFixtures gradient scenarios (numeric path w.r.t. each component, moments)
+- [ ] Tests under `test/distributions/`, `test_convolved_interface` coverage in `test/package/interface.jl` (plus `test_discrete_pmf` coverage there if the member can be `Discrete`-typed), membership in `src/TestUtils.jl`, and ADFixtures gradient scenarios (numeric path w.r.t. each component, moments)
 - [ ] Update the member lists in the prose surfaces: this page, the abstract-type docstring, the module docstring, the getting-started walkthrough and FAQ, the README why-bullets, and a NEWS bullet
 - [ ] Benchmark rows under `benchmark/src/` wired into `benchmark/benchmarks.jl` and the suite tree in `docs/benchmarks.md`
