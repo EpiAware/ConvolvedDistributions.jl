@@ -153,22 +153,29 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
     # pdf/logpdf).
     cdf_obs = [0.5, 1.5, 3.0]
     _push!("Convolved Gamma+Uniform closed-form logcdf",
-        (θ, xs) -> sum(x -> logcdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
+        (θ, xs) -> sum(
+            x -> logcdf(
+                convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
             xs),
         [2.0, 1.5], (Constant(cdf_obs),))
     _push!("Convolved LogNormal+Uniform closed-form logcdf",
         (θ, xs) -> sum(
-            x -> logcdf(convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), x), xs),
+            x -> logcdf(
+                convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), x),
+            xs),
         [1.5, 0.5], (Constant(cdf_obs),))
     _push!("Convolved Weibull+Uniform closed-form logcdf",
-        (θ, xs) -> sum(x -> logcdf(convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), x),
+        (θ, xs) -> sum(
+            x -> logcdf(
+                convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), x),
             xs),
         [1.5, 2.0], (Constant(cdf_obs),))
     # Batched cdf through the same closed form (scalar and batched paths
     # are separate `cdf` methods -- see src/Convolved.jl -- so both need
     # a differentiated check).
     _push!("Convolved Gamma+Uniform closed-form batched cdf",
-        (θ, xs) -> sum(cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), xs)),
+        (θ, xs) -> sum(
+            cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), xs)),
         [2.0, 1.5], (Constant(cdf_obs),))
     # The generic uniform-window density (S3.2): `convolved_pdf`/
     # `convolved_logpdf` dispatch on any delay + `Uniform`, not just the
@@ -176,11 +183,15 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
     # cancellation-guarded density; Normal+Uniform (no cdf closed form)
     # exercises the density on a pair outside `_WINDOW_DELAY`.
     _push!("Convolved Gamma+Uniform closed-form logpdf",
-        (θ, xs) -> sum(x -> logpdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
+        (θ, xs) -> sum(
+            x -> logpdf(
+                convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
             xs),
         [2.0, 1.5], (Constant(cdf_obs),))
     _push!("Convolved Normal+Uniform closed-form pdf",
-        (θ, xs) -> sum(x -> pdf(convolved(Normal(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
+        (θ, xs) -> sum(
+            x -> pdf(
+                convolved(Normal(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
             xs),
         [1.0, 0.5], (Constant(cdf_obs),))
 
