@@ -45,34 +45,42 @@ abstract type AbstractConvolvedDistribution{F <: Distributions.VariateForm,
 # Queryable evaluation path (#92): no silent numeric fallback
 # ---------------------------------------------------------------------------
 #
-# `evaluation_path` and `has_closed_form` both delegate directly to
-# `_maybe_analytic` (defined per concrete type in Convolved.jl/
-# Difference.jl/Product.jl), the SAME function `pdf`/`logpdf`/`cdf`/... call
-# to decide their own analytic-vs-numeric branch. There is deliberately no
-# separate "does this have a closed form" computation here: querying and
-# evaluating share one source of truth, so the reported route cannot drift
-# from the executed one. Recursion through nesting falls out for free —
-# `_maybe_analytic`'s pairwise analytic-conversion dispatch (`_try_convolve`
-# etc.) only matches concrete leaf-distribution types, so a nested
-# `Convolved`/`Difference`/`Product` component (analytic or not) never
-# matches an analytic-pair rule and the outer combination reports
-# `:numeric`, exactly mirroring what evaluation actually does.
+# `evaluation_path`/`has_closed_form` answer per quantity without
+# evaluating it. For a two-component `Convolved` this is method lookup
+# (`_has_analytic_route`, solver_dispatch.jl) plus the same
+# `_try_convolve` check the `AnalyticalSolver` generic itself runs
+# (S2.3/S4.1) -- checking whether the analytic distribution can be built
+# is not evaluating the quantity. Every other case (three or more
+# components, `Difference`, `Product`) answers via `_maybe_analytic`,
+# unchanged from before this file's rewrite. Recursion through nesting
+# falls out for free: a nested combination only matches a component-typed
+# analytic method when it names a leaf distribution, so a nested
+# `Convolved`/`Difference`/`Product` component falls through to
+# `:numeric`, exactly mirroring what evaluation does.
+
+# Whether `d` has an exact route for quantity function `f`, without
+# evaluating `f`. The generic fallback (three-or-more components,
+# `Difference`, `Product`) reuses each type's own `_maybe_analytic`; the
+# `Convolved` two-component method lives in solver_dispatch.jl, after
+# `Convolved`'s struct definition.
+function _is_analytic(d::AbstractConvolvedDistribution, f)
+    return _maybe_analytic(d) !== nothing
+end
 
 @doc "
 
-Report which route `d` will take for its density and CDF, without
-evaluating either: `:analytic` for the exact closed form, `:numeric` for
-Gauss-Legendre quadrature.
+Report which route `d` will take for `quantities`, without evaluating
+any of them: `:analytic` when every quantity in `quantities` has an
+exact closed form, `:numeric` otherwise. `quantities` is a single
+Distributions.jl generic (e.g. `cdf`) or a tuple of them, defaulting to
+`(pdf, cdf)` — density and CDF both exact, the route `strict = true`
+demands.
 
 Recurses through nesting: a combination with any non-analytic component
 (including a nested [`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref)
 using [`NumericSolver`](@ref), or one with no matching closed form)
-reports `:numeric`, since evaluating it does fall back to quadrature
+reports `:numeric`, since evaluating it falls back to quadrature
 somewhere in the recursion.
-
-The internal `pdf`/`logpdf`/`cdf`/... methods branch on the exact same
-underlying check this function reports, so the answer cannot drift from
-what evaluation actually does.
 
 # Examples
 ```@example
@@ -82,7 +90,11 @@ using ConvolvedDistributions, Distributions
 d = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
 evaluation_path(d)
 
-# Gamma + LogNormal has no analytic convolution
+# Gamma + Uniform has an exact cdf and pdf but no analytic convolution
+dg = convolved(Gamma(2.0, 1.0), Uniform(0.0, 2.0))
+evaluation_path(dg, cdf)
+
+# Gamma + LogNormal has no closed form for either quantity
 dn = convolved(Gamma(2.0, 1.0), LogNormal(1.5, 0.5))
 evaluation_path(dn)
 ```
@@ -90,13 +102,17 @@ evaluation_path(dn)
 # See also
 - [`has_closed_form`](@ref): the boolean convenience form.
 "
-evaluation_path(d::AbstractConvolvedDistribution) = _maybe_analytic(d) === nothing ?
-                                                    :numeric : :analytic
+function evaluation_path(d::AbstractConvolvedDistribution,
+        quantities = (pdf, cdf))
+    qs = quantities isa Tuple ? quantities : (quantities,)
+    return all(f -> _is_analytic(d, f), qs) ? :analytic : :numeric
+end
 
 @doc "
 
-Whether `d` has an exact closed form for its density and CDF —
-`evaluation_path(d) === :analytic`.
+Whether `d` has an exact closed form for `quantities` —
+`evaluation_path(d, quantities) === :analytic`. `quantities` defaults
+to `(pdf, cdf)`, as for [`evaluation_path`](@ref).
 
 # Examples
 ```@example
@@ -109,7 +125,8 @@ has_closed_form(d)
 # See also
 - [`evaluation_path`](@ref): the full `:analytic`/`:numeric` predicate.
 "
-has_closed_form(d::AbstractConvolvedDistribution) = evaluation_path(d) === :analytic
+has_closed_form(d::AbstractConvolvedDistribution, quantities = (
+    pdf, cdf)) = evaluation_path(d, quantities) === :analytic
 
 # The component-family names named in a `strict = true` construction
 # error, one method per concrete type (each knows its own fields):

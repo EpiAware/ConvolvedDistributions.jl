@@ -226,37 +226,17 @@ See also: [`var`](@ref), [`mean`](@ref)
 std(d::Convolved) = sqrt(var(d))
 
 # ---------------------------------------------------------------------------
-# Analytical fast path via Distributions.convolve
+# Analytical fast path for three-or-more components
 # ---------------------------------------------------------------------------
-
-# `_try_convolve` returns the analytically convolved distribution when a
-# closed form exists for the pair, otherwise `nothing`. Dispatch (rather
-# than `try`/`catch`) selects the analytic pairs so the path stays
-# differentiable under every AD backend — Mooncake reverse cannot
-# differentiate through `try`/`catch`. Only continuous families whose
-# `Distributions.convolve` always succeeds for the given parameters are
-# enabled; `Gamma` additionally needs equal scale (else the runtime
-# `convolve` would throw), so a parameter check guards it.
-_try_convolve(a::UnivariateDistribution, b::UnivariateDistribution) = nothing
-
-function _try_convolve(a::Normal, b::Normal)
-    return Distributions.convolve(a, b)
-end
-
-function _try_convolve(a::Exponential, b::Exponential)
-    # convolve(::Exponential, ::Exponential) asserts equal rate and throws
-    # otherwise, so guard the parameters and fall back to numeric.
-    return scale(a) ≈ scale(b) ? Distributions.convolve(a, b) : nothing
-end
-
-function _try_convolve(a::Gamma, b::Gamma)
-    return scale(a) ≈ scale(b) ? Distributions.convolve(a, b) : nothing
-end
+#
+# The two-component case routes through the solver-method dispatch in
+# solver_dispatch.jl (S1); this pairwise fold over `_try_convolve`
+# (solver_dispatch.jl) is what three-or-more components still use (S1.6).
 
 # Reduce the component tuple to a single distribution, folding pairwise
-# with `Distributions.convolve` where it applies. Returns the fully
-# convolved distribution when every pair convolves analytically, else
-# `nothing` so the caller falls back to numeric quadrature.
+# with `_try_convolve` where it applies. Returns the fully convolved
+# distribution when every pair convolves analytically, else `nothing` so
+# the caller falls back to numeric quadrature.
 function _analytic_convolution(components::Tuple)
     acc = components[1]
     for i in 2:length(components)
@@ -272,72 +252,6 @@ end
 function _maybe_analytic(d::Convolved)
     d.method isa NumericSolver && return nothing
     return _analytic_convolution(d.components)
-end
-
-# ---------------------------------------------------------------------------
-# Registered analytic-pair CDF (#77)
-# ---------------------------------------------------------------------------
-#
-# A second, separate analytic fast path alongside `_maybe_analytic` above:
-# `register_analytic_pair!` (src/analytic_pairs.jl) supplies a closed-form
-# CDF only, not a full `Distributions.convolve`-style Distribution (most
-# registrable pairs -- a delay convolved with a window-restricted `Uniform`
-# primary event -- have no named resulting distribution), so it cannot
-# extend `_analytic_convolution`'s pairwise fold and is consulted
-# separately, from the cdf/logcdf paths only. Scoped to exactly two
-# components -- the shape every registrable pair here takes -- so a
-# three-or-more-component convolution keeps using the existing pairwise
-# analytic fold / numeric quadrature untouched.
-
-# The registered analytic-pair entry for `d`'s two components, or `nothing`
-# when unregistered, when `d.method` is a `NumericSolver`, or when `d` does
-# not have exactly two components. Shared by the scalar and batched
-# cdf/logcdf paths below.
-function _analytic_pair_entry(d::Convolved)
-    d.method isa NumericSolver && return nothing
-    length(d.components) == 2 || return nothing
-    delay, primary = d.components
-    return _registered_analytic_pair(typeof(delay), typeof(primary))
-end
-
-# Call a registered entry's closed-form CDF and coerce the result to a type
-# wide enough to hold it. `entry.cdf_fn` is read out of a heterogeneous
-# registry as an abstract `Function` (the registry holds entries for
-# arbitrarily many different concrete closed forms), so the call itself
-# infers only as `Any`; every branch of `cdf`/`logcdf` (see below) has to
-# agree on a concrete return type regardless of which branch actually runs
-# for a given `d` (`_registered_cdf`'s callee is never statically prunable,
-# since the registry is mutable global state), so leaving this `Any` would
-# make `cdf`/`logcdf` uninferable even for a `Convolved` whose components
-# are not a registered pair at all.
-#
-# `T` is `promote_type`d from `partype` of both components and `x`'s own
-# type (mirrors the `promote_type` pattern already used for the numeric
-# quadrature paths, e.g. `_convolved_numeric_pdf_batched`), predicting the
-# type a fully-tracked evaluation should produce. That prediction does not
-# always match `entry.cdf_fn`'s ACTUAL runtime type under ReverseDiff:
-# every formula in `analytic_pairs.jl` builds its result from a mix of
-# `TrackedReal`s and plain constants (window endpoints, the `zero(...)`
-# taken on one side of the `q <= 0` boundary in each of the three native
-# pairs), and ReverseDiff's tracked reals detach from their originating
-# tape on a constant (a `TrackedReal` with a `Nothing` origin, since a
-# constant has no gradient to record) -- so the returned value can carry a
-# `Nothing`-origin type rather than the input's tape-carrying one at BOTH
-# boundary and non-boundary evaluation points (confirmed by inspecting the
-# raw pre-conversion return type directly), even though every case
-# represents the same, numerically correct value. A type ASSERTION
-# (`value::T`) demands an exact match and throws on that mismatch;
-# `convert(T, value)::T` instead performs the actual widening/coercion
-# `T`'s own `convert` method defines (a plain zero promotes cleanly into a
-# Dual/TrackedReal with a zero-derivative, precisely the correct value for
-# a branch whose result does not depend on the differentiated parameter)
-# and the trailing `::T` still narrows inference to `T`, so both
-# inferability and the ReverseDiff tracer-detachment mismatch are handled
-# together.
-function _registered_cdf(entry::_AnalyticPairEntry, d::Convolved, x::Real)
-    T = promote_type(
-        float(typeof(x)), partype(d.components[1]), partype(d.components[2]))
-    return convert(T, entry.cdf_fn(d.components[1], d.components[2], x))::T
 end
 
 # Fraction of probability trimmed from each tail of an unbounded
@@ -655,22 +569,20 @@ end
 
 Compute the cumulative distribution function.
 
-Uses an analytical convolution when `Distributions.convolve` applies to all
-component pairs, then a [`register_analytic_pair!`](@ref)-registered
-closed-form CDF for the two-component case, otherwise AD-safe numeric
-quadrature.
+A two-component `Convolved` routes through [`convolved_cdf`](@ref)
+(S1): an analytical fast path where `d1 + d2` names a distribution or a
+component-specific method exists, otherwise AD-safe numeric quadrature.
+Three or more components keep the pre-existing pairwise analytic fold.
 
 See also: [`logcdf`](@ref)
 "
 function cdf(d::Convolved, x::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return cdf(analytic, x)
+    if length(d.components) == 2
+        d1, d2 = d.components
+        return _convolved_pair(convolved_cdf, d1, d2, x, d.method)
     end
-    entry = _analytic_pair_entry(d)
-    if entry !== nothing
-        return _registered_cdf(entry, d, x)
-    end
+    a = _maybe_analytic(d)
+    a === nothing || return cdf(a, x)
     return _convolved_numeric_cdf(d, x)
 end
 
@@ -681,24 +593,29 @@ Compute the log cumulative distribution function.
 See also: [`cdf`](@ref)
 "
 function logcdf(d::Convolved, x::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return logcdf(analytic, x)
+    if length(d.components) == 2
+        d1, d2 = d.components
+        return _convolved_pair(convolved_logcdf, d1, d2, x, d.method)
     end
-    entry = _analytic_pair_entry(d)
-    if entry !== nothing
-        c = _registered_cdf(entry, d, x)
-        return c <= 0 ? oftype(float(c), -Inf) : log(c)
-    end
+    a = _maybe_analytic(d)
+    a === nothing || return logcdf(a, x)
     c = _convolved_numeric_cdf(d, x)
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
 end
 
 function ccdf(d::Convolved, x::Real)
+    if length(d.components) == 2
+        d1, d2 = d.components
+        return _convolved_pair(convolved_ccdf, d1, d2, x, d.method)
+    end
     return 1 - cdf(d, x)
 end
 
 function logccdf(d::Convolved, x::Real)
+    if length(d.components) == 2
+        d1, d2 = d.components
+        return _convolved_pair(convolved_logccdf, d1, d2, x, d.method)
+    end
     logcdf_val = logcdf(d, x)
     if logcdf_val == -Inf
         return zero(logcdf_val)
@@ -712,17 +629,20 @@ end
 
 Compute the probability density function.
 
-Uses the exact analytical convolved density where `Distributions.convolve`
-applies to all component pairs, otherwise the AD-safe numeric density
-convolution ``f_X(x) = \\int f_R(x - t) f_C(t) \\, dt``.
+A two-component `Convolved` routes through [`convolved_pdf`](@ref)
+(S1): an analytical fast path where one applies, otherwise the AD-safe
+numeric density convolution ``f_X(x) = \\int f_R(x - t) f_C(t) \\, dt``.
+Three or more components keep the pre-existing pairwise analytic fold.
 
 See also: [`logpdf`](@ref)
 "
 function pdf(d::Convolved, x::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return pdf(analytic, x)
+    if length(d.components) == 2
+        d1, d2 = d.components
+        return _convolved_pair(convolved_pdf, d1, d2, x, d.method)
     end
+    a = _maybe_analytic(d)
+    a === nothing || return pdf(a, x)
     return _convolved_numeric_pdf(d, x)
 end
 
@@ -733,15 +653,36 @@ Compute the log probability density function.
 See also: [`pdf`](@ref), [`logcdf`](@ref)
 "
 function logpdf(d::Convolved, x::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return logpdf(analytic, x)
+    if length(d.components) == 2
+        d1, d2 = d.components
+        return _convolved_pair(convolved_logpdf, d1, d2, x, d.method)
     end
+    a = _maybe_analytic(d)
+    a === nothing || return logpdf(a, x)
     if !insupport(d, x)
         return oftype(float(x), -Inf)
     end
     p = _convolved_numeric_pdf(d, x)
     return p <= 0 ? oftype(float(x), -Inf) : log(p)
+end
+
+@doc "
+
+Compute the quantile (inverse CDF) of the convolution.
+
+A two-component `Convolved` routes through [`convolved_quantile`](@ref)
+(S1/S2.4): exact where `d1 + d2` names a distribution (e.g.
+`Normal`+`Normal`, equal-scale `Gamma`, equal-rate `Exponential`), with
+no dependency on Optimization.jl. Three or more components, or a
+non-analytic two-component pair, fall back to the numeric quantile in
+the `ConvolvedDistributionsOptimizationExt` extension.
+
+See also: [`cdf`](@ref)
+"
+function quantile(d::Convolved, p::Real)
+    length(d.components) == 2 || return _convolved_general_quantile(d, p)
+    d1, d2 = d.components
+    return _convolved_pair(convolved_quantile, d1, d2, p, d.method)
 end
 
 # ---------------------------------------------------------------------------
@@ -764,13 +705,13 @@ stay within ~1e-6. See the FAQ.
 See also: [`cdf`](@ref)
 "
 function cdf(d::Convolved, x::AbstractVector{<:Real})
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return map(xi -> cdf(analytic, xi), x)
-    end
-    entry = _analytic_pair_entry(d)
-    if entry !== nothing
-        return map(xi -> _registered_cdf(entry, d, xi), x)
+    if length(d.components) == 2
+        d1, d2 = d.components
+        has, a1, a2 = _convolved_route(convolved_cdf, d1, d2, d.method)
+        has && return map(xi -> convolved_cdf(a1, a2, xi, d.method), x)
+    else
+        a = _maybe_analytic(d)
+        a === nothing || return map(xi -> cdf(a, xi), x)
     end
     return _convolved_numeric_cdf_batched(d, x)
 end
@@ -852,9 +793,13 @@ composite-quadrature pass (see the batched [`cdf`](@ref) method).
 See also: [`pdf`](@ref)
 "
 function pdf(d::Convolved, x::AbstractVector{<:Real})
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return map(xi -> pdf(analytic, xi), x)
+    if length(d.components) == 2
+        d1, d2 = d.components
+        has, a1, a2 = _convolved_route(convolved_pdf, d1, d2, d.method)
+        has && return map(xi -> convolved_pdf(a1, a2, xi, d.method), x)
+    else
+        a = _maybe_analytic(d)
+        a === nothing || return map(xi -> pdf(a, xi), x)
     end
     return _convolved_numeric_pdf_batched(d, x)
 end
@@ -873,9 +818,22 @@ spans stay within ~1e-6).
 See also: [`logpdf`](@ref), [`pdf`](@ref)
 "
 function logpdf(d::Convolved, x::AbstractVector{<:Real})
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return map(xi -> logpdf(analytic, xi), x)
+    if length(d.components) == 2
+        d1, d2 = d.components
+        has_l, l1, l2 = _convolved_route(convolved_logpdf, d1, d2, d.method)
+        if has_l
+            return map(xi -> convolved_logpdf(l1, l2, xi, d.method), x)
+        end
+        has_p, p1, p2 = _convolved_route(convolved_pdf, d1, d2, d.method)
+        if has_p
+            return map(x) do xi
+                p = convolved_pdf(p1, p2, xi, d.method)
+                p <= 0 ? oftype(float(p), -Inf) : log(p)
+            end
+        end
+    else
+        a = _maybe_analytic(d)
+        a === nothing || return map(xi -> logpdf(a, xi), x)
     end
 
     pdfs = _convolved_numeric_pdf_batched(d, x)

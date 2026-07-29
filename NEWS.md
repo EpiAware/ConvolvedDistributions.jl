@@ -1,5 +1,42 @@
 ## Unreleased
 
+### Additions and improvements
+
+- `convolved_cdf`/`convolved_logcdf`/`convolved_ccdf`/`convolved_logccdf`/
+  `convolved_pdf`/`convolved_logpdf`/`convolved_quantile` are public
+  multiple-dispatch entry points for a two-component `Convolved`, one per
+  quantity, mirroring CensoredDistributions' `primarycensored_cdf`: an
+  `AnalyticalSolver` tries the named-distribution route first, then falls
+  back to a `NumericSolver` method, and a component-specific analytic
+  method (more specific than the `AnalyticalSolver` fallback) wins by
+  ordinary dispatch. `Convolved`'s call sites try the given component
+  order and then the reversed order before settling on a route, since
+  convolution is commutative but dispatch is not. Ships a
+  `Gamma`/`LogNormal`/`Weibull` + `Uniform` closed-form `cdf`
+  (`uniform_window_cdf`, also public, factors the shared arithmetic so a
+  downstream family only supplies its partial first moment), plus an
+  exact `pdf`/`logpdf` for **any** delay convolved with a `Uniform`.
+  Replaces the unreleased `register_analytic_pair!` registry and the
+  unreleased `closed_form` seam (#77).
+- `evaluation_path`/`has_closed_form` take an optional quantity (or tuple
+  of quantities, default `(pdf, cdf)`) and answer by method lookup
+  (whether a `convolved_*` method more specific than the
+  `AnalyticalSolver` fallback matches) rather than by evaluating, so the
+  report cannot drift from what `cdf`/`pdf`/... actually do. Fixes
+  `evaluation_path` reporting `:numeric` for a `Gamma`+`Uniform` pair
+  whose `cdf` ran a closed form, and `strict = true` wrongly erroring on
+  it (#92); `strict = true` now accepts `Gamma`+`Uniform` and pairs like
+  it, which is the fix, not a regression.
+- `quantile(d::Convolved, p)` moves into core and takes the analytic
+  route (`convolved_quantile`) before falling back to the
+  Optimization-extension numeric solve, fixing a case where it ran a
+  Nelder-Mead solve even for a pair whose sum names a distribution (e.g.
+  `Normal`+`Normal`, equal-scale `Gamma`, equal-rate `Exponential`) —
+  `quantile` for those pairs now works, and is exact, without
+  Optimization.jl loaded (#92). `Difference`/`Product` `quantile` (still
+  extension-only) get the same fix: the analytic route is tried before
+  the Nelder-Mead solve.
+
 ### Breaking changes
 
 - **`discretise_pmf` is removed.** Discretising a continuous delay is a
@@ -58,7 +95,6 @@ Additions and improvements:
 - `cdf`/`pdf` no longer throw on distributions whose components are themselves composites (for example a `difference` of two `Convolved` totals): composite integration windows recurse over the nested components with union-bound tail trims (#45).
 - The batched `cdf`/`pdf`/`logpdf` methods now differentiate: AD tracers on component parameters survive the final convert (#43), ReverseDiff works with respect to the evaluation points (the per-point assembly no longer mutates tracked storage) (#44), and batched-path AD scenarios run on all six backend tags in CI.
 - Numeric quadrature windows are split at the integration component's quantiles, so node density follows its mass: heavy-tailed components no longer starve the transition region (worst measured case, a `Gamma` x `LogNormal(0, 1.5)` product CDF, improved from ~1.4e-2 absolute error to ~5e-11) and most scalar paths got slightly faster (#49).
-- `register_analytic_pair!` adds a load-order-safe registry mapping a `(delay_type, primary_type)` component pair to a closed-form convolution CDF, consulted by `cdf`/`logcdf` on a two-component `Convolved` ahead of the numeric quadrature fallback (mirrors the plain-data extension pattern from ComposedDistributions#189/#216, so downstream packages can register from their own extension `__init__`). Ships with the three uniform-window primary-censored closed forms built only from Distributions.jl-native families: `Gamma`+`Uniform`, `LogNormal`+`Uniform`, `Weibull`+`Uniform` (#77).
 
 ## 0.1.0
 

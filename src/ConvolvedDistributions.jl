@@ -33,7 +33,7 @@ using Random: AbstractRNG
 
 # Functions extended with new methods.
 import Distributions: params, components, insupport, pdf, logpdf, cdf, logcdf,
-                      ccdf, logccdf, mean, var, std, sampler
+                      ccdf, logccdf, mean, var, std, sampler, quantile
 import Base: minimum, maximum
 
 # Types, constructors, and helpers used without method extension.
@@ -42,9 +42,9 @@ using Distributions: Distributions, UnivariateDistribution,
                      DiscreteUnivariateDistribution, DiscreteNonParametric,
                      Continuous, Exponential, Gamma, LogNormal, Normal,
                      Uniform, Weibull, scale, shape, meanlogx, stdlogx,
-                     quantile, support, probs, partype
+                     support, probs, partype
 
-using LogExpFunctions: log1mexp
+using LogExpFunctions: log1mexp, logsubexp
 
 # The shared EpiAware AD-safety layer: the tape-strip pair keeps quadrature
 # hyperparameters (window endpoints, panel breaks) off the AD path, and the
@@ -52,11 +52,12 @@ using LogExpFunctions: log1mexp
 # packages overload for their own component types (their Gamma methods carry
 # the analytic gamma-CDF derivative rules on every supported backend).
 # `_gamma_cdf` is the AD-safe regularised-lower-incomplete-gamma evaluator
-# the native Gamma/Weibull analytic-pair closed forms route through
-# (src/analytic_pairs.jl), so their shape-parameter derivatives carry the
+# the native Gamma/Weibull uniform-window closed forms route through
+# (src/uniform_window.jl), so their shape-parameter derivatives carry the
 # same per-backend rules as the rest of the package.
 using EpiAwareADTools: primal, primal_distribution, pdf_ad_safe,
-                       cdf_ad_safe, ccdf_ad_safe, _gamma_cdf
+                       cdf_ad_safe, ccdf_ad_safe, logcdf_ad_safe,
+                       logccdf_ad_safe, _gamma_cdf
 
 import FastGaussQuadrature  # Gauss-Legendre nodes for the default solver
 import SpecialFunctions     # gamma() for the native analytic-pair closed forms
@@ -84,10 +85,13 @@ include("solvers.jl")
 # The abstract family supertype `Convolved`/`Difference` subtype, carrying
 # the documented interface contract (verified by `TestUtils`).
 include("interface.jl")
-# The analytic-pair registry (#77) and the Distributions-native closed forms
-# it hosts. Before Convolved.jl, which consults it from cdf/logcdf.
-include("analytic_pairs.jl")
 include("Convolved.jl")
+# Solver-method dispatch (#77): the per-quantity generics `Convolved`'s
+# two-component methods call into, and the native uniform-window forms
+# hosted on them. After Convolved.jl, whose numeric quadrature helpers
+# and struct the `NumericSolver` arms and both-orders retry reuse.
+include("solver_dispatch.jl")
+include("uniform_window.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.
 include("Difference.jl")
@@ -101,10 +105,12 @@ include("Product.jl")
 # continuous one (#6, #31, #68).
 include("convolve_with_vector.jl")
 
-# `quantile` (inverse CDF) for Convolved/Difference lives in the
-# ConvolvedDistributionsOptimizationExt extension, loaded when both
-# Optimization.jl and OptimizationOptimJL.jl are present, so the core
-# package carries no solver dependency.
+# `quantile` (inverse CDF) for a two-component analytic `Convolved` pair
+# (S2.4) lives in core and needs no solver. Everything else -- the
+# numeric `Convolved` fallback, and `Difference`/`Product` `quantile`
+# entirely -- lives in the ConvolvedDistributionsOptimizationExt
+# extension, loaded when both Optimization.jl and OptimizationOptimJL.jl
+# are present, so the core package carries no solver dependency.
 
 # Interface-contract verifiers, shipped so downstream family members can
 # self-verify (mirrors CensoredDistributions.TestUtils).

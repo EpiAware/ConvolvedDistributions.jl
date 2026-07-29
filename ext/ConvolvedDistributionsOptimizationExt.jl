@@ -11,7 +11,8 @@ module ConvolvedDistributionsOptimizationExt
 # only consumers that need inverse-CDF sampling pull the solver. Ported
 # from CensoredDistributions `src/utils/quantile_optimization.jl`.
 
-using ConvolvedDistributions: Convolved, Difference, Product
+using ConvolvedDistributions: ConvolvedDistributions, Convolved, Difference,
+                              Product, NumericSolver, _maybe_analytic
 import Distributions
 using Distributions: UnivariateDistribution, cdf, insupport, quantile
 using Optimization: OptimizationFunction, OptimizationProblem, solve,
@@ -110,22 +111,33 @@ end
 
 @doc "
 
-Compute the quantile (inverse CDF) of the convolution.
-
-No closed form exists for a generic convolution, so the quantile is found
-by numerically inverting [`cdf`](@ref) with a Nelder-Mead solve. The
-initial guess is the sum of the component quantiles, which is exact when
-the components are degenerate and a good starting point otherwise.
-Providing this method lets a `Convolved` compose under `truncated`, where
-`Distributions` derives the truncated quantile and inverse-CDF sampler
-from the base `quantile`.
+Numeric quantile for a `Convolved` the core two-component pair
+mechanism does not resolve analytically -- three or more components, or
+a non-analytic two-component pair (S2.4). Found by numerically
+inverting [`cdf`](@ref) with a Nelder-Mead solve, starting from the sum
+of the component quantiles (exact when the components are degenerate, a
+good guess otherwise). `quantile(d::Convolved, p)` itself lives in core
+and calls this only when it cannot resolve `d` analytically without a
+solver.
 
 Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
 method lives in the `ConvolvedDistributionsOptimizationExt` extension).
-
-See also: [`cdf`](@ref)
 "
-function Distributions.quantile(d::Convolved, p::Real)
+function ConvolvedDistributions._convolved_general_quantile(
+        d::Convolved, p::Real)
+    return _quantile_optimization(d, p, _convolved_quantile_guess(d, p))
+end
+
+@doc "
+
+`NumericSolver` arm of [`convolved_quantile`](@ref): invert the numeric
+[`cdf`](@ref) with a Nelder-Mead solve, starting from the sum of the
+component quantiles.
+"
+function ConvolvedDistributions.convolved_quantile(
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
+        p::Real, method::NumericSolver)
+    d = Convolved((d1, d2); method = method)
     return _quantile_optimization(d, p, _convolved_quantile_guess(d, p))
 end
 
@@ -133,12 +145,13 @@ end
 
 Compute the quantile (inverse CDF) of the difference.
 
-No closed form exists for a generic difference, so the quantile is found
-by numerically inverting [`cdf`](@ref) with a Nelder-Mead solve, starting
-from the difference of the opposing component quantiles. Providing this
-method lets a `Difference` compose under `truncated`, where
-`Distributions` derives the truncated quantile and inverse-CDF sampler
-from the base `quantile`.
+Exact where the components' difference names a distribution (currently
+`Normal`-`Normal`); otherwise the quantile is found by numerically
+inverting [`cdf`](@ref) with a Nelder-Mead solve, starting from the
+difference of the opposing component quantiles. Providing this method
+lets a `Difference` compose under `truncated`, where `Distributions`
+derives the truncated quantile and inverse-CDF sampler from the base
+`quantile`.
 
 Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
 method lives in the `ConvolvedDistributionsOptimizationExt` extension).
@@ -146,6 +159,8 @@ method lives in the `ConvolvedDistributionsOptimizationExt` extension).
 See also: [`cdf`](@ref)
 "
 function Distributions.quantile(d::Difference, p::Real)
+    a = _maybe_analytic(d)
+    a === nothing || return quantile(a, p)
     return _quantile_optimization(d, p, _difference_quantile_guess(d, p))
 end
 
@@ -153,11 +168,12 @@ end
 
 Compute the quantile (inverse CDF) of the product.
 
-No closed form exists for a generic product, so the quantile is found by
-numerically inverting [`cdf`](@ref) with a Nelder-Mead solve, starting
-from the product of the component quantiles at `p` (the Convolved guess
-on the log scale, since both supports are non-negative). Providing this
-method lets a `Product` compose under `truncated`, where `Distributions`
+Exact where the components' product names a distribution (currently
+`LogNormal`*`LogNormal`); otherwise the quantile is found by numerically
+inverting [`cdf`](@ref) with a Nelder-Mead solve, starting from the
+product of the component quantiles at `p` (the Convolved guess on the
+log scale, since both supports are non-negative). Providing this method
+lets a `Product` compose under `truncated`, where `Distributions`
 derives the truncated quantile and inverse-CDF sampler from the base
 `quantile`.
 
@@ -167,6 +183,8 @@ method lives in the `ConvolvedDistributionsOptimizationExt` extension).
 See also: [`cdf`](@ref)
 "
 function Distributions.quantile(d::Product, p::Real)
+    a = _maybe_analytic(d)
+    a === nothing || return quantile(a, p)
     return _quantile_optimization(d, p, _product_quantile_guess(d, p))
 end
 
