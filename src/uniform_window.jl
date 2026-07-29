@@ -18,6 +18,22 @@ width.
 Public so a downstream package can add a family without re-deriving
 the algebra: supply `partial_mean` and call this from a
 [`convolved_cdf`](@ref) method.
+
+# Arguments
+- `delay`: The delay distribution `T`.
+- `primary`: The `Uniform` primary/window distribution.
+- `x`: Evaluation point.
+- `partial_mean`: `t -> ∫₀ᵗ u f_T(u) du` for `delay`.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+delay = Gamma(2.0, 1.5)
+k, θ = shape(delay), scale(delay)
+partial_mean = t -> k * θ * cdf(Gamma(k + 1, θ), t)
+uniform_window_cdf(delay, Uniform(0.0, 2.0), 3.0, partial_mean)
+```
 "
 function uniform_window_cdf(delay::UnivariateDistribution,
         primary::Uniform, x::Real, partial_mean::F) where {F}

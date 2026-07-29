@@ -82,6 +82,11 @@ using [`NumericSolver`](@ref), or one with no matching closed form)
 reports `:numeric`, since evaluating it falls back to quadrature
 somewhere in the recursion.
 
+# Arguments
+- `d`: The combination to report the route for.
+- `quantities`: A quantity (e.g. `cdf`) or tuple of them; default
+  `(pdf, cdf)`.
+
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
@@ -113,6 +118,11 @@ end
 Whether `d` has an exact closed form for `quantities` —
 `evaluation_path(d, quantities) === :analytic`. `quantities` defaults
 to `(pdf, cdf)`, as for [`evaluation_path`](@ref).
+
+# Arguments
+- `d`: The combination to report the route for.
+- `quantities`: A quantity (e.g. `cdf`) or tuple of them; default
+  `(pdf, cdf)`.
 
 # Examples
 ```@example
