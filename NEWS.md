@@ -1,5 +1,9 @@
 ## Unreleased
 
+Nothing yet.
+
+## 0.3.0
+
 ### Breaking changes
 
 - **`discretise_pmf` is removed.** Discretising a continuous delay is a
