@@ -3,7 +3,6 @@
 # ## Introduction
 #
 # A [`Difference`](@ref) is the signed gap between two events, so its support runs on both sides of zero — unlike [`Convolved`](@ref ConvolvedDistributions.Convolved) (see [Convolving distributions](@ref convolving-distributions)) or [`product`](@ref), whose supports only ever run in one direction.
-# `product` has no dedicated plotting tutorial; see its worked example in the [Getting started](@ref getting-started) overview's Products section and the [FAQ](@ref faq).
 #
 # ### What are we going to do in this exercise
 #
@@ -77,4 +76,4 @@ cdf(gap, 0.0)
 # - [`difference`](@ref) has two-sided support, and its mass below zero is directly interpretable as an ordering probability.
 # - A [`Convolved`](@ref ConvolvedDistributions.Convolved) can be one side of a [`difference`](@ref), so a multi-stage delay differences against a single delay in one call.
 #
-# See also: [Convolving distributions](@ref convolving-distributions), [Convolving a timeseries](@ref timeseries-convolution).
+# See also: [Convolving distributions](@ref convolving-distributions), [The product of two delays](@ref product-distributions), [Convolving a timeseries](@ref timeseries-convolution).
