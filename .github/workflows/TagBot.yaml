@@ -12,7 +12,7 @@ on:
 
 jobs:
   TagBot:
-    if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
+    if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaRegistrator'
     uses: EpiAware/.github/.github/workflows/tagbot.yml@26387a36be3d093723b5f85e4f93d99af98456b8
     with:
       lookback: ${{ github.event.inputs.lookback || '3' }}
