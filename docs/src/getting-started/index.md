@@ -123,6 +123,15 @@ convolve_series(pmf, infections)
 sum(pmf)
 ```
 
+A delay that changes over the window — a reporting system that speeds up, a changed case definition — is passed as one delay per time point: a vector of distributions, a matrix of masses with lags down columns, or a ragged vector of mass vectors, each of length `length(series)`.
+The `indexed_by` keyword names which time the delay belongs to.
+The default `:primary` gives it to the events themselves, so the cohort at time `s` spreads forward through its own PMF (the generative reading, which conserves mass); `:secondary` gives it to the observation time, attributing everything landing at time `i` through the delay in force at `i`.
+
+```@example getting-started
+delays = [Poisson(λ) for λ in range(3.0, 1.0; length = length(infections))]
+convolve_series(delays, infections)
+```
+
 ## Choosing the solver
 
 Both constructors take a `method` keyword.

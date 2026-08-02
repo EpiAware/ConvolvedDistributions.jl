@@ -48,8 +48,42 @@ draw(
 # The report curve is shifted right by the mean total delay and is flatter than the infection curve, because convolution smears each day's infections across the delay distribution.
 # Mass delayed beyond the series window is truncated rather than renormalised, so the report curve carries slightly less total mass.
 
+# ## A delay that changes over the window
+#
+# A single PMF assumes the delay never changes, which a reporting system that speeds up over an outbreak plainly violates.
+# Passing one delay per time point — here a Poisson reporting delay whose mean falls from six days to two across the window — convolves each time point through its own PMF.
+# The delays can be given as a vector of distributions, as a matrix of masses with lags down columns, or as a ragged vector of mass vectors; all three read the same way.
+
+mean_delay = range(6.0, 2.0; length = length(t))
+delays = [Poisson(m) for m in mean_delay]
+timevarying = convolve_series(delays, infections)
+
+# `indexed_by` names which time the delay belongs to.
+# The default `:primary` gives it to the events themselves: the cohort infected at time `s` is reported through the delay in force when it was infected, so each cohort spreads forward through its own PMF and mass is conserved up to the truncated tail.
+# `:secondary` instead gives the delay to the reporting date, attributing everything reported at time `i` through the delay in force at `i`.
+
+timevarying_secondary = convolve_series(delays, infections; indexed_by = :secondary)
+
+timevarying_df = vcat(
+    DataFrame(t = t, count = infections, Series = "Infections"),
+    DataFrame(t = t, count = timevarying, Series = "Time-varying (primary)"),
+    DataFrame(
+        t = t, count = timevarying_secondary,
+        Series = "Time-varying (secondary)")
+)
+draw(
+    data(timevarying_df) *
+    mapping(:t, :count, color = :Series) *
+    visual(Lines, linewidth = 2);
+    axis = (xlabel = "Day", ylabel = "Expected count")
+)
+
+# Early infections are reported with the long delay in force at the time and late ones with the short delay, so the report curve is pulled forward and compressed relative to the constant-delay run.
+# The two conventions separate wherever the delay is actually changing: the primary curve carries each cohort's own delay, while the secondary curve reads every report date through a single delay, which is why it is not mass-conserving.
+
 # ## Summary
 #
 # - The timeseries form turns an infection curve into an expected count curve through the discretised delay PMF.
+# - A time-varying delay is one PMF per time point, with `indexed_by` naming whether the delay belongs to the events (`:primary`) or to the reporting date (`:secondary`).
 #
 # See also: [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), [The product of two delays](@ref product-distributions).

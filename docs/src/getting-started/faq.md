@@ -118,6 +118,25 @@ For a coarser grid (e.g. weekly bins), pass a `DiscreteNonParametric` instead: i
 
 The masses depend differentiably on the delay parameters, so the timeseries form composes with gradient-based fitting.
 
+## Can the delay change over the series?
+
+Yes: pass one delay per time point instead of one delay ([issue #126](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/126)).
+`convolve_series` accepts a vector of discrete distributions, a matrix of masses with lags down columns (one column per time point), or a ragged vector of mass vectors — each of length `length(series)`.
+
+Which time the delay belongs to is a modelling choice, so it is the explicit `indexed_by` keyword rather than a silent convention, borrowing the primary/secondary vocabulary of the censoring literature:
+
+- `indexed_by = :primary` (the default) attaches the delay to the events themselves, so the cohort at time `s` spreads forward through its own PMF: `out[i] = Σ_s series[s] * pmf_s[i - s + 1]`. This is the generative reading and conserves mass up to the tail truncated by the window end.
+- `indexed_by = :secondary` attaches the delay to the observation time, so everything landing at time `i` is attributed through the delay in force at `i`: `out[i] = Σ_k pmf_i[k + 1] * series[i - k]`. Use it when the delay is a property of the reporting date. It does not conserve mass in general.
+
+Both reduce to the single-delay form when every time point carries the same PMF.
+
+```@example faq
+delays = [Poisson(λ) for λ in range(3.0, 1.0; length = length(infections))]
+convolve_series(delays, infections)
+```
+
+As with the single-delay form, continuous delays are rejected rather than discretised silently, and caller-supplied masses are used exactly as given.
+
 ## Can I use this with automatic differentiation?
 
 Yes.
