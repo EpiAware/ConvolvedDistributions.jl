@@ -33,7 +33,9 @@ solve stop early (issue #48).
 - `postprocess`: Applied to the solved quantile before it is returned
   (e.g. to snap it onto a discrete grid). Defaults to `identity`.
 - `check_nan`: Reject a `NaN` `p` with an `ArgumentError` when `true`
-  (the default).
+  (the default). With `check_nan = false` a `NaN` `p` skips validation
+  and the solve errors at the convergence check instead; it never
+  returns a value for a `NaN` target.
 
 # Returns
 - The quantile `q` such that `cdf(d, q) ≈ p`, after `postprocess`.

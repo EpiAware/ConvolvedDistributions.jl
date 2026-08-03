@@ -253,4 +253,10 @@ end
     # widens what the NaN-specific check above rejects.
     @test quantile_by_optimization(d, 0.5, [2.0]; check_nan = false) ≈
           quantile(d, 0.5) atol=1e-4
+
+    # check_nan = false with an actual NaN p skips validation, but the
+    # solve has no meaningful objective and must error at the
+    # convergence check rather than return a value.
+    @test_throws ErrorException quantile_by_optimization(
+        d, NaN, [2.0]; check_nan = false)
 end
