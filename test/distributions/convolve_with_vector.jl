@@ -458,6 +458,32 @@ end
     @test all(!iszero, g)
 end
 
+@testitem "a delay changing less often than the series takes run lengths" begin
+    using Distributions
+
+    series = collect(range(1.0, 8.0, length = 7))
+    d1, d2 = Poisson(3.0), Poisson(1.0)
+    for indexed_by in (:primary, :secondary)
+        @test convolve_series([d1 => 3, d2 => 4], series; indexed_by) ≈
+              convolve_series([d1, d1, d1, d2, d2, d2, d2], series; indexed_by)
+    end
+
+    # Mass vectors take run lengths the same way.
+    p1, p2 = [0.5, 0.3, 0.2], [0.9, 0.1]
+    @test convolve_series([p1 => 3, p2 => 4], series) ≈
+          convolve_series([p1, p1, p1, p2, p2, p2, p2], series)
+
+    # Runs that do not cover the window, or are empty, are a bug.
+    err = try
+        convolve_series([d1 => 3, d2 => 3], series)
+    catch e
+        e
+    end
+    @test err isa ArgumentError
+    @test occursin("sum to the series length", err.msg)
+    @test_throws ArgumentError convolve_series([d1 => 0, d2 => 7], series)
+end
+
 @testitem "primary indexing conserves each cohort's in-window mass" begin
     using Distributions
 

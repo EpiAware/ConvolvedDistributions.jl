@@ -360,7 +360,12 @@ Convolve a timeseries with a time-varying delay: one delay per time point.
 returns the convolution, truncated to the `series` window. Each
 delay's lag masses come from its own single-delay
 [`convolve_series(delay, series)`](@ref convolve_series) method, so the
-elements may be of any, and of mixed, types.
+elements may be of any, and of mixed, types. A type whose masses are not
+what that method gives specialises
+[`delay_masses`](@ref ConvolvedDistributions.delay_masses) instead.
+
+Consecutive identical delays share one set of masses, so a delay that
+holds for a stretch of the window is built once per stretch.
 
 `indexed_by` names which time the delay belongs to:
 
@@ -396,6 +401,8 @@ expected_counts = convolve_series(delays, infections)
   single-delay form
 - [`convolve_series(pmfs::AbstractMatrix, series)`](@ref convolve_series):
   the caller-supplied-PMF form
+- [`delay_masses`](@ref ConvolvedDistributions.delay_masses): how one
+  delay's masses are read, and where to specialise it
 "
 function convolve_series(
         delays::AbstractVector, series::AbstractVector{<:Real};
@@ -424,6 +431,61 @@ function _run_masses(delays, lags)
     masses = [delay_masses(delays[a], maximum(view(lags, a:b)))
               for (a, b) in zip(starts, stops)]
     return masses[index]
+end
+
+@doc "
+
+Convolve a timeseries with a delay that changes less often than the series.
+
+`convolve_series(runs, series)` takes `delay => length` pairs, each holding
+for that many consecutive time points, and expands them before convolving
+— so the delays (or mass vectors) are given once per regime rather than
+once per time point. The lengths must sum to `length(series)`.
+
+`indexed_by` is as in the
+[one-delay-per-time-point form](@ref convolve_series).
+
+# Arguments
+- `runs`: `delay => length` pairs, in `series` order. Each `delay` is
+  anything the one-per-time-point form accepts, including a mass vector.
+- `series`: the input timeseries (expected events at unit-spaced times
+  from 0).
+- `indexed_by`: `:primary` (default) or `:secondary`.
+
+# Returns
+- A numeric vector of expected downstream counts, the same length as
+  `series`.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+infections = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+expected_counts = convolve_series([Poisson(3.0) => 3, Poisson(1.0) => 4],
+    infections)
+```
+
+# See also
+- [`convolve_series(delays::AbstractVector, series)`](@ref convolve_series):
+  one delay per time point
+"
+function convolve_series(
+        runs::AbstractVector{<:Pair}, series::AbstractVector{<:Real};
+        indexed_by::Symbol = :primary)
+    return convolve_series(
+        _expand_runs(runs, length(series)), series; indexed_by)
+end
+
+# `fill` repeats the SAME object, so an expanded run is one run to
+# `_run_masses` and its masses are still built once.
+function _expand_runs(runs, n)
+    all(r -> last(r) > 0, runs) ||
+        throw(ArgumentError("convolve_series run lengths must be positive"))
+    total = sum(last, runs)
+    total == n || throw(ArgumentError(
+        "convolve_series run lengths must sum to the series length; got " *
+        "$(total) for a series of length $(n)"))
+    return reduce(vcat, [fill(first(r), last(r)) for r in runs])
 end
 
 @doc "

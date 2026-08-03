@@ -116,7 +116,8 @@ A plain vector always reads as the unit grid; a `DiscreteNonParametric` carries 
 
 ## Can the delay change over the series?
 
-Yes: pass one delay per time point — a vector of delays, a matrix of masses with lags down columns, or a ragged vector of mass vectors — and name which time the delay belongs to with `indexed_by`, `:primary` (the default) or `:secondary`.
+Yes: pass one delay per time point — a vector of delays, a matrix of masses with lags down columns, or a ragged vector of mass vectors — or, when the delay changes less often than the series, `delay => run length` pairs.
+Name which time the delay belongs to with `indexed_by`, `:primary` (the default) or `:secondary`.
 [`convolve_series`](@ref) documents both readings.
 
 ```@example faq
