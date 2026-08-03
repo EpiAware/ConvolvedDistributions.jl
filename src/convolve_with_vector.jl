@@ -357,7 +357,7 @@ delay_masses(d, n::Int) = convolve_series(d, [i == 1 ? 1.0 : 0.0 for i in 1:n])
 Convolve a timeseries with a time-varying delay: one delay per time point.
 
 `convolve_series(delays, series)` takes one delay per entry of `series` and
-returns the causal convolution, truncated to the `series` window. Each
+returns the convolution, truncated to the `series` window. Each
 delay's lag masses come from its own single-delay
 [`convolve_series(delay, series)`](@ref convolve_series) method, so the
 elements may be of any, and of mixed, types.
