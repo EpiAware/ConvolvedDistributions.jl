@@ -6,8 +6,9 @@ the EpiAware distribution-operations stack. Provides [`Convolved`](@ref) (the
 sum of independent components), [`Difference`](@ref) (the `X - Y` dual),
 [`Product`](@ref) (the `X * Y` Mellin convolution for non-negative
 components), the pluggable Gauss-Legendre `integrate`/`gl_integrate` layer,
-and the solver-method types `AnalyticalSolver`/`NumericSolver` selecting the
-analytic-vs-numeric backend. Operates on any
+the solver-method types `AnalyticalSolver`/`NumericSolver` selecting the
+analytic-vs-numeric backend, and, for discrete distributions, the
+probability generating function primitive `pgf`. Operates on any
 `Distributions.UnivariateDistribution`; no censoring.
 
 # Examples

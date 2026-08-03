@@ -31,7 +31,7 @@ bound — both raise rather than return an approximate or wrong answer.
 - `d`: A discrete univariate distribution.
 - `s`: The generating-function argument. `|s| <= 1` is always accepted;
   a specific method may accept a wider domain where its series converges
-  (see [`Geometric`](@ref)/[`NegativeBinomial`](@ref) below).
+  (see `Geometric`/`NegativeBinomial` below).
 
 # Examples
 ```@example
@@ -59,7 +59,7 @@ end
 @doc "
 
 Closed-form pgf of a `Bernoulli`: ``1 - p + p s``, the `n = 1` case of
-[`Binomial`](@ref)'s pgf.
+`Binomial`'s pgf.
 "
 function pgf(d::Bernoulli, s::Real)
     return 1 - d.p + d.p * s
@@ -88,8 +88,8 @@ end
 @doc "
 
 Closed-form pgf of a `Geometric`: ``p / (1 - (1-p) s)`` for
-``|s| < 1/(1-p)`` (the `r = 1` case of [`NegativeBinomial`](@ref)'s pgf).
-Raises a `DomainError` outside that domain — the series diverges there.
+``|s| < 1/(1-p)`` (the `r = 1` case of `NegativeBinomial`'s pgf). Raises
+a `DomainError` outside that domain — the series diverges there.
 "
 function pgf(d::Geometric, s::Real)
     _pgf_ratio_domain_guard(:Geometric, d.p, s)
