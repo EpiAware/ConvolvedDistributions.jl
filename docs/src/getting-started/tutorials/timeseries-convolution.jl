@@ -52,4 +52,4 @@ draw(
 #
 # - The timeseries form turns an infection curve into an expected count curve through the discretised delay PMF.
 #
-# See also: [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions).
+# See also: [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), [The product of two delays](@ref product-distributions).
