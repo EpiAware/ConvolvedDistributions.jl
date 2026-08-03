@@ -281,20 +281,19 @@ end
 #     `i` reads `pmf_i`. Not mass-conserving in general.
 
 # The mass at time `j`, lag `k - 1`, however the caller supplied it.
-_kernel_count(kernels::AbstractMatrix) = size(kernels, 2)
-_kernel_count(kernels::AbstractVector) = length(kernels)
+_kernel_count(ks::AbstractMatrix) = size(ks, 2)
+_kernel_count(ks::AbstractVector) = length(ks)
 
-_kernel_length(kernels::AbstractMatrix, j::Int) = size(kernels, 1)
-_kernel_length(kernels::AbstractVector{<:AbstractVector}, j::Int) = length(kernels[j])
+_kernel_length(ks::AbstractMatrix, j::Int) = size(ks, 1)
+_kernel_length(ks::AbstractVector{<:AbstractVector}, j::Int) = length(ks[j])
 
-_kernel_mass(kernels::AbstractMatrix, j::Int, k::Int) = kernels[k, j]
-_kernel_mass(kernels::AbstractVector{<:AbstractVector}, j::Int, k::Int) = kernels[j][k]
+_kernel_mass(ks::AbstractMatrix, j::Int, k::Int) = ks[k, j]
+_kernel_mass(ks::AbstractVector{<:AbstractVector}, j::Int, k::Int) = ks[j][k]
 
 # Seeds the accumulator type so `Dual` / tracked masses propagate.
-_kernel_eltype(kernels::AbstractMatrix) = eltype(kernels)
-function _kernel_eltype(kernels::AbstractVector{<:AbstractVector})
-    mapreduce(eltype, promote_type, kernels)
-end
+_kernel_eltype(ks::AbstractMatrix) = eltype(ks)
+_kernel_eltype(ks::AbstractVector{<:AbstractVector}) = mapreduce(
+    eltype, promote_type, ks)
 
 # Causal convolution with one kernel per time point, truncated to the series
 # window. The convention dispatches through `Val`, so each is a loop rather
