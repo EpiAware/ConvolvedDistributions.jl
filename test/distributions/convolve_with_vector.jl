@@ -80,10 +80,6 @@ end
     using Distributions
     series = [0.0, 1.0, 3.0, 6.0, 8.0]
 
-    # A continuous delay carries no mass on the integer grid until it is
-    # discretised, and discretisation is a censoring choice this package
-    # does not make, so there is no method to call (#95) rather than a
-    # bespoke error gate.
     delays = (Gamma(2.0, 1.0), Exponential(1.0), Normal(2.0, 1.0),
         LogNormal(0.5, 0.4),
         convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
@@ -393,13 +389,11 @@ end
     @test convolve_series(delays, series; indexed_by = :secondary) ≈
           convolve_series(dist_masses, series; indexed_by = :secondary)
 
-    # A non-discrete element type routes each delay through its own
-    # single-delay method instead of reading `pdf` off the lag grid; on a
-    # discrete element the two agree, which also pins the per-time lag
-    # counts the generic path builds (`n - s + 1` vs `i`).
-    generic = convert(Vector{UnivariateDistribution}, delays)
+    # An abstract element type reads the same way: nothing dispatches on
+    # the element, so the concrete and abstract vectors agree.
+    abstract_eltype = convert(Vector{UnivariateDistribution}, delays)
     for indexed_by in (:primary, :secondary)
-        @test convolve_series(generic, series; indexed_by) ≈
+        @test convolve_series(abstract_eltype, series; indexed_by) ≈
               convolve_series(delays, series; indexed_by)
     end
 end
@@ -507,18 +501,13 @@ end
     @test_throws ArgumentError convolve_series([[0.5, 0.5] for _ in 1:2],
         series)
 
-    # A typo in the convention must not fall back to the default.
-    err = try
-        convolve_series(fill(Poisson(1.0), n), series; indexed_by = :target)
-    catch e
-        e
-    end
-    @test err isa ArgumentError
-    @test occursin(":primary", err.msg)
-    @test occursin(":secondary", err.msg)
-    @test_throws ArgumentError convolve_series(zeros(3, n), series;
+    # The convention is a dispatch target, so an unnamed one has no method
+    # rather than falling back to the default.
+    @test_throws MethodError convolve_series(fill(Poisson(1.0), n), series;
         indexed_by = :target)
-    @test_throws ArgumentError convolve_series([[1.0] for _ in 1:n], series;
+    @test_throws MethodError convolve_series(zeros(3, n), series;
+        indexed_by = :target)
+    @test_throws MethodError convolve_series([[1.0] for _ in 1:n], series;
         indexed_by = :target)
 
     # Elements are never type-checked here: each kernel is built through the
@@ -526,8 +515,7 @@ end
     # (no method) rather than on a gate in the vector form.
     @test_throws MethodError convolve_series(fill(Gamma(2.0, 1.0), n), series)
     mixed = Any[Poisson(1.0), Gamma(2.0, 1.0), Poisson(1.0), Poisson(1.0)]
-    @test_throws MethodError convolve_series(
-        convert(Vector{UnivariateDistribution}, mixed), series)
+    @test_throws MethodError convolve_series(mixed, series)
 
     # Empty PMFs are a construction bug, not a zero signal.
     @test_throws ArgumentError convolve_series(zeros(0, n), series)

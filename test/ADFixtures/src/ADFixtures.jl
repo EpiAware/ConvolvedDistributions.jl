@@ -219,11 +219,8 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
     _push!("Timeseries convolve discrete Poisson delay",
         (θ, s) -> sum(convolve_series(Poisson(θ[1]), s)),
         [2.0], (Constant(series),))
-    # Time-varying delays (#126): one PMF per time point. The distribution
-    # surface differentiates w.r.t. a trending rate, the mass matrix w.r.t.
-    # the masses. Both conventions are covered: `:primary` scatters into the
-    # output, `:secondary` gathers — different mutation patterns for the
-    # reverse backends.
+    # Time-varying delays (#126): one PMF per time point, covering both
+    # `:primary` (scatter) and `:secondary` (gather).
     _push!("Timeseries convolve time-varying Poisson delays",
         (θ, s) -> sum(convolve_series(
             [Poisson(θ[1] + θ[2] * (t - 1)) for t in 1:length(s)], s)),
