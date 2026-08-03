@@ -271,10 +271,10 @@ _kernel_eltype(ks::AbstractMatrix) = eltype(ks)
 _kernel_eltype(ks::AbstractVector{<:AbstractVector}) = mapreduce(
     eltype, promote_type, ks)
 
-# Causal convolution with one kernel per time point, truncated to the series
-# window. The convention dispatches through `Val`, so each is a loop rather
-# than a branch and another one is a method away.
-function _causal_convolve_varying(
+# One kernel per time point, truncated to the series window. The convention
+# dispatches through `Val`, so each is a loop and another one is a method
+# away.
+function _convolve_series_varying(
         series::AbstractVector, kernels, indexed_by::Symbol)
     n = length(series)
     n == 0 && return zeros(float(eltype(series)), 0)
@@ -457,7 +457,7 @@ function convolve_series(
     size(pmfs, 1) >= 1 ||
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
     _check_kernel_count(pmfs, series)
-    return _causal_convolve_varying(series, pmfs, indexed_by)
+    return _convolve_series_varying(series, pmfs, indexed_by)
 end
 
 @doc "
@@ -503,5 +503,5 @@ function convolve_series(
     all(!isempty, pmfs) ||
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
     foreach(Base.require_one_based_indexing, pmfs)
-    return _causal_convolve_varying(series, pmfs, indexed_by)
+    return _convolve_series_varying(series, pmfs, indexed_by)
 end
