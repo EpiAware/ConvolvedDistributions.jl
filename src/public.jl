@@ -29,6 +29,14 @@ public evaluation_path, has_closed_form, is_exact
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
 
+# Solver-method dispatch (#77): the per-quantity multiple-dispatch
+# extension points a downstream package (or this one) adds an analytic
+# pair method to, plus the shared uniform-window CDF arithmetic a new
+# delay family plugs its partial first moment into.
+public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
+       convolved_pdf, convolved_logpdf, convolved_quantile,
+       convolved_minimum, uniform_window_cdf
+
 # The AD-safe CDF/PDF-family hooks this package used to own
 # (`_cdf_ad_safe` and friends) now live in EpiAwareADTools.jl under
 # underscore-free names (`cdf_ad_safe`, `logcdf_ad_safe`, `ccdf_ad_safe`,

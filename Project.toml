@@ -1,7 +1,7 @@
 name = "ConvolvedDistributions"
 uuid = "f5b942c9-bc5b-4664-8486-7f531bb06742"
 authors = ["Sam Abbott", "EpiAware contributors"]
-version = "0.3.0"
+version = "0.3.2"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
@@ -10,6 +10,7 @@ EpiAwareADTools = "908e2895-a690-4874-a954-ca006cb9734d"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 LogExpFunctions = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
@@ -20,7 +21,6 @@ Integrals = "de52edbc-65ea-441a-8357-d3a637375a31"
 Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
 Optimization = "7f7a1694-90dd-40f0-9382-eb1efda571ba"
 OptimizationOptimJL = "36348300-93cb-4f02-beb5-3c3902f8871e"
-SurvivalDistributions = "7121986e-ae89-4673-ae4e-1cb822919a18"
 
 [extensions]
 ConvolvedDistributionsChainRulesCoreExt = "ChainRulesCore"
@@ -28,14 +28,13 @@ ConvolvedDistributionsEnzymeExt = "Enzyme"
 ConvolvedDistributionsIntegralsExt = "Integrals"
 ConvolvedDistributionsMooncakeExt = ["ChainRulesCore", "Mooncake"]
 ConvolvedDistributionsOptimizationExt = ["Optimization", "OptimizationOptimJL"]
-ConvolvedDistributionsSurvivalDistributionsExt = "SurvivalDistributions"
 
 [compat]
 ChainRulesCore = "1"
 Distributions = "0.25"
 DocStringExtensions = "0.9"
 Enzyme = "0.13"
-EpiAwareADTools = "0.1"
+EpiAwareADTools = "0.1.1"
 FastGaussQuadrature = "1"
 Integrals = "4, 5.1"
 LogExpFunctions = "0.3, 1.0"
@@ -43,8 +42,8 @@ Mooncake = "0.5"
 Optimization = "4, 5"
 OptimizationOptimJL = "0.4.3"
 Random = "1"
+SpecialFunctions = "2"
 Statistics = "1"
-SurvivalDistributions = "0.1"
 Test = "1"
 julia = "1.10, 1.11, 1.12"
 

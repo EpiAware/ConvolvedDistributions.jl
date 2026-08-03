@@ -33,7 +33,7 @@ gap = difference(d, Gamma(2.5, 1.0))
 mean(nested) ≈ mean(flat), cdf(nested, 8.0) ≈ cdf(flat, 8.0), mean(gap)
 ```
 
-The [Getting started](@ref getting-started) walkthrough and the [Convolving distributions](@ref convolving-distributions) and [The difference of two delays](@ref difference-distributions) tutorials show nesting in more detail.
+The [Getting started](@ref getting-started) walkthrough and the [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), and [The product of two delays](@ref product-distributions) tutorials show nesting in more detail.
 
 ## Why is the package called ConvolvedDistributions when it also has `difference` and `product`?
 
