@@ -12,6 +12,7 @@ module ConvolvedDistributionsOptimizationExt
 # from CensoredDistributions `src/utils/quantile_optimization.jl`.
 
 using ConvolvedDistributions: Convolved, Difference, Product
+import ConvolvedDistributions: quantile_by_optimization
 import Distributions
 using Distributions: UnivariateDistribution, cdf, insupport, quantile
 using Optimization: OptimizationFunction, OptimizationProblem, solve,
@@ -29,22 +30,31 @@ end
 
 # Numerically invert `cdf(d, q) = p` by minimising the squared log-odds
 # residual `(logit(cdf(d, q)) - logit(p))^2` with Nelder-Mead from a
-# caller-supplied initial guess vector `x0`. Minimising the plain squared
-# residual `(cdf(d, q) - p)^2` is nearly flat in `q` in the far tails, so
-# the solve stopped early there (#48); the logit transform keeps the
-# objective steep at extreme `p`. Validates `p` (rejecting NaN), returns
-# the support ends exactly for p = 0 / 1, and penalises iterates outside
-# the support heavily so the optimiser is guided back in. Errors if the
-# solve does not converge.
-function _quantile_optimization(
-        d::UnivariateDistribution, p::Real, x0::AbstractVector{<:Real})
-    if isnan(p) || p < 0 || p > 1
+# caller-supplied initial guess vector `initial_guess`. Minimising the
+# plain squared residual `(cdf(d, q) - p)^2` is nearly flat in `q` in the
+# far tails, so the solve stopped early there (#48); the logit transform
+# keeps the objective steep at extreme `p`. Validates `p`, returns the
+# support ends exactly for p = 0 / 1, and penalises iterates outside the
+# support heavily so the optimiser is guided back in. Errors if the solve
+# does not converge. This is the shared numeric quantile inversion (#112);
+# `Convolved`/`Difference`/`Product` below are its first callers, and
+# other EpiAware packages facing the same no-closed-form problem (e.g.
+# CensoredDistributions' `PrimaryCensored`/`IntervalCensored`) reuse it
+# directly instead of carrying their own copy.
+function quantile_by_optimization(
+        d::UnivariateDistribution, p::Real,
+        initial_guess::AbstractVector{<:Real};
+        postprocess = identity, check_nan::Bool = true)
+    if check_nan && isnan(p)
+        throw(ArgumentError("p must be in [0, 1], got $p"))
+    end
+    if p < 0 || p > 1
         throw(ArgumentError("p must be in [0, 1], got $p"))
     end
 
     # Boundary cases are exact: the support ends.
-    p == 0 && return minimum(d)
-    p == 1 && return maximum(d)
+    p == 0 && return postprocess(minimum(d))
+    p == 1 && return postprocess(maximum(d))
 
     target = _clamped_logit(p)
     objective = function (q, _)
@@ -72,13 +82,13 @@ function _quantile_optimization(
     end
 
     optfun = OptimizationFunction(objective)
-    prob = OptimizationProblem(optfun, x0, nothing)
+    prob = OptimizationProblem(optfun, initial_guess, nothing)
 
     sol = solve(prob, NelderMead();
         reltol = 1e-8, abstol = 1e-8, maxiters = 10000)
 
     if sol.retcode == ReturnCode.Success || sol.retcode == ReturnCode.Default
-        return sol.u[1]
+        return postprocess(sol.u[1])
     end
     error("Quantile optimization failed to converge for p = $p")
 end
@@ -126,7 +136,7 @@ method lives in the `ConvolvedDistributionsOptimizationExt` extension).
 See also: [`cdf`](@ref)
 "
 function Distributions.quantile(d::Convolved, p::Real)
-    return _quantile_optimization(d, p, _convolved_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, _convolved_quantile_guess(d, p))
 end
 
 @doc "
@@ -146,7 +156,7 @@ method lives in the `ConvolvedDistributionsOptimizationExt` extension).
 See also: [`cdf`](@ref)
 "
 function Distributions.quantile(d::Difference, p::Real)
-    return _quantile_optimization(d, p, _difference_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, _difference_quantile_guess(d, p))
 end
 
 @doc "
@@ -167,7 +177,7 @@ method lives in the `ConvolvedDistributionsOptimizationExt` extension).
 See also: [`cdf`](@ref)
 "
 function Distributions.quantile(d::Product, p::Real)
-    return _quantile_optimization(d, p, _product_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, _product_quantile_guess(d, p))
 end
 
 end # module

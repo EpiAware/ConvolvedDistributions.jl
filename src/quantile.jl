@@ -9,7 +9,8 @@
 # the core package, but the method itself -- and the Optimization.jl /
 # OptimizationOptimJL.jl dependency it needs -- lives in
 # ConvolvedDistributionsOptimizationExt, keeping the core package
-# dependency-light. Loading both extension triggers adds the method.
+# dependency-light. Loading both trigger packages loads the extension,
+# which adds the method.
 
 @doc "
 
@@ -28,7 +29,7 @@ solve stop early (issue #48).
 - `initial_guess`: A length-1 vector giving the Nelder-Mead starting
   point.
 
-# Keywords
+# Keyword Arguments
 - `postprocess`: Applied to the solved quantile before it is returned
   (e.g. to snap it onto a discrete grid). Defaults to `identity`.
 - `check_nan`: Reject a `NaN` `p` with an `ArgumentError` when `true`
@@ -39,6 +40,15 @@ solve stop early (issue #48).
 
 Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
 method lives in the `ConvolvedDistributionsOptimizationExt` extension).
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+using Optimization, OptimizationOptimJL
+
+d = Normal(0.0, 1.0)
+ConvolvedDistributions.quantile_by_optimization(d, 0.5, [0.0])
+```
 
 See also: [`cdf`](@ref)
 "
