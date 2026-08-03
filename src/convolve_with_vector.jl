@@ -404,8 +404,26 @@ function convolve_series(
     _check_kernel_count(delays, series)
     n = length(series)
     lags = _kernel_lags(n, Val(indexed_by))
-    masses = [delay_masses(delays[j], lags[j]) for j in 1:n]
-    return convolve_series(masses, series; indexed_by)
+    return convolve_series(_run_masses(delays, lags), series; indexed_by)
+end
+
+# Masses per time point, built once per RUN of identical delays: a delay that
+# holds for a stretch of the window costs one `delay_masses` call, not one per
+# time point. The convolution clamps each kernel to the lags that time point
+# can reach, so a run shares the longest vector it needs. Runs are found with
+# `===`, never `==`, so two Duals that agree in value but not in tangent are
+# never merged.
+function _run_masses(delays, lags)
+    n = length(lags)
+    index, starts = ones(Int, n), [1]
+    @inbounds for j in 2:n
+        delays[j] === delays[j - 1] || push!(starts, j)
+        index[j] = length(starts)
+    end
+    stops = [starts[2:end] .- 1; n]
+    masses = [delay_masses(delays[a], maximum(view(lags, a:b)))
+              for (a, b) in zip(starts, stops)]
+    return masses[index]
 end
 
 @doc "

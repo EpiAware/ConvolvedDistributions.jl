@@ -432,6 +432,32 @@ end
     end
 end
 
+@testitem "repeated delays build their masses once" begin
+    using Distributions, ForwardDiff
+
+    # A delay that holds for a stretch of the window shares one mass vector
+    # across its run, so the result must match a per-time-point build.
+    series = collect(range(1.0, 10.0, length = 9))
+    d1, d2 = Poisson(1.0), Poisson(3.0)
+    runs = [d1, d1, d1, d1, d2, d2, d2, d2, d2]
+    per_point = [pdf.(d, 0:(length(series) - 1)) for d in runs]
+    for indexed_by in (:primary, :secondary)
+        @test convolve_series(runs, series; indexed_by) ≈
+              convolve_series(per_point, series; indexed_by)
+    end
+
+    # Runs are found with `===`, so two duals that agree in value but not in
+    # tangent are never merged and both parameters keep their gradient.
+    f(θ) = sum(convolve_series(
+        [Poisson(θ[1]), Poisson(θ[2]), Poisson(θ[1])], [1.0, 2.0, 3.0]))
+    g = ForwardDiff.gradient(f, [2.0, 2.0])
+    ε = 1e-6
+    fd = [(f([2.0 + ε, 2.0]) - f([2.0 - ε, 2.0])) / (2ε),
+        (f([2.0, 2.0 + ε]) - f([2.0, 2.0 - ε])) / (2ε)]
+    @test g ≈ fd rtol=1e-4
+    @test all(!iszero, g)
+end
+
 @testitem "primary indexing conserves each cohort's in-window mass" begin
     using Distributions
 
