@@ -282,6 +282,20 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
         (θ, ks) -> sum(
             k -> logpdf(convolved(Poisson(θ[1]), Poisson(θ[2])), k), ks),
         [2.0, 1.5], (Constant(obs_discrete),))
+    # Difference and Product also route a fully-discrete pair to their own
+    # exact lattice fold (`_difference_lattice_pdf`/`_product_lattice_pdf`),
+    # gated behind the SAME `float(...)` guard on `_difference_window`/
+    # `_product_mass_window` that keeps the `_min2`/`_max2` union
+    # type-stable for Enzyme. Poisson-Geometric/Poisson*Poisson have no
+    # analytic pair for either family, so both land on the lattice route.
+    _push!("Difference Poisson-Geometric lattice",
+        (θ, ks) -> sum(
+            k -> logpdf(difference(Poisson(θ[1]), Geometric(0.3)), k), ks),
+        [2.0], (Constant(obs_discrete),))
+    _push!("Product Poisson*Poisson lattice",
+        (θ, ks) -> sum(
+            k -> logpdf(product(Poisson(θ[1]), Poisson(θ[2])), k), ks),
+        [2.0, 1.5], (Constant(obs_discrete),))
 
     # Timeseries convolution. This package no longer discretises
     # continuous delays itself (#68 — CensoredDistributions.jl owns that),
