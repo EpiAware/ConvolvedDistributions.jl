@@ -120,7 +120,7 @@ The masses depend differentiably on the delay parameters, so the timeseries form
 
 ## Can the delay change over the series?
 
-Yes: pass one delay per time point ([issue #126](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/126)) — a vector of discrete distributions, a matrix of masses with lags down columns, or a ragged vector of mass vectors, each of length `length(series)`.
+Yes: pass one delay per time point ([issue #126](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/126)) — a vector of delay distributions, a matrix of masses with lags down columns, or a ragged vector of mass vectors, each of length `length(series)`.
 
 Which time the delay belongs to is a modelling choice, so it is the explicit `indexed_by` keyword, in the primary/secondary vocabulary of the censoring literature:
 
@@ -134,7 +134,8 @@ delays = [Poisson(λ) for λ in range(3.0, 1.0; length = length(infections))]
 convolve_series(delays, infections)
 ```
 
-Continuous delays have no time-varying method, for the same reason the single-delay form will not discretise one, and caller-supplied masses are used exactly as given.
+The vector of delays is generic in its element type: each delay's lag masses come from its own single-delay `convolve_series` method, so a continuous element raises that method's discretise-first error rather than a second copy of it, and a delay type that adds a single-delay method elsewhere — CensoredDistributions' interval-censored delays, say — works in the time-varying form with nothing added here.
+Caller-supplied masses are still used exactly as given.
 
 ## Can I use this with automatic differentiation?
 

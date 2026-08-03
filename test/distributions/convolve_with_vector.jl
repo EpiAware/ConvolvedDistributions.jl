@@ -398,6 +398,38 @@ end
           convolve_series(dist_masses, series)
     @test convolve_series(delays, series; indexed_by = :secondary) ≈
           convolve_series(dist_masses, series; indexed_by = :secondary)
+
+    # A non-discrete element type routes each delay through its own
+    # single-delay method instead of reading `pdf` off the lag grid; on a
+    # discrete element the two agree, which also pins the per-time lag
+    # counts the generic path builds (`n - s + 1` vs `i`).
+    generic = convert(Vector{UnivariateDistribution}, delays)
+    for indexed_by in (:primary, :secondary)
+        @test convolve_series(generic, series; indexed_by) ≈
+              convolve_series(delays, series; indexed_by)
+    end
+end
+
+@testitem "a delay type's own single-delay method defines its kernel" begin
+    using Distributions
+    import ConvolvedDistributions: convolve_series
+
+    # Stands in for a delay type owned elsewhere (e.g. CensoredDistributions'
+    # interval-censored delays, which subtype UnivariateDistribution{
+    # ValueSupport} and carry their own convolve_series method). The
+    # time-varying form must reach that method rather than needing a new one.
+    struct GridDelay <: UnivariateDistribution{Distributions.ValueSupport} end
+    masses = [0.6, 0.3, 0.1]
+    function convolve_series(::GridDelay, s::AbstractVector{<:Real})
+        convolve_series(masses, s)
+    end
+
+    series = [1.0, 2.0, 4.0, 3.0]
+    static = convolve_series(masses, series)
+    for indexed_by in (:primary, :secondary)
+        @test convolve_series(fill(GridDelay(), length(series)), series;
+            indexed_by) ≈ static
+    end
 end
 
 @testitem "primary indexing conserves each cohort's in-window mass" begin
@@ -483,19 +515,19 @@ end
     @test_throws ArgumentError convolve_series([[1.0] for _ in 1:n], series;
         indexed_by = :target)
 
-    # Continuous delays are absent by dispatch rather than by a second
-    # error message: the method takes discrete elements, so a continuous or
-    # mixed vector simply has no method to call.
-    @test_throws MethodError convolve_series(fill(Gamma(2.0, 1.0), n), series)
+    # A continuous element raises its OWN single-delay error rather than a
+    # second copy of it: the generic vector method builds each kernel
+    # through that method.
+    err = try
+        convolve_series(fill(Gamma(2.0, 1.0), n), series)
+    catch e
+        e
+    end
+    @test err isa ArgumentError
+    @test occursin("CensoredDistributions", err.msg)
     mixed = Any[Poisson(1.0), Gamma(2.0, 1.0), Poisson(1.0), Poisson(1.0)]
-    @test_throws MethodError convolve_series(
+    @test_throws ArgumentError convolve_series(
         convert(Vector{UnivariateDistribution}, mixed), series)
-
-    # An abstract but discrete element type still convolves.
-    discrete = convert(
-        Vector{DiscreteUnivariateDistribution}, fill(Poisson(1.0), n))
-    @test convolve_series(discrete, series) ≈
-          convolve_series(Poisson(1.0), series)
 
     # Empty PMFs are a construction bug, not a zero signal.
     @test_throws ArgumentError convolve_series(zeros(0, n), series)

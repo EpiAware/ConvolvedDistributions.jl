@@ -123,7 +123,7 @@ convolve_series(pmf, infections)
 sum(pmf)
 ```
 
-A delay that changes over the window is passed as one delay per time point: a vector of discrete distributions, a matrix of masses with lags down columns, or a ragged vector of mass vectors, each of length `length(series)`.
+A delay that changes over the window is passed as one delay per time point: a vector of delay distributions, a matrix of masses with lags down columns, or a ragged vector of mass vectors, each of length `length(series)`.
 The `indexed_by` keyword names which time the delay belongs to: the default `:primary` gives it to the events, so the cohort at time `s` spreads forward through its own PMF (the generative reading, which conserves mass), while `:secondary` gives it to the observation time, reading everything that lands at time `i` through the delay in force at `i`.
 
 ```@example getting-started

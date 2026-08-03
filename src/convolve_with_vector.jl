@@ -298,7 +298,7 @@ end
 # --- time-varying delays: one delay per time point (#126) -------------------
 #
 # A single PMF assumes the delay never changes over the window. The
-# time-varying forms take one delay per time point — a vector of discrete
+# time-varying forms take one delay per time point — a vector of delay
 # distributions, a matrix of masses (lags down columns), or a ragged vector
 # of mass vectors — all of length `length(series)`.
 #
@@ -314,9 +314,12 @@ end
 #     The delay belongs to the observation time: everything landing at time
 #     `i` reads `pmf_i`. Not mass-conserving in general.
 #
-# Continuous delays are absent by dispatch, not by a second error message:
-# the distribution method takes discrete elements only, so discretisation
-# stays the caller's choice exactly as in the static form.
+# The vector of delays is generic in its element type: each delay's own
+# single-delay method defines its kernel (see `_delay_masses`), so a
+# continuous element raises that method's discretise-first error rather than
+# a second copy of it, and a delay type that adds a single-delay method
+# elsewhere (e.g. CensoredDistributions' interval-censored delays) gets the
+# time-varying form for free.
 
 # Kernel accessors. The three surfaces differ only in how the mass at time
 # `j`, lag `k - 1` is reached, so the convolution is written once against
@@ -458,6 +461,66 @@ function convolve_series(
     _check_indexed_by(indexed_by)
     _check_kernel_count(delays, series)
     return _causal_convolve_varying(series, delays, indexed_by)
+end
+
+# One delay's masses at lags `0:(n - 1)`. A discrete delay reads its own PMF,
+# as the single-delay method does. Anything else is routed through
+# `convolve_series` with a unit impulse at time 0, whose output IS the
+# delay's kernel: the element's own single-delay method decides what its
+# masses are, so a continuous delay raises that method's discretise-first
+# error and a delay type that adds a method elsewhere works here unchanged.
+function _delay_masses(delay::DiscreteUnivariateDistribution, n::Int)
+    return [pdf(delay, k) for k in 0:(n - 1)]
+end
+function _delay_masses(delay::UnivariateDistribution, n::Int)
+    return convolve_series(delay, [ifelse(i == 1, 1.0, 0.0) for i in 1:n])
+end
+
+@doc "
+
+Convolve a timeseries with a time-varying delay of any element type.
+
+The generic counterpart of the
+[discrete-delay form](@ref convolve_series): each of the `delays` is turned
+into its lag masses by its OWN single-delay
+[`convolve_series(delay, series)`](@ref convolve_series) method, and the
+result is convolved as caller-supplied masses. A continuous delay therefore
+raises the single-delay method's discretise-first error, and a delay type
+that adds a single-delay method elsewhere (e.g. CensoredDistributions'
+interval-censored delays) needs nothing added here.
+
+Only the lags each time point can use are built (`n - s + 1` for
+`:primary`, `i` for `:secondary`), but unlike the discrete form the masses
+are materialised rather than read lazily.
+
+# Arguments
+- `delays`: one delay per time point, in `series` order.
+- `series`: the input timeseries (expected events at unit-spaced times
+  from 0).
+- `indexed_by`: `:primary` (default) or `:secondary`.
+
+# Returns
+- A numeric vector of expected downstream counts, the same length as
+  `series`.
+
+# See also
+- [`convolve_series(delays::AbstractVector{<:DiscreteUnivariateDistribution},
+  series)`](@ref convolve_series): the lazy discrete-delay form
+"
+function convolve_series(
+        delays::AbstractVector{<:UnivariateDistribution},
+        series::AbstractVector{<:Real};
+        indexed_by::Symbol = :primary)
+    Base.require_one_based_indexing(delays, series)
+    _check_indexed_by(indexed_by)
+    _check_kernel_count(delays, series)
+    n = length(series)
+    # Lags reachable from time point `j`: the cohort at `j` can only land at
+    # `j:n` (`:primary`), and time `j` can only read back to time 1
+    # (`:secondary`).
+    lags = indexed_by === :primary ? (n:-1:1) : (1:n)
+    masses = [_delay_masses(delays[j], lags[j]) for j in 1:n]
+    return convolve_series(masses, series; indexed_by)
 end
 
 @doc "
