@@ -26,6 +26,13 @@ public evaluation_path, has_closed_form
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
 
+# The probability generating function primitive (#90), mirroring
+# Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with
+# closed forms, a truncated-series fallback, and the structural Convolved
+# product. Not exported so it never shadows a downstream `pgf` (there is
+# no such name in Distributions.jl itself).
+public pgf
+
 # The AD-safe CDF/PDF-family hooks this package used to own
 # (`_cdf_ad_safe` and friends) now live in EpiAwareADTools.jl under
 # underscore-free names (`cdf_ad_safe`, `logcdf_ad_safe`, `ccdf_ad_safe`,

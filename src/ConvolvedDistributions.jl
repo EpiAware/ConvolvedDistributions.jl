@@ -41,7 +41,9 @@ using Distributions: Distributions, UnivariateDistribution,
                      ContinuousUnivariateDistribution,
                      DiscreteUnivariateDistribution, DiscreteNonParametric,
                      Continuous, Exponential, Gamma, LogNormal, Normal,
-                     scale, quantile, support, probs
+                     scale, quantile, support, probs,
+                     Poisson, Bernoulli, Binomial, Geometric,
+                     NegativeBinomial
 
 using LogExpFunctions: log1mexp
 
@@ -86,6 +88,11 @@ include("Difference.jl")
 # components. Also after Convolved.jl for `_window_quantile` /
 # `_CONVOLVED_TAIL` / `_max2` / `_min2`.
 include("Product.jl")
+# The probability generating function primitive (#90): closed forms for
+# the standard count families, a truncated-series fallback for any other
+# `DiscreteUnivariateDistribution`, and the structural `Convolved` product.
+# After Convolved.jl since the structural method dispatches on `Convolved`.
+include("pgf.jl")
 # The timeseries form `convolve_series`: a numeric series convolved with
 # a delay PMF on the unit lag grid — direct for a discrete delay, via a
 # caller-supplied PMF (e.g. from CensoredDistributions.jl) for a
