@@ -50,7 +50,7 @@ draw(
 
 # ## A delay that changes over the window
 #
-# A single PMF assumes the delay never changes, which a reporting system that speeds up over an outbreak plainly violates.
+# A single PMF assumes the delay never changes.
 # Passing one delay per time point — here a Poisson delay whose mean falls from six days to two across the window — convolves each time point through its own PMF.
 # See [`convolve_series`](@ref) for the forms the delays can take.
 
