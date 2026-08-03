@@ -99,7 +99,7 @@ infections = 100 .* exp.(-((t .- 10.0) .^ 2) ./ 40.0)
 convolve_series(Poisson(2.0), infections)
 ```
 
-A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice, so `convolve_series(delay, series)` on a continuous delay throws rather than pick a scheme silently.
+A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice, so `convolve_series(delay, series)` has no method for one rather than picking a scheme silently.
 This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve the resulting PMF.
 `convolve_series(pmf, series)` takes any already-discretised PMF vector and only convolves, with the masses used exactly as given:
 
@@ -134,7 +134,7 @@ delays = [Poisson(λ) for λ in range(3.0, 1.0; length = length(infections))]
 convolve_series(delays, infections)
 ```
 
-The vector of delays is generic in its element type: each delay's lag masses come from its own single-delay `convolve_series` method, so a continuous element raises that method's discretise-first error rather than a second copy of it, and a delay type that adds a single-delay method elsewhere — CensoredDistributions' interval-censored delays, say — works in the time-varying form with nothing added here.
+The vector of delays is generic in its element type, and the elements may be of mixed types: each delay's lag masses come from its own single-delay `convolve_series` method, so a delay type that adds such a method elsewhere — CensoredDistributions' interval-censored delays, say — works in the time-varying form with nothing added here, and an element with no method (a continuous delay) fails there rather than on a check in the vector form.
 Caller-supplied masses are still used exactly as given.
 
 ## Can I use this with automatic differentiation?

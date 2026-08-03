@@ -76,25 +76,19 @@ end
     @test !(out ≈ wrong)
 end
 
-@testitem "a continuous delay is rejected with an explicit-scheme message" begin
+@testitem "a continuous delay has no method" begin
     using Distributions
     series = [0.0, 1.0, 3.0, 6.0, 8.0]
 
     # A continuous delay carries no mass on the integer grid until it is
-    # discretised, and discretisation is an explicit modelling choice this
-    # package does not make, so the method throws and names the route out.
+    # discretised, and discretisation is a censoring choice this package
+    # does not make, so there is no method to call (#95) rather than a
+    # bespoke error gate.
     delays = (Gamma(2.0, 1.0), Exponential(1.0), Normal(2.0, 1.0),
         LogNormal(0.5, 0.4),
         convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
     for delay in delays
-        err = try
-            convolve_series(delay, series)
-        catch e
-            e
-        end
-        @test err isa ArgumentError
-        @test occursin("CensoredDistributions", err.msg)
-        @test occursin("DiscreteNonParametric", err.msg)
+        @test_throws MethodError convolve_series(delay, series)
     end
 end
 
@@ -430,6 +424,18 @@ end
         @test convolve_series(fill(GridDelay(), length(series)), series;
             indexed_by) ≈ static
     end
+
+    # Mixed element types are fine: every delay is read through whichever
+    # single-delay method it has, so a foreign type and a stock discrete
+    # distribution sit side by side in one vector.
+    mixed = UnivariateDistribution[GridDelay(), Poisson(1.0),
+        GridDelay(), DiscreteUniform(0, 2)]
+    mixed_masses = [masses, pdf.(Poisson(1.0), 0:3), masses,
+        pdf.(DiscreteUniform(0, 2), 0:3)]
+    for indexed_by in (:primary, :secondary)
+        @test convolve_series(mixed, series; indexed_by) ≈
+              convolve_series(mixed_masses, series; indexed_by)
+    end
 end
 
 @testitem "primary indexing conserves each cohort's in-window mass" begin
@@ -515,18 +521,12 @@ end
     @test_throws ArgumentError convolve_series([[1.0] for _ in 1:n], series;
         indexed_by = :target)
 
-    # A continuous element raises its OWN single-delay error rather than a
-    # second copy of it: the generic vector method builds each kernel
-    # through that method.
-    err = try
-        convolve_series(fill(Gamma(2.0, 1.0), n), series)
-    catch e
-        e
-    end
-    @test err isa ArgumentError
-    @test occursin("CensoredDistributions", err.msg)
+    # Elements are never type-checked here: each kernel is built through the
+    # element's own single-delay method, so a continuous element fails there
+    # (no method) rather than on a gate in the vector form.
+    @test_throws MethodError convolve_series(fill(Gamma(2.0, 1.0), n), series)
     mixed = Any[Poisson(1.0), Gamma(2.0, 1.0), Poisson(1.0), Poisson(1.0)]
-    @test_throws ArgumentError convolve_series(
+    @test_throws MethodError convolve_series(
         convert(Vector{UnivariateDistribution}, mixed), series)
 
     # Empty PMFs are a construction bug, not a zero signal.

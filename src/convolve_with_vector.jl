@@ -12,9 +12,9 @@
 # distribution's own PMF directly. A CONTINUOUS delay has no mass on the
 # integer grid until it is discretised, and discretisation is a modelling
 # choice this package does not make (single- vs double-interval censoring),
-# so passing a continuous delay is rejected: the caller discretises first
-# (with CensoredDistributions.jl, which owns primary/interval censoring)
-# and feeds the resulting PMF to the PMF-vector method, either as a plain
+# so it simply has no method (#95): the caller discretises first (with
+# CensoredDistributions.jl, which owns primary/interval censoring) and
+# feeds the resulting PMF to the PMF-vector method, either as a plain
 # vector on the unit grid or as a `DiscreteNonParametric` on any regularly
 # spaced grid (#79).
 #
@@ -85,9 +85,11 @@ integer grid is out of scope (a lag grid means masses at the integers),
 and mass at negative lags cannot enter a causal convolution, so lags
 below `0` are not read (consistent with the causal kernel).
 
-For a CONTINUOUS delay there is no mass on the integer grid until it is
-discretised, and discretisation is an explicit modelling choice; that
-method throws — see below.
+A CONTINUOUS delay has no method: it carries no mass on the integer grid
+until it is discretised, and discretisation is a censoring choice this
+package does not make. Discretise first (e.g. with
+CensoredDistributions.jl) and pass the masses to
+[`convolve_series(pmf, series)`](@ref convolve_series).
 
 Unlike [`convolved`](@ref), which combines distributions into a single
 [`Convolved`](@ref) distribution, this returns a numeric series; the
@@ -127,38 +129,6 @@ function convolve_series(
     # (it cannot enter a causal convolution).
     masses = [pdf(delay, k) for k in 0:(length(series) - 1)]
     return convolve_series(masses, series)
-end
-
-@doc "
-
-Reject a continuous delay: discretising it needs an explicit censoring
-scheme.
-
-`convolve_series(delay, series)` for a `ContinuousUnivariateDistribution`
-(including a [`Convolved`](@ref) total delay) throws an `ArgumentError`.
-A continuous delay carries no mass on the integer lag grid until it is
-discretised, and discretisation is a censoring choice this package does
-not make (interval-censored-secondary with an exact primary vs. the usual
-epidemiological double-interval-censored case). The caller discretises
-first with CensoredDistributions.jl and passes the resulting PMF to
-[`convolve_series(pmf, series)`](@ref convolve_series), either as a
-plain vector on the unit grid or as a `DiscreteNonParametric` on any
-regularly spaced grid.
-
-# See also
-- [`convolve_series(pmf, series)`](@ref convolve_series): convolve a
-  caller-supplied PMF
-"
-function convolve_series(
-        delay::ContinuousUnivariateDistribution,
-        series::AbstractVector{<:Real})
-    throw(ArgumentError(
-        "convolve_series does not discretise a continuous delay: " *
-        "discretising a continuous delay needs an explicit censoring " *
-        "scheme. Build the PMF with CensoredDistributions.jl (which " *
-        "owns primary/interval censoring), then pass it — as a plain " *
-        "vector or a DiscreteNonParametric — to convolve_series(pmf, " *
-        "series)."))
 end
 
 @doc "
@@ -314,12 +284,12 @@ end
 #     The delay belongs to the observation time: everything landing at time
 #     `i` reads `pmf_i`. Not mass-conserving in general.
 #
-# The vector of delays is generic in its element type: each delay's own
-# single-delay method defines its kernel (see `_delay_masses`), so a
-# continuous element raises that method's discretise-first error rather than
-# a second copy of it, and a delay type that adds a single-delay method
+# The vector of delays is generic in its element type, mixed elements
+# included: each delay's own single-delay method defines its kernel (see
+# `_delay_masses`), so a delay type that adds a single-delay method
 # elsewhere (e.g. CensoredDistributions' interval-censored delays) gets the
-# time-varying form for free.
+# time-varying form for free, and an element with no method fails on its
+# own terms rather than through a check here.
 
 # Kernel accessors. The three surfaces differ only in how the mass at time
 # `j`, lag `k - 1` is reached, so the convolution is written once against
@@ -368,7 +338,7 @@ function _causal_convolve_varying(
             end
             out[i] = acc
         end
-    else
+    elseif indexed_by === :primary
         # Scatter: the cohort at time `s` spreads forward through its kernel.
         @inbounds for s in 1:n
             x = series[s]
@@ -376,17 +346,19 @@ function _causal_convolve_varying(
                 out[s + k - 1] += _kernel_mass(kernels, s, k) * x
             end
         end
+    else
+        _bad_indexed_by(indexed_by)
     end
     return out
 end
 
-function _check_indexed_by(indexed_by::Symbol)
-    indexed_by === :primary || indexed_by === :secondary ||
-        throw(ArgumentError(
-            "convolve_series indexed_by must be :primary (the delay of the " *
-            "time the events occur) or :secondary (the delay of the time " *
-            "they are observed); got :$(indexed_by)"))
-    return nothing
+# A typo must not silently fall back to a default: the convention decides
+# which delay each time point reads.
+function _bad_indexed_by(indexed_by::Symbol)
+    throw(ArgumentError(
+        "convolve_series indexed_by must be :primary (the delay of the " *
+        "time the events occur) or :secondary (the delay of the time " *
+        "they are observed); got :$(indexed_by)"))
 end
 
 function _check_kernel_count(kernels, series::AbstractVector)
@@ -458,7 +430,6 @@ function convolve_series(
         series::AbstractVector{<:Real};
         indexed_by::Symbol = :primary)
     Base.require_one_based_indexing(delays, series)
-    _check_indexed_by(indexed_by)
     _check_kernel_count(delays, series)
     return _causal_convolve_varying(series, delays, indexed_by)
 end
@@ -467,8 +438,8 @@ end
 # as the single-delay method does. Anything else is routed through
 # `convolve_series` with a unit impulse at time 0, whose output IS the
 # delay's kernel: the element's own single-delay method decides what its
-# masses are, so a continuous delay raises that method's discretise-first
-# error and a delay type that adds a method elsewhere works here unchanged.
+# masses are, and an element with no such method (a continuous delay, say)
+# fails there rather than through a type check here.
 function _delay_masses(delay::DiscreteUnivariateDistribution, n::Int)
     return [pdf(delay, k) for k in 0:(n - 1)]
 end
@@ -481,13 +452,13 @@ end
 Convolve a timeseries with a time-varying delay of any element type.
 
 The generic counterpart of the
-[discrete-delay form](@ref convolve_series): each of the `delays` is turned
-into its lag masses by its OWN single-delay
-[`convolve_series(delay, series)`](@ref convolve_series) method, and the
-result is convolved as caller-supplied masses. A continuous delay therefore
-raises the single-delay method's discretise-first error, and a delay type
-that adds a single-delay method elsewhere (e.g. CensoredDistributions'
-interval-censored delays) needs nothing added here.
+[discrete-delay form](@ref convolve_series): each of the `delays` — they
+may be of mixed types — is turned into its lag masses by its OWN
+single-delay [`convolve_series(delay, series)`](@ref convolve_series)
+method, and the result is convolved as caller-supplied masses. A delay
+type that adds a single-delay method elsewhere (e.g. CensoredDistributions'
+interval-censored delays) needs nothing added here, and an element with no
+such method (a continuous delay, say) fails there.
 
 Only the lags each time point can use are built (`n - s + 1` for
 `:primary`, `i` for `:secondary`), but unlike the discrete form the masses
@@ -512,13 +483,18 @@ function convolve_series(
         series::AbstractVector{<:Real};
         indexed_by::Symbol = :primary)
     Base.require_one_based_indexing(delays, series)
-    _check_indexed_by(indexed_by)
     _check_kernel_count(delays, series)
     n = length(series)
     # Lags reachable from time point `j`: the cohort at `j` can only land at
     # `j:n` (`:primary`), and time `j` can only read back to time 1
     # (`:secondary`).
-    lags = indexed_by === :primary ? (n:-1:1) : (1:n)
+    lags = if indexed_by === :primary
+        n:-1:1
+    elseif indexed_by === :secondary
+        1:n
+    else
+        _bad_indexed_by(indexed_by)
+    end
     masses = [_delay_masses(delays[j], lags[j]) for j in 1:n]
     return convolve_series(masses, series; indexed_by)
 end
@@ -576,7 +552,6 @@ function convolve_series(
         pmfs::AbstractMatrix{<:Real}, series::AbstractVector{<:Real};
         indexed_by::Symbol = :primary)
     Base.require_one_based_indexing(pmfs, series)
-    _check_indexed_by(indexed_by)
     size(pmfs, 1) >= 1 ||
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
     _check_kernel_count(pmfs, series)
@@ -622,7 +597,6 @@ function convolve_series(
         series::AbstractVector{<:Real};
         indexed_by::Symbol = :primary)
     Base.require_one_based_indexing(pmfs, series)
-    _check_indexed_by(indexed_by)
     _check_kernel_count(pmfs, series)
     all(!isempty, pmfs) ||
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
