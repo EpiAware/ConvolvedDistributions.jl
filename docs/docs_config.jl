@@ -18,6 +18,7 @@ const LIGHT_TUTORIALS = String[]
 const HEAVY_TUTORIALS = [
     "convolving-distributions.jl",
     "difference-distributions.jl",
+    "product-distributions.jl",
     "timeseries-convolution.jl",
     "ad-backends.jl"
 ]
@@ -33,6 +34,7 @@ const TUTORIALS_SUBDIR = joinpath("getting-started", "tutorials")
 const TUTORIAL_STUBS = [
     "convolving-distributions.md" => "# [Convolving distributions](@id convolving-distributions)",
     "difference-distributions.md" => "# [The difference of two delays](@id difference-distributions)",
+    "product-distributions.md" => "# [The product of two delays](@id product-distributions)",
     "timeseries-convolution.md" => "# [Convolving a timeseries](@id timeseries-convolution)",
     "ad-backends.md" => "# [Automatic differentiation backends](@id ad-backends)"
 ]

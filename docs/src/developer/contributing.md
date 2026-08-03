@@ -34,7 +34,7 @@ ConvolvedDistributions.jl/
 │   ├── TestUtils.jl        # interface-contract verifiers for the family
 │   └── public.jl           # public (non-exported) bindings
 ├── ext/                    # Package extensions (AD rules, Integrals,
-│                           # Optimization quantile, SurvivalDistributions)
+│                           # Optimization quantile)
 ├── test/
 │   ├── Project.toml        # Test environment
 │   ├── runtests.jl         # Main test entry (TestItemRunner)
