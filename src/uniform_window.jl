@@ -94,30 +94,30 @@ end
 
 const _WINDOW_DELAY = Union{Gamma, LogNormal, Weibull}
 
-function convolved_cdf(delay::_WINDOW_DELAY, primary::Uniform, x::Real,
-        ::AnalyticalSolver)
+function convolved_cdf(d::Convolved, delay::_WINDOW_DELAY, primary::Uniform,
+        x::Real, ::AnalyticalSolver)
     return uniform_window_cdf(delay, primary, x, _partial_mean(delay))
 end
 
 # Mirrored component order (S1.5): dispatch, not a runtime route lookup,
 # picks the right side to call `uniform_window_cdf` on.
-function convolved_cdf(primary::Uniform, delay::_WINDOW_DELAY, x::Real,
-        m::AnalyticalSolver)
-    return convolved_cdf(delay, primary, x, m)
+function convolved_cdf(d::Convolved, primary::Uniform, delay::_WINDOW_DELAY,
+        x::Real, m::AnalyticalSolver)
+    return convolved_cdf(d, delay, primary, x, m)
 end
 
 # Vector-`x` form (S1.4): `partial_mean` is built once and shared across
 # points, so `Convolved`'s batched `cdf` keeps the closed form's speed
 # instead of falling back to quadrature (solver_dispatch.jl).
-function convolved_cdf(delay::_WINDOW_DELAY, primary::Uniform,
+function convolved_cdf(d::Convolved, delay::_WINDOW_DELAY, primary::Uniform,
         x::AbstractVector{<:Real}, ::AnalyticalSolver)
     partial_mean = _partial_mean(delay)
     return map(xi -> uniform_window_cdf(delay, primary, xi, partial_mean), x)
 end
 
-function convolved_cdf(primary::Uniform, delay::_WINDOW_DELAY,
+function convolved_cdf(d::Convolved, primary::Uniform, delay::_WINDOW_DELAY,
         x::AbstractVector{<:Real}, m::AnalyticalSolver)
-    return convolved_cdf(delay, primary, x, m)
+    return convolved_cdf(d, delay, primary, x, m)
 end
 
 # f_S(x) = (F_T(x-a) - F_T(x-b)) / w, exact for any delay T. Computed
@@ -149,8 +149,8 @@ function _uniform_window_pdf(delay, primary::Uniform, x::Real)
     return max(mass, zero(mass)) / w
 end
 
-function convolved_pdf(delay::UnivariateDistribution, primary::Uniform,
-        x::Real, ::AnalyticalSolver)
+function convolved_pdf(d::Convolved, delay::UnivariateDistribution,
+        primary::Uniform, x::Real, ::AnalyticalSolver)
     return _uniform_window_pdf(delay, primary, x)
 end
 
@@ -158,29 +158,30 @@ end
 # `UnivariateDistribution`, including `Uniform` itself, so the mirror
 # collides with the method above at `(Uniform, Uniform)`; the tie-break
 # below resolves it (Aqua-clean, and the window is symmetric anyway).
-function convolved_pdf(primary::Uniform, delay::UnivariateDistribution,
-        x::Real, m::AnalyticalSolver)
-    return convolved_pdf(delay, primary, x, m)
+function convolved_pdf(d::Convolved, primary::Uniform,
+        delay::UnivariateDistribution, x::Real, m::AnalyticalSolver)
+    return convolved_pdf(d, delay, primary, x, m)
 end
 
-function convolved_pdf(primary::Uniform, delay::Uniform, x::Real,
-        ::AnalyticalSolver)
+function convolved_pdf(d::Convolved, primary::Uniform, delay::Uniform,
+        x::Real, ::AnalyticalSolver)
     return _uniform_window_pdf(delay, primary, x)
 end
 
 # Vector-`x` forms (S1.4), mirrored and tie-broken as the scalar methods
 # above -- see `convolved_cdf`'s vector form for the batching rationale.
-function convolved_pdf(delay::UnivariateDistribution, primary::Uniform,
-        x::AbstractVector{<:Real}, ::AnalyticalSolver)
+function convolved_pdf(d::Convolved, delay::UnivariateDistribution,
+        primary::Uniform, x::AbstractVector{<:Real}, ::AnalyticalSolver)
     return map(xi -> _uniform_window_pdf(delay, primary, xi), x)
 end
 
-function convolved_pdf(primary::Uniform, delay::UnivariateDistribution,
-        x::AbstractVector{<:Real}, m::AnalyticalSolver)
-    return convolved_pdf(delay, primary, x, m)
+function convolved_pdf(d::Convolved, primary::Uniform,
+        delay::UnivariateDistribution, x::AbstractVector{<:Real},
+        m::AnalyticalSolver)
+    return convolved_pdf(d, delay, primary, x, m)
 end
 
-function convolved_pdf(primary::Uniform, delay::Uniform,
+function convolved_pdf(d::Convolved, primary::Uniform, delay::Uniform,
         x::AbstractVector{<:Real}, ::AnalyticalSolver)
     return map(xi -> _uniform_window_pdf(delay, primary, xi), x)
 end
@@ -206,36 +207,37 @@ function _uniform_window_logpdf(delay, primary::Uniform, x::Real)
     return p <= 0 ? oftype(float(p), -Inf) : log(p)
 end
 
-function convolved_logpdf(delay::UnivariateDistribution, primary::Uniform,
-        x::Real, ::AnalyticalSolver)
+function convolved_logpdf(d::Convolved, delay::UnivariateDistribution,
+        primary::Uniform, x::Real, ::AnalyticalSolver)
     return _uniform_window_logpdf(delay, primary, x)
 end
 
 # Mirrored component order (S1.5), with the same `(Uniform, Uniform)`
 # tie-break as `convolved_pdf` above.
-function convolved_logpdf(primary::Uniform, delay::UnivariateDistribution,
-        x::Real, m::AnalyticalSolver)
-    return convolved_logpdf(delay, primary, x, m)
+function convolved_logpdf(d::Convolved, primary::Uniform,
+        delay::UnivariateDistribution, x::Real, m::AnalyticalSolver)
+    return convolved_logpdf(d, delay, primary, x, m)
 end
 
-function convolved_logpdf(primary::Uniform, delay::Uniform, x::Real,
-        ::AnalyticalSolver)
+function convolved_logpdf(d::Convolved, primary::Uniform, delay::Uniform,
+        x::Real, ::AnalyticalSolver)
     return _uniform_window_logpdf(delay, primary, x)
 end
 
 # Vector-`x` forms (S1.4), mirrored and tie-broken as the scalar methods
 # above.
-function convolved_logpdf(delay::UnivariateDistribution, primary::Uniform,
-        x::AbstractVector{<:Real}, ::AnalyticalSolver)
+function convolved_logpdf(d::Convolved, delay::UnivariateDistribution,
+        primary::Uniform, x::AbstractVector{<:Real}, ::AnalyticalSolver)
     return map(xi -> _uniform_window_logpdf(delay, primary, xi), x)
 end
 
-function convolved_logpdf(primary::Uniform, delay::UnivariateDistribution,
-        x::AbstractVector{<:Real}, m::AnalyticalSolver)
-    return convolved_logpdf(delay, primary, x, m)
+function convolved_logpdf(d::Convolved, primary::Uniform,
+        delay::UnivariateDistribution, x::AbstractVector{<:Real},
+        m::AnalyticalSolver)
+    return convolved_logpdf(d, delay, primary, x, m)
 end
 
-function convolved_logpdf(primary::Uniform, delay::Uniform,
+function convolved_logpdf(d::Convolved, primary::Uniform, delay::Uniform,
         x::AbstractVector{<:Real}, ::AnalyticalSolver)
     return map(xi -> _uniform_window_logpdf(delay, primary, xi), x)
 end

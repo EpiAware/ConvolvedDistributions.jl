@@ -120,10 +120,20 @@ convolve_series(masses, infections)
 sum(masses)
 ```
 
-A plain vector always reads as the unit grid.
-For a coarser grid (e.g. weekly bins), pass a `DiscreteNonParametric` instead: its support is read as the delay's lag grid (regularly spaced, starting at `0`) and its probabilities as the masses at those lags.
+A plain vector always reads as the unit grid; a `DiscreteNonParametric` carries its own, coarser one.
 
-The masses depend differentiably on the delay parameters, so the timeseries form composes with gradient-based fitting.
+## Can the delay change over the series?
+
+Yes: pass one delay per time point — a vector of delays, a matrix of masses with lags down columns, or a ragged vector of mass vectors — or, when the delay changes less often than the series, `delay => run length` pairs.
+Name which time the delay belongs to with `indexed_by`, `:primary` (the default) or `:secondary`.
+[`convolve_series`](@ref) documents both readings.
+
+```@example faq
+delays = [Poisson(λ) for λ in range(3.0, 1.0; length = length(infections))]
+convolve_series(delays, infections)
+```
+
+The elements can be of any, and of mixed, types: each delay's masses come from its own single-delay method, via [`ConvolvedDistributions.delay_masses`](@ref).
 
 ## Can I use this with automatic differentiation?
 

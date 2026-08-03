@@ -779,7 +779,7 @@ See also: [`logcdf`](@ref)
 function cdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return convolved_cdf(d1, d2, x, d.method)
+        return convolved_cdf(d, d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return cdf(a, x)
@@ -795,7 +795,7 @@ See also: [`cdf`](@ref)
 function logcdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return convolved_logcdf(d1, d2, x, d.method)
+        return convolved_logcdf(d, d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return logcdf(a, x)
@@ -806,7 +806,7 @@ end
 function ccdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return convolved_ccdf(d1, d2, x, d.method)
+        return convolved_ccdf(d, d1, d2, x, d.method)
     end
     return 1 - cdf(d, x)
 end
@@ -814,7 +814,7 @@ end
 function logccdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return convolved_logccdf(d1, d2, x, d.method)
+        return convolved_logccdf(d, d1, d2, x, d.method)
     end
     logcdf_val = logcdf(d, x)
     if logcdf_val == -Inf
@@ -839,7 +839,7 @@ See also: [`logpdf`](@ref)
 function pdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return convolved_pdf(d1, d2, x, d.method)
+        return convolved_pdf(d, d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return pdf(a, x)
@@ -855,7 +855,7 @@ See also: [`pdf`](@ref), [`logcdf`](@ref)
 function logpdf(d::Convolved, x::Real)
     if length(d.components) == 2
         d1, d2 = d.components
-        return convolved_logpdf(d1, d2, x, d.method)
+        return convolved_logpdf(d, d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return logpdf(a, x)
@@ -882,7 +882,7 @@ See also: [`cdf`](@ref)
 function quantile(d::Convolved, p::Real)
     length(d.components) == 2 || return _convolved_general_quantile(d, p)
     d1, d2 = d.components
-    return convolved_quantile(d1, d2, p, d.method)
+    return convolved_quantile(d, d1, d2, p, d.method)
 end
 
 # ---------------------------------------------------------------------------
@@ -908,7 +908,7 @@ See also: [`cdf`](@ref)
 function cdf(d::Convolved, x::AbstractVector{<:Real})
     if length(d.components) == 2
         d1, d2 = d.components
-        return convolved_cdf(d1, d2, x, d.method)
+        return convolved_cdf(d, d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return map(xi -> cdf(a, xi), x)
@@ -994,7 +994,7 @@ See also: [`pdf`](@ref)
 function pdf(d::Convolved, x::AbstractVector{<:Real})
     if length(d.components) == 2
         d1, d2 = d.components
-        return convolved_pdf(d1, d2, x, d.method)
+        return convolved_pdf(d, d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return map(xi -> pdf(a, xi), x)
@@ -1018,7 +1018,7 @@ See also: [`logpdf`](@ref), [`pdf`](@ref)
 function logpdf(d::Convolved, x::AbstractVector{<:Real})
     if length(d.components) == 2
         d1, d2 = d.components
-        return convolved_logpdf(d1, d2, x, d.method)
+        return convolved_logpdf(d, d1, d2, x, d.method)
     end
     a = _maybe_analytic(d)
     a === nothing || return map(xi -> logpdf(a, xi), x)

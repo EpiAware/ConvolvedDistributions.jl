@@ -9,7 +9,7 @@
 # from the analytic sentinel value.
 
 @testitem "Convolved cdf dispatch" begin
-    using ConvolvedDistributions: convolved_cdf, AnalyticalSolver,
+    using ConvolvedDistributions: convolved_cdf, Convolved, AnalyticalSolver,
                                   NumericSolver, AbstractSolverMethod
     using Distributions
 
@@ -21,16 +21,17 @@
 
     analytic_called = Ref(false)
     function ConvolvedDistributions.convolved_cdf(
-            ::DispatchTestDelay, ::Uniform, x::Real, ::AnalyticalSolver)
+            ::Convolved, ::DispatchTestDelay, ::Uniform, x::Real,
+            ::AnalyticalSolver)
         analytic_called[] = true
         return 0.12345
     end
     # Mirrored order (S1.5): dispatch never swaps arguments itself, so a
     # downstream method for one order needs its mirror defined too.
     function ConvolvedDistributions.convolved_cdf(
-            primary::Uniform, delay::DispatchTestDelay, x::Real,
-            m::AnalyticalSolver)
-        return ConvolvedDistributions.convolved_cdf(delay, primary, x, m)
+            d::Convolved, primary::Uniform, delay::DispatchTestDelay,
+            x::Real, m::AnalyticalSolver)
+        return ConvolvedDistributions.convolved_cdf(d, delay, primary, x, m)
     end
 
     @testset "Dispatch to analytical method" begin
@@ -60,8 +61,10 @@
 
     @testset "Unknown solver type errors" begin
         struct BrokenMethod <: AbstractSolverMethod end
+        d = Convolved((Gamma(2.0, 1.0), Uniform(0.0, 1.0));
+            method = BrokenMethod())
         @test_throws ErrorException convolved_cdf(
-            Gamma(2.0, 1.0), Uniform(0.0, 1.0), 1.0, BrokenMethod())
+            d, Gamma(2.0, 1.0), Uniform(0.0, 1.0), 1.0, BrokenMethod())
     end
 
     @testset "Reversed component order" begin
