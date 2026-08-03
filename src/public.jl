@@ -26,6 +26,13 @@ public evaluation_path, has_closed_form
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
 
+# Shared numeric quantile (inverse-CDF) inversion (#112): the stub lives
+# in the core package so the name is public and documented from here,
+# but the method itself is added by the ConvolvedDistributionsOptimizationExt
+# extension. Other EpiAware packages needing the same numeric inversion
+# (e.g. CensoredDistributions) reuse this instead of their own copy.
+public quantile_by_optimization
+
 # The AD-safe CDF/PDF-family hooks this package used to own
 # (`_cdf_ad_safe` and friends) now live in EpiAwareADTools.jl under
 # underscore-free names (`cdf_ad_safe`, `logcdf_ad_safe`, `ccdf_ad_safe`,

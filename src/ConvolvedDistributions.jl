@@ -92,10 +92,14 @@ include("Product.jl")
 # continuous one (#6, #31, #68).
 include("convolve_with_vector.jl")
 
-# `quantile` (inverse CDF) for Convolved/Difference lives in the
-# ConvolvedDistributionsOptimizationExt extension, loaded when both
-# Optimization.jl and OptimizationOptimJL.jl are present, so the core
-# package carries no solver dependency.
+# Public stub for the shared numeric quantile inversion (#112); the
+# method itself lives in the ConvolvedDistributionsOptimizationExt
+# extension, loaded when both Optimization.jl and OptimizationOptimJL.jl
+# are present, so the core package carries no solver dependency.
+include("quantile.jl")
+
+# `quantile` (inverse CDF) for Convolved/Difference also lives in that
+# extension, built on `quantile_by_optimization` above.
 
 # Interface-contract verifiers, shipped so downstream family members can
 # self-verify (mirrors CensoredDistributions.TestUtils).
