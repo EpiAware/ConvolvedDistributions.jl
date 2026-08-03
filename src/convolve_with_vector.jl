@@ -364,8 +364,8 @@ elements may be of any, and of mixed, types. A type whose masses are not
 what that method gives specialises
 [`delay_masses`](@ref ConvolvedDistributions.delay_masses) instead.
 
-Consecutive identical delays share one set of masses, so a delay that
-holds for a stretch of the window is built once per stretch.
+Identical delays share one set of masses, however often they recur, so a
+delay is only ever built once.
 
 `indexed_by` names which time the delay belongs to:
 
@@ -411,25 +411,30 @@ function convolve_series(
     _check_kernel_count(delays, series)
     n = length(series)
     lags = _kernel_lags(n, Val(indexed_by))
-    return convolve_series(_run_masses(delays, lags), series; indexed_by)
+    return convolve_series(_distinct_masses(delays, lags), series; indexed_by)
 end
 
-# Masses per time point, built once per RUN of identical delays: a delay that
-# holds for a stretch of the window costs one `delay_masses` call, not one per
-# time point. The convolution clamps each kernel to the lags that time point
-# can reach, so a run shares the longest vector it needs. Runs are found with
-# `===`, never `==`, so two Duals that agree in value but not in tangent are
-# never merged.
-function _run_masses(delays, lags)
-    n = length(lags)
-    index, starts = ones(Int, n), [1]
-    @inbounds for j in 2:n
-        delays[j] === delays[j - 1] || push!(starts, j)
-        index[j] = length(starts)
+# Masses per time point, built once per DISTINCT delay however often it
+# recurs: a delay that holds for a stretch, or comes back later, costs one
+# `delay_masses` call. Each distinct delay is built at the longest length any
+# of its time points needs; the convolution clamps the rest. Delays are
+# matched with `===`, which is bitwise for immutables — so separately
+# constructed but identical delays do match, while two duals that agree in
+# value and differ in tangent do not, and never share masses.
+function _distinct_masses(delays, lags)
+    index, firsts, needed = zeros(Int, length(lags)), Int[], Int[]
+    @inbounds for j in eachindex(lags)
+        slot = findfirst(f -> delays[j] === delays[f], firsts)
+        if slot === nothing
+            push!(firsts, j)
+            push!(needed, lags[j])
+            slot = length(firsts)
+        else
+            needed[slot] = max(needed[slot], lags[j])
+        end
+        index[j] = slot
     end
-    stops = [starts[2:end] .- 1; n]
-    masses = [delay_masses(delays[a], maximum(view(lags, a:b)))
-              for (a, b) in zip(starts, stops)]
+    masses = [delay_masses(delays[firsts[s]], needed[s]) for s in eachindex(firsts)]
     return masses[index]
 end
 

@@ -435,14 +435,19 @@ end
 @testitem "repeated delays build their masses once" begin
     using Distributions, ForwardDiff
 
-    # A delay that holds for a stretch of the window shares one mass vector
-    # across its run, so the result must match a per-time-point build.
+    # Identical delays share one mass vector however they are arranged —
+    # in a stretch, alternating, or rebuilt rather than reused — so each
+    # must match a per-time-point build.
     series = collect(range(1.0, 10.0, length = 9))
     d1, d2 = Poisson(1.0), Poisson(3.0)
-    runs = [d1, d1, d1, d1, d2, d2, d2, d2, d2]
-    per_point = [pdf.(d, 0:(length(series) - 1)) for d in runs]
-    for indexed_by in (:primary, :secondary)
-        @test convolve_series(runs, series; indexed_by) ≈
+    arrangements = ([d1, d1, d1, d1, d2, d2, d2, d2, d2],
+        [d1, d2, d1, d2, d1, d2, d1, d2, d1],
+        [d1, d1, d2, d2, d2, d1, d1, d2, d2],
+        [Poisson(1.0) for _ in 1:9])
+    for delays in arrangements, indexed_by in (:primary, :secondary)
+
+        per_point = [pdf.(d, 0:(length(series) - 1)) for d in delays]
+        @test convolve_series(delays, series; indexed_by) ≈
               convolve_series(per_point, series; indexed_by)
     end
 
