@@ -25,14 +25,12 @@ CairoMakie.activate!(type = "png", px_per_unit = 2)
 # ## Timeseries convolution
 #
 # The timeseries form `convolve_series` convolves a numeric series with a delay PMF on the unit lag grid.
-# The delay here is discrete, so its PMF reads straight off `pdf.(delay, 0:maxlag)` and convolves as a plain vector of masses.
+# The delay here is discrete, so it is passed straight in and its own PMF is read off the lag grid.
 # With the series an expected infection curve, the result is the expected downstream count curve.
 
 t = 0:40
 infections = 100 .* exp.(-((t .- 12.0) .^ 2) ./ 30.0)
-maxlag = length(infections) - 1
-delay_masses = pdf.(NegativeBinomial(5, 0.5), 0:maxlag)
-expected = convolve_series(delay_masses, infections)
+expected = convolve_series(NegativeBinomial(5, 0.5), infections)
 
 timeseries_df = vcat(
     DataFrame(t = t, count = infections, Series = "Infections"),
@@ -81,7 +79,7 @@ draw(
 
 # ## Summary
 #
-# - The timeseries form turns an infection curve into an expected count curve through the discretised delay PMF.
+# - The timeseries form turns an infection curve into an expected count curve through the delay's PMF.
 # - A time-varying delay is one PMF per time point, with `indexed_by` naming which time it belongs to.
 #
 # See also: [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), [The product of two delays](@ref product-distributions).
