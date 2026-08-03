@@ -2,16 +2,20 @@
 # with a four-method skeleton, mirroring CensoredDistributions'
 # `primarycensored_cdf`. Method 1 errors for an unrecognised solver
 # type; method 2 (`AnalyticalSolver`) tries the named-distribution route
-# (`_try_convolve`) then falls back to method 3 (`NumericSolver`,
-# quadrature); method 4 is one specific analytic pair (defined
-# elsewhere, e.g. src/uniform_window.jl), more specific than method 2 so
-# ordinary dispatch prefers it. `cdf`/`pdf`/`logpdf` repeat the skeleton
-# for `x::AbstractVector{<:Real}` (S1.4), so a two-component `Convolved`
-# batches a pair-specific analytic method (where one ships a vector
-# form) or the composite-quadrature batch, never the runtime route
-# lookup this replaced. `Convolved`'s two-component call sites use
-# these; three or more components keep the pre-existing pairwise fold
-# (`_maybe_analytic` in Convolved.jl), untouched.
+# (`_try_convolve`) then falls back to method 3 (`NumericSolver`, the
+# exact discrete lattice fold for an all-discrete-integer pair,
+# Gauss-Legendre quadrature otherwise -- `_convolved_cdf_route`/
+# `_convolved_pdf_route` in Convolved.jl dispatch on the pair's derived
+# value-support type parameter, #85); method 4 is one specific analytic
+# pair (defined elsewhere, e.g. src/uniform_window.jl), more specific
+# than method 2 so ordinary dispatch prefers it. `cdf`/`pdf`/`logpdf`
+# repeat the skeleton for `x::AbstractVector{<:Real}` (S1.4), so a
+# two-component `Convolved` batches a pair-specific analytic method
+# (where one ships a vector form) or the composite-quadrature/lattice
+# batch, never the runtime route lookup this replaced. `Convolved`'s
+# two-component call sites use these; three or more components keep the
+# pre-existing pairwise fold (`_maybe_analytic` in Convolved.jl), which
+# reuses this same `_try_convolve`, untouched.
 
 @doc "
 
@@ -20,8 +24,9 @@
 The analytic sum distribution for `a + b` when `Distributions.convolve`
 applies, else `nothing`. Dispatch (not `try`/`catch`) keeps the path
 differentiable under every AD backend. `Gamma` and `Exponential`
-additionally need matching scale/rate, else the runtime `convolve`
-throws.
+additionally need matching scale/rate, `Binomial` and
+`NegativeBinomial` matching success probability, else the runtime
+`convolve` throws.
 "
 _try_convolve(a::UnivariateDistribution, b::UnivariateDistribution) = nothing
 
@@ -33,6 +38,16 @@ end
 
 function _try_convolve(a::Gamma, b::Gamma)
     return scale(a) ≈ scale(b) ? Distributions.convolve(a, b) : nothing
+end
+
+_try_convolve(a::Poisson, b::Poisson) = Distributions.convolve(a, b)
+
+function _try_convolve(a::Binomial, b::Binomial)
+    return succprob(a) ≈ succprob(b) ? Distributions.convolve(a, b) : nothing
+end
+
+function _try_convolve(a::NegativeBinomial, b::NegativeBinomial)
+    return succprob(a) ≈ succprob(b) ? Distributions.convolve(a, b) : nothing
 end
 
 @doc "
@@ -70,7 +85,11 @@ end
 
 function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::Real, method::NumericSolver)
-    return _convolved_numeric_cdf(Convolved((d1, d2); method = method), x)
+    # `_convolved_cdf_route` dispatches on the pair's derived value-support
+    # type parameter: the exact lattice fold for an all-discrete-integer
+    # pair with no named closed form (e.g. Poisson+Geometric), quadrature
+    # otherwise (#85).
+    return _convolved_cdf_route(Convolved((d1, d2); method = method), x)
 end
 
 # Vector-`x` skeleton (S1.4): `Convolved`'s batched `cdf` uses this so a
@@ -92,8 +111,7 @@ end
 
 function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::AbstractVector{<:Real}, method::NumericSolver)
-    return _convolved_numeric_cdf_batched(
-        Convolved((d1, d2); method = method), x)
+    return _convolved_cdf_route(Convolved((d1, d2); method = method), x)
 end
 
 @doc "
@@ -187,7 +205,10 @@ end
 
 function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::Real, method::NumericSolver)
-    return _convolved_numeric_pdf(Convolved((d1, d2); method = method), x)
+    # See `convolved_cdf`'s `NumericSolver` arm: `_convolved_pdf_route`
+    # picks the exact lattice fold or quadrature by the pair's derived
+    # value-support type parameter (#85).
+    return _convolved_pdf_route(Convolved((d1, d2); method = method), x)
 end
 
 # Vector-`x` skeleton (S1.4): see `convolved_cdf`'s.
@@ -205,8 +226,7 @@ end
 
 function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::AbstractVector{<:Real}, method::NumericSolver)
-    return _convolved_numeric_pdf_batched(
-        Convolved((d1, d2); method = method), x)
+    return _convolved_pdf_route(Convolved((d1, d2); method = method), x)
 end
 
 @doc "
@@ -230,7 +250,7 @@ function convolved_logpdf(d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::NumericSolver)
     d = Convolved((d1, d2); method = method)
     insupport(d, x) || return oftype(float(x), -Inf)
-    p = _convolved_numeric_pdf(d, x)
+    p = _convolved_pdf_route(d, x)
     return p <= 0 ? oftype(float(x), -Inf) : log(p)
 end
 
