@@ -51,16 +51,16 @@ draw(
 # ## A delay that changes over the window
 #
 # A single PMF assumes the delay never changes, which a reporting system that speeds up over an outbreak plainly violates.
-# Passing one delay per time point — here a Poisson reporting delay whose mean falls from six days to two across the window — convolves each time point through its own PMF.
-# The delays can be given as a vector of distributions, as a matrix of masses with lags down columns, or as a ragged vector of mass vectors; all three read the same way.
+# Passing one delay per time point — here a Poisson delay whose mean falls from six days to two across the window — convolves each time point through its own PMF.
+# The delays can be a vector of distributions, a matrix of masses with lags down columns, or a ragged vector of mass vectors; all three read the same way.
 
 mean_delay = range(6.0, 2.0; length = length(t))
 delays = [Poisson(m) for m in mean_delay]
 timevarying = convolve_series(delays, infections)
 
 # `indexed_by` names which time the delay belongs to.
-# The default `:primary` gives it to the events themselves: the cohort infected at time `s` is reported through the delay in force when it was infected, so each cohort spreads forward through its own PMF and mass is conserved up to the truncated tail.
-# `:secondary` instead gives the delay to the reporting date, attributing everything reported at time `i` through the delay in force at `i`.
+# The default `:primary` gives it to the events: the cohort infected at time `s` is reported through the delay in force then, so each cohort spreads forward through its own PMF and mass is conserved up to the truncated tail.
+# `:secondary` gives it to the reporting date instead, reading everything reported at time `i` through the delay in force at `i`.
 
 timevarying_secondary = convolve_series(delays, infections; indexed_by = :secondary)
 

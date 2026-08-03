@@ -335,9 +335,8 @@ end
     masses = pdf.(delay, 0:(n - 1))
     static = convolve_series(delay, series)
 
-    # Repeating the same delay at every time point must reproduce the
-    # single-delay result under BOTH indexing conventions: the two readings
-    # can only differ when the delay actually changes over the window.
+    # The same delay everywhere must reproduce the single-delay result under
+    # BOTH conventions: they can only differ when the delay changes.
     delays = fill(delay, n)
     pmf_matrix = repeat(masses, 1, n)
     pmf_vectors = [copy(masses) for _ in 1:n]
@@ -404,9 +403,8 @@ end
 @testitem "primary indexing conserves each cohort's in-window mass" begin
     using Distributions
 
-    # With :primary the delay belongs to the events, so each cohort spreads
-    # its own (unit) PMF forward: what leaves the window is exactly the mass
-    # at lags past the window end, and nothing else is lost or created.
+    # Each cohort spreads its own unit PMF forward, so the only mass lost is
+    # what falls past the window end.
     series = [1.0, 2.0, 4.0, 3.0, 5.0]
     n = length(series)
     delays = [Poisson(λ) for λ in range(0.5, 3.0; length = n)]
@@ -415,9 +413,7 @@ end
     @test sum(out) ≈ in_window
     @test sum(out) <= sum(series)
 
-    # A point-mass delay at lag 0 everywhere is the identity; one at lag 1
-    # everywhere shifts the series forward by a step and drops the last
-    # entry off the end of the window.
+    # Point mass at lag 0 is the identity; at lag 1 it shifts by a step.
     identity_delays = fill(DiscreteUniform(0, 0), n)
     @test convolve_series(identity_delays, series) ≈ series
     shift_delays = fill(DiscreteUniform(1, 1), n)
@@ -425,8 +421,7 @@ end
     @test shifted[1] ≈ 0.0
     @test shifted[2:end] ≈ series[1:(end - 1)]
 
-    # A delay that switches partway: the first two cohorts land immediately,
-    # the rest a step later. This is the case a single PMF cannot express.
+    # A delay that switches partway — the case a single PMF cannot express.
     switching = [DiscreteUniform(0, 0), DiscreteUniform(0, 0),
         DiscreteUniform(1, 1), DiscreteUniform(1, 1), DiscreteUniform(1, 1)]
     @test convolve_series(switching, series) ≈
@@ -462,8 +457,7 @@ end
     series = [1.0, 2.0, 3.0, 4.0]
     n = length(series)
 
-    # One PMF per time point, no exceptions: a mismatch is a modelling bug
-    # (a mis-aligned delay series), not something to broadcast around.
+    # A count mismatch is a mis-aligned delay series, so it throws.
     err = try
         convolve_series(fill(Poisson(1.0), n - 1), series)
     catch e
@@ -475,8 +469,7 @@ end
     @test_throws ArgumentError convolve_series([[0.5, 0.5] for _ in 1:2],
         series)
 
-    # The indexing convention is a named choice; a typo must not silently
-    # fall back to a default.
+    # A typo in the convention must not fall back to the default.
     err = try
         convolve_series(fill(Poisson(1.0), n), series; indexed_by = :target)
     catch e
@@ -490,21 +483,17 @@ end
     @test_throws ArgumentError convolve_series([[1.0] for _ in 1:n], series;
         indexed_by = :target)
 
-    # A continuous delay anywhere in the vector is rejected exactly as the
-    # single-delay method rejects one, and names the route out.
+    # Continuous delays are absent by dispatch rather than by a second
+    # error message: the method takes discrete elements, so a continuous or
+    # mixed vector simply has no method to call.
+    @test_throws MethodError convolve_series(fill(Gamma(2.0, 1.0), n), series)
     mixed = Any[Poisson(1.0), Gamma(2.0, 1.0), Poisson(1.0), Poisson(1.0)]
-    err = try
-        convolve_series(convert(Vector{UnivariateDistribution}, mixed), series)
-    catch e
-        e
-    end
-    @test err isa ArgumentError
-    @test occursin("CensoredDistributions", err.msg)
-    @test_throws ArgumentError convolve_series(fill(Gamma(2.0, 1.0), n),
-        series)
+    @test_throws MethodError convolve_series(
+        convert(Vector{UnivariateDistribution}, mixed), series)
 
-    # An all-discrete vector with an abstract element type still convolves.
-    discrete = convert(Vector{UnivariateDistribution}, fill(Poisson(1.0), n))
+    # An abstract but discrete element type still convolves.
+    discrete = convert(
+        Vector{DiscreteUnivariateDistribution}, fill(Poisson(1.0), n))
     @test convolve_series(discrete, series) ≈
           convolve_series(Poisson(1.0), series)
 
