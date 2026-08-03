@@ -5,13 +5,19 @@
 # (`_try_convolve`) then falls back to method 3 (`NumericSolver`,
 # quadrature); method 4 is one specific analytic pair (defined
 # elsewhere, e.g. src/uniform_window.jl), more specific than method 2 so
-# ordinary dispatch prefers it. `cdf`/`pdf`/`logpdf` repeat the skeleton
-# for `x::AbstractVector{<:Real}` (S1.4), so a two-component `Convolved`
-# batches a pair-specific analytic method (where one ships a vector
-# form) or the composite-quadrature batch, never the runtime route
-# lookup this replaced. `Convolved`'s two-component call sites use
-# these; three or more components keep the pre-existing pairwise fold
-# (`_maybe_analytic` in Convolved.jl), untouched.
+# ordinary dispatch prefers it. Every method takes the leading
+# `AbstractConvolvedDistribution`/`Convolved` struct as its first
+# argument, so one generic per quantity serves the whole family: the
+# struct selects the family member (only `Convolved` ships the S1
+# two-component fast path today) and is passed straight through to the
+# struct-bound numeric arm rather than rebuilt from the component pair.
+# `cdf`/`pdf`/`logpdf` repeat the skeleton for `x::AbstractVector{<:Real}`
+# (S1.4), so a two-component `Convolved` batches a pair-specific
+# analytic method (where one ships a vector form) or the
+# composite-quadrature batch, never the runtime route lookup this
+# replaced. `Convolved`'s two-component call sites use these; three or
+# more components keep the pre-existing pairwise fold (`_maybe_analytic`
+# in Convolved.jl), untouched.
 
 @doc "
 
@@ -36,41 +42,46 @@ function _try_convolve(a::Gamma, b::Gamma)
 end
 
 @doc "
-    convolved_cdf(d1, d2, x, method)
+    convolved_cdf(d, d1, d2, x, method)
 
 The CDF of `d1 + d2` at `x`, dispatched on the solver method `method`.
-`AnalyticalSolver` prefers a named-distribution or component-specific
-analytic method, falling back to `NumericSolver` quadrature. Public,
-alongside its `logcdf`/`ccdf`/`logccdf`/`pdf`/`logpdf`/`quantile`
-siblings, so a downstream package adds its own analytic pair by
-defining a method more specific than `(UnivariateDistribution,
-UnivariateDistribution, Real, AnalyticalSolver)`.
+`d` is the family member `d1`/`d2` came from (only `Convolved` has a
+built-in fast path); passing it through lets the `NumericSolver` arm
+use it directly instead of rebuilding it from the pair. `AnalyticalSolver`
+prefers a named-distribution or component-specific analytic method,
+falling back to `NumericSolver` quadrature. Public, alongside its
+`logcdf`/`ccdf`/`logccdf`/`pdf`/`logpdf`/`quantile` siblings, so a
+downstream package adds its own analytic pair by defining a method on
+bare component types more specific than `(Convolved,
+UnivariateDistribution, UnivariateDistribution, Real, AnalyticalSolver)`.
 
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
 
+d = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
 ConvolvedDistributions.convolved_cdf(
-    Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
+    d, Gamma(2.0, 1.5), Uniform(0.0, 2.0), 3.0, AnalyticalSolver())
 ```
 
 See also: [`Convolved`](@ref)
 "
-function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
+function convolved_cdf(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::Real, method::AbstractSolverMethod)
     error("convolved_cdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
-        x::Real, method::AnalyticalSolver)
+function convolved_cdf(d::Convolved, d1::UnivariateDistribution,
+        d2::UnivariateDistribution, x::Real, method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return cdf(a, x)
-    return convolved_cdf(d1, d2, x, NumericSolver(method.solver))
+    return convolved_cdf(d, d1, d2, x, NumericSolver(method.solver))
 end
 
-function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
-        x::Real, method::NumericSolver)
-    return _convolved_numeric_cdf(Convolved((d1, d2); method = method), x)
+function convolved_cdf(d::Convolved, d1::UnivariateDistribution,
+        d2::UnivariateDistribution, x::Real, method::NumericSolver)
+    return _convolved_numeric_cdf(d, x)
 end
 
 # Vector-`x` skeleton (S1.4): `Convolved`'s batched `cdf` uses this so a
@@ -78,157 +89,165 @@ end
 # the uniform-window pairs ship one) rather than losing the
 # composite-quadrature batch (`_convolved_numeric_cdf_batched`) that
 # method 3 shares across points.
-function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
+function convolved_cdf(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::AbstractVector{<:Real}, method::AbstractSolverMethod)
     error("convolved_cdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
-        x::AbstractVector{<:Real}, method::AnalyticalSolver)
+function convolved_cdf(d::Convolved, d1::UnivariateDistribution,
+        d2::UnivariateDistribution, x::AbstractVector{<:Real},
+        method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return map(xi -> cdf(a, xi), x)
-    return convolved_cdf(d1, d2, x, NumericSolver(method.solver))
+    return convolved_cdf(d, d1, d2, x, NumericSolver(method.solver))
 end
 
-function convolved_cdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
-        x::AbstractVector{<:Real}, method::NumericSolver)
-    return _convolved_numeric_cdf_batched(
-        Convolved((d1, d2); method = method), x)
+function convolved_cdf(d::Convolved, d1::UnivariateDistribution,
+        d2::UnivariateDistribution, x::AbstractVector{<:Real},
+        method::NumericSolver)
+    return _convolved_numeric_cdf_batched(d, x)
 end
 
 @doc "
-    convolved_logcdf(d1, d2, x, method)
+    convolved_logcdf(d, d1, d2, x, method)
 
 The log CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
 "
-function convolved_logcdf(d1::UnivariateDistribution,
-        d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
+function convolved_logcdf(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
+        x::Real, method::AbstractSolverMethod)
     error("convolved_logcdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_logcdf(d1::UnivariateDistribution,
+function convolved_logcdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return logcdf(a, x)
-    return convolved_logcdf(d1, d2, x, NumericSolver(method.solver))
+    return convolved_logcdf(d, d1, d2, x, NumericSolver(method.solver))
 end
 
-function convolved_logcdf(d1::UnivariateDistribution,
+function convolved_logcdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::NumericSolver)
-    c = convolved_cdf(d1, d2, x, method)
+    c = convolved_cdf(d, d1, d2, x, method)
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
 end
 
 @doc "
-    convolved_ccdf(d1, d2, x, method)
+    convolved_ccdf(d, d1, d2, x, method)
 
 The complementary CDF of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
 "
-function convolved_ccdf(d1::UnivariateDistribution,
-        d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
+function convolved_ccdf(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
+        x::Real, method::AbstractSolverMethod)
     error("convolved_ccdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_ccdf(d1::UnivariateDistribution,
+function convolved_ccdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return ccdf(a, x)
-    return convolved_ccdf(d1, d2, x, NumericSolver(method.solver))
+    return convolved_ccdf(d, d1, d2, x, NumericSolver(method.solver))
 end
 
-function convolved_ccdf(d1::UnivariateDistribution,
+function convolved_ccdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::NumericSolver)
-    return 1 - convolved_cdf(d1, d2, x, method)
+    return 1 - convolved_cdf(d, d1, d2, x, method)
 end
 
 @doc "
-    convolved_logccdf(d1, d2, x, method)
+    convolved_logccdf(d, d1, d2, x, method)
 
 The log complementary CDF of `d1 + d2` at `x`. See
 [`convolved_cdf`](@ref).
 "
-function convolved_logccdf(d1::UnivariateDistribution,
-        d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
+function convolved_logccdf(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
+        x::Real, method::AbstractSolverMethod)
     error(
         "convolved_logccdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_logccdf(d1::UnivariateDistribution,
+function convolved_logccdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return logccdf(a, x)
-    return convolved_logccdf(d1, d2, x, NumericSolver(method.solver))
+    return convolved_logccdf(d, d1, d2, x, NumericSolver(method.solver))
 end
 
-function convolved_logccdf(d1::UnivariateDistribution,
+function convolved_logccdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::NumericSolver)
-    l = convolved_logcdf(d1, d2, x, method)
+    l = convolved_logcdf(d, d1, d2, x, method)
     l == -Inf && return zero(l)
     l >= 0 && return oftype(l, -Inf)
     return log1mexp(l)
 end
 
 @doc "
-    convolved_pdf(d1, d2, x, method)
+    convolved_pdf(d, d1, d2, x, method)
 
 The density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
 "
-function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
+function convolved_pdf(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::Real, method::AbstractSolverMethod)
     error("convolved_pdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
-        x::Real, method::AnalyticalSolver)
+function convolved_pdf(d::Convolved, d1::UnivariateDistribution,
+        d2::UnivariateDistribution, x::Real, method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return pdf(a, x)
-    return convolved_pdf(d1, d2, x, NumericSolver(method.solver))
+    return convolved_pdf(d, d1, d2, x, NumericSolver(method.solver))
 end
 
-function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
-        x::Real, method::NumericSolver)
-    return _convolved_numeric_pdf(Convolved((d1, d2); method = method), x)
+function convolved_pdf(d::Convolved, d1::UnivariateDistribution,
+        d2::UnivariateDistribution, x::Real, method::NumericSolver)
+    return _convolved_numeric_pdf(d, x)
 end
 
 # Vector-`x` skeleton (S1.4): see `convolved_cdf`'s.
-function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
+function convolved_pdf(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
         x::AbstractVector{<:Real}, method::AbstractSolverMethod)
     error("convolved_pdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
-        x::AbstractVector{<:Real}, method::AnalyticalSolver)
+function convolved_pdf(d::Convolved, d1::UnivariateDistribution,
+        d2::UnivariateDistribution, x::AbstractVector{<:Real},
+        method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return map(xi -> pdf(a, xi), x)
-    return convolved_pdf(d1, d2, x, NumericSolver(method.solver))
+    return convolved_pdf(d, d1, d2, x, NumericSolver(method.solver))
 end
 
-function convolved_pdf(d1::UnivariateDistribution, d2::UnivariateDistribution,
-        x::AbstractVector{<:Real}, method::NumericSolver)
-    return _convolved_numeric_pdf_batched(
-        Convolved((d1, d2); method = method), x)
+function convolved_pdf(d::Convolved, d1::UnivariateDistribution,
+        d2::UnivariateDistribution, x::AbstractVector{<:Real},
+        method::NumericSolver)
+    return _convolved_numeric_pdf_batched(d, x)
 end
 
 @doc "
-    convolved_logpdf(d1, d2, x, method)
+    convolved_logpdf(d, d1, d2, x, method)
 
 The log density of `d1 + d2` at `x`. See [`convolved_cdf`](@ref).
 "
-function convolved_logpdf(d1::UnivariateDistribution,
-        d2::UnivariateDistribution, x::Real, method::AbstractSolverMethod)
+function convolved_logpdf(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
+        x::Real, method::AbstractSolverMethod)
     error("convolved_logpdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_logpdf(d1::UnivariateDistribution,
+function convolved_logpdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return logpdf(a, x)
-    return convolved_logpdf(d1, d2, x, NumericSolver(method.solver))
+    return convolved_logpdf(d, d1, d2, x, NumericSolver(method.solver))
 end
 
-function convolved_logpdf(d1::UnivariateDistribution,
+function convolved_logpdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::Real, method::NumericSolver)
-    d = Convolved((d1, d2); method = method)
     insupport(d, x) || return oftype(float(x), -Inf)
     p = _convolved_numeric_pdf(d, x)
     return p <= 0 ? oftype(float(x), -Inf) : log(p)
@@ -238,28 +257,28 @@ end
 # `_batched_numeric_logpdf` (Convolved.jl), the same insupport-aware log
 # of the shared composite-quadrature pdf batch the 3+-component path
 # uses.
-function convolved_logpdf(d1::UnivariateDistribution,
-        d2::UnivariateDistribution, x::AbstractVector{<:Real},
-        method::AbstractSolverMethod)
+function convolved_logpdf(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
+        x::AbstractVector{<:Real}, method::AbstractSolverMethod)
     error("convolved_logpdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_logpdf(d1::UnivariateDistribution,
+function convolved_logpdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::AbstractVector{<:Real},
         method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return map(xi -> logpdf(a, xi), x)
-    return convolved_logpdf(d1, d2, x, NumericSolver(method.solver))
+    return convolved_logpdf(d, d1, d2, x, NumericSolver(method.solver))
 end
 
-function convolved_logpdf(d1::UnivariateDistribution,
+function convolved_logpdf(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, x::AbstractVector{<:Real},
         method::NumericSolver)
-    return _batched_numeric_logpdf(Convolved((d1, d2); method = method), x)
+    return _batched_numeric_logpdf(d, x)
 end
 
 @doc "
-    convolved_quantile(d1, d2, p, method)
+    convolved_quantile(d, d1, d2, p, method)
 
 The quantile of `d1 + d2` at probability `p`. Skeleton methods 1-2
 only: the `NumericSolver` arm needs a nonlinear solve and lives in the
@@ -269,29 +288,31 @@ an analytic pair (`_try_convolve`) works without it.
 
 See also: [`convolved_cdf`](@ref)
 "
-function convolved_quantile(d1::UnivariateDistribution,
-        d2::UnivariateDistribution, p::Real, method::AbstractSolverMethod)
+function convolved_quantile(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
+        p::Real, method::AbstractSolverMethod)
     error(
         "convolved_quantile not implemented for method type $(typeof(method))")
 end
 
-function convolved_quantile(d1::UnivariateDistribution,
+function convolved_quantile(d::Convolved, d1::UnivariateDistribution,
         d2::UnivariateDistribution, p::Real, method::AnalyticalSolver)
     a = _try_convolve(d1, d2)
     a === nothing || return quantile(a, p)
-    return convolved_quantile(d1, d2, p, NumericSolver(method.solver))
+    return convolved_quantile(d, d1, d2, p, NumericSolver(method.solver))
 end
 
 @doc "
-    convolved_minimum(d1, d2, method)
+    convolved_minimum(d, d1, d2, method)
 
 The minimum of `d1 + d2`. A quantity with no evaluation point takes no
 `x`/`p` argument at all. Not wired into `minimum`, which is already
 exact by summation; only the unimplemented-method-type error exists,
 demonstrating the shape compiles for a future zero-argument quantity.
 "
-function convolved_minimum(d1::UnivariateDistribution,
-        d2::UnivariateDistribution, method::AbstractSolverMethod)
+function convolved_minimum(d::AbstractConvolvedDistribution,
+        d1::UnivariateDistribution, d2::UnivariateDistribution,
+        method::AbstractSolverMethod)
     error(
         "convolved_minimum not implemented for method type $(typeof(method))")
 end
@@ -304,22 +325,23 @@ function _convolved_general_quantile end
 
 @doc "
 
-Whether `f(d1, d2, x, method)` resolves to a method more specific than
-the `AnalyticalSolver` generic fallback for component types `D1`/`D2`,
-checked by method lookup (`which`), never by evaluating `f` (#92).
+Whether `f(d, d1, d2, x, method)` resolves to a method more specific
+than the `AnalyticalSolver` generic fallback for component types
+`D1`/`D2`, checked by method lookup (`which`), never by evaluating `f`
+(#92).
 "
 function _has_analytic_route(f::F, ::Type{D1}, ::Type{D2},
         method::AnalyticalSolver) where {F, D1, D2}
     fallback = which(f,
-        Tuple{UnivariateDistribution, UnivariateDistribution, Real,
-            AnalyticalSolver})
-    resolved = which(f, Tuple{D1, D2, Real, typeof(method)})
+        Tuple{Convolved, UnivariateDistribution, UnivariateDistribution,
+            Real, AnalyticalSolver})
+    resolved = which(f, Tuple{Convolved, D1, D2, Real, typeof(method)})
     return resolved !== fallback
 end
 
 @doc "
 
-Whether an analytic route exists for `f(d1, d2, ...)` and, if so, the
+Whether an analytic route exists for `f(d, d1, d2, ...)` and, if so, the
 `(a1, a2)` component order it was found in: the named-distribution
 route first, then method lookup in each order (S1.5). Used only by
 [`_is_analytic`](@ref) (#92's evaluation-path predicate, S1.5a); the

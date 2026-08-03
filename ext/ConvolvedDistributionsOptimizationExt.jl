@@ -135,9 +135,8 @@ end
 component quantiles.
 "
 function ConvolvedDistributions.convolved_quantile(
-        d1::UnivariateDistribution, d2::UnivariateDistribution,
+        d::Convolved, d1::UnivariateDistribution, d2::UnivariateDistribution,
         p::Real, method::NumericSolver)
-    d = Convolved((d1, d2); method = method)
     return _quantile_optimization(d, p, _convolved_quantile_guess(d, p))
 end
 
