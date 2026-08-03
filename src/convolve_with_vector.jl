@@ -280,9 +280,7 @@ end
 #     The delay belongs to the observation time: everything landing at time
 #     `i` reads `pmf_i`. Not mass-conserving in general.
 
-# Kernel accessors. The caller-supplied surfaces (matrix, vector of mass
-# vectors) differ only in how the mass at time `j`, lag `k - 1` is reached,
-# so the convolution is written once against these.
+# The mass at time `j`, lag `k - 1`, however the caller supplied it.
 _kernel_count(kernels::AbstractMatrix) = size(kernels, 2)
 _kernel_count(kernels::AbstractVector) = length(kernels)
 
@@ -299,23 +297,20 @@ function _kernel_eltype(kernels::AbstractVector{<:AbstractVector})
 end
 
 # Causal convolution with one kernel per time point, truncated to the series
-# window. `indexed_by` dispatches through `Val`, so the two conventions are
-# methods rather than branches and another one is a method away — nothing
-# here enumerates the allowed names (an unknown one is a MethodError).
+# window. The convention dispatches through `Val`, so each is a loop rather
+# than a branch and another one is a method away.
 function _causal_convolve_varying(
         series::AbstractVector, kernels, indexed_by::Symbol)
-    return _causal_convolve_varying(series, kernels, Val(indexed_by))
-end
-
-# Gather: time `i` reads its own kernel back over the series.
-function _causal_convolve_varying(
-        series::AbstractVector, kernels, ::Val{:secondary})
     n = length(series)
     n == 0 && return zeros(float(eltype(series)), 0)
     T = promote_type(eltype(series), _kernel_eltype(kernels))
-    out = zeros(T, n)
-    @inbounds for i in 1:n
-        acc = zero(T)
+    return _accumulate_varying!(zeros(T, n), series, kernels, Val(indexed_by))
+end
+
+# Gather: time `i` reads its own kernel back over the series.
+function _accumulate_varying!(out, series, kernels, ::Val{:secondary})
+    @inbounds for i in eachindex(out)
+        acc = zero(eltype(out))
         for k in 1:min(_kernel_length(kernels, i), i)
             acc += _kernel_mass(kernels, i, k) * series[i - k + 1]
         end
@@ -325,24 +320,18 @@ function _causal_convolve_varying(
 end
 
 # Scatter: the cohort at time `s` spreads forward through its own kernel.
-function _causal_convolve_varying(
-        series::AbstractVector, kernels, ::Val{:primary})
-    n = length(series)
-    n == 0 && return zeros(float(eltype(series)), 0)
-    T = promote_type(eltype(series), _kernel_eltype(kernels))
-    out = zeros(T, n)
+function _accumulate_varying!(out, series, kernels, ::Val{:primary})
+    n = length(out)
     @inbounds for s in 1:n
-        x = series[s]
         for k in 1:min(_kernel_length(kernels, s), n - s + 1)
-            out[s + k - 1] += _kernel_mass(kernels, s, k) * x
+            out[s + k - 1] += _kernel_mass(kernels, s, k) * series[s]
         end
     end
     return out
 end
 
-# Lags time point `j` of `n` can reach under each convention: the cohort at
-# `j` only lands at `j:n`, and time `j` only reads back to time 1. A new
-# convention adds a method here and above.
+# Lags time point `j` of `n` can reach: the cohort at `j` lands at `j:n`,
+# and time `j` reads back to time 1.
 _kernel_lags(n::Int, ::Val{:primary}) = n:-1:1
 _kernel_lags(n::Int, ::Val{:secondary}) = 1:n
 
@@ -354,12 +343,13 @@ function _check_kernel_count(kernels, series::AbstractVector)
     return nothing
 end
 
-# A delay's masses at lags `0:(n - 1)`: convolving a unit impulse at time 0
+# A delay's masses at lags `0:(n - 1)`. Convolving a unit impulse at time 0
 # through the delay's own single-delay method returns its kernel, whatever
-# the type and wherever that method is defined.
-function _delay_masses(delay, n::Int)
-    return convolve_series(delay, [ifelse(i == 1, 1.0, 0.0) for i in 1:n])
-end
+# the type and wherever that method is defined; a discrete delay short-cuts
+# to the `pdf` read that method makes anyway (O(n), not O(n²)). A type
+# wanting other masses overrides here.
+_delay_masses(d::DiscreteUnivariateDistribution, n::Int) = pdf.(d, 0:(n - 1))
+_delay_masses(d, n::Int) = convolve_series(d, [i == 1 ? 1.0 : 0.0 for i in 1:n])
 
 @doc "
 
@@ -425,17 +415,12 @@ a matrix.
 `convolve_series(pmfs, series)` reads an `AbstractMatrix` as one delay PMF
 per time point, **lags down columns**: `pmfs[k + 1, j]` is the mass at lag
 `k` for time point `j`, so `size(pmfs, 2)` must equal `length(series)`.
-The lag count `size(pmfs, 1)` is free — masses past the window end are
-never read. Column-major storage makes this the contiguous layout; a
-time-by-lag matrix `M` is passed as `transpose(M)`.
+The lag count `size(pmfs, 1)` is free. A time-by-lag matrix `M` is passed
+as `transpose(M)`.
 
-`indexed_by` names which time the delay belongs to, as in the
-[vector-of-delays form](@ref convolve_series): `:primary` (the default)
-spreads the cohort at time `s` forward through column `s`, `:secondary`
-reads everything landing at time `i` through column `i`.
-
+`indexed_by` is as in the [vector-of-delays form](@ref convolve_series).
 Masses are used exactly as given: no renormalisation, no sum-to-one check
-and no tail correction, so window-truncated columns stay truncated.
+and no tail correction.
 
 # Arguments
 - `pmfs`: delay masses, lags down columns, one column per time point.
