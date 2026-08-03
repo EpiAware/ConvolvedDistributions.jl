@@ -39,7 +39,6 @@ import Base: minimum, maximum
 
 # Types, constructors, and helpers used without method extension.
 using Distributions: Distributions, UnivariateDistribution,
-                     ContinuousUnivariateDistribution,
                      DiscreteUnivariateDistribution, DiscreteNonParametric,
                      Continuous, Exponential, Gamma, LogNormal, Normal,
                      scale, quantile, support, probs,
