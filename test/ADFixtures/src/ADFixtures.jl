@@ -19,6 +19,7 @@ module ADFixtures
 __precompile__(false)
 
 using ConvolvedDistributions
+using ConvolvedDistributions: pgf
 using Distributions: Distributions, Gamma, LogNormal, Normal, Poisson,
                      mean, var, logpdf
 using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
@@ -219,6 +220,13 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
     _push!("Timeseries convolve discrete Poisson delay",
         (θ, s) -> sum(convolve_series(Poisson(θ[1]), s)),
         [2.0], (Constant(series),))
+
+    # pgf primitive (#90): the closed-form Poisson pgf differentiated
+    # w.r.t. its rate parameter, exp(λ(s-1)), gradient (s-1)exp(λ(s-1)).
+    # The `obs` context is unused but keeps the scenario shape uniform.
+    _push!("pgf Poisson closed form wrt rate",
+        (θ, _obs) -> pgf(Poisson(θ[1]), 0.6),
+        [2.0], (Constant(obs),))
 
     return out
 end
