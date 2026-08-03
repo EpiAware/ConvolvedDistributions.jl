@@ -5,31 +5,17 @@
 # `convolve_series` convolves a numeric timeseries with a delay PMF on the
 # unit lag grid. With `series` the expected events at times `0..t` (e.g.
 # infections), the result is the expected downstream event counts at the
-# same times: the EpiNow2-style latent / renewal observation layer.
-#
-# The delay enters as a PMF over integer lags. For a DISCRETE delay the
-# lag-`k` mass is simply `pdf(delay, k)`, so the discrete method reads the
-# distribution's own PMF directly. A CONTINUOUS delay has no mass on the
-# integer grid until it is discretised, and discretisation is a modelling
-# choice this package does not make (single- vs double-interval censoring),
-# so it simply has no method (#95): the caller discretises first (with
-# CensoredDistributions.jl, which owns primary/interval censoring) and
-# feeds the resulting PMF to the PMF-vector method, either as a plain
-# vector on the unit grid or as a `DiscreteNonParametric` on any regularly
-# spaced grid (#79).
-#
-# A delay that changes over the window is carried by the time-varying forms
-# at the end of this file: one delay per time point, with `indexed_by` naming
-# which time the delay belongs to (#126).
+# same times: the renewal-style observation layer. A discrete delay reads
+# its own PMF; caller-supplied masses come as a vector, a
+# `DiscreteNonParametric`, or one per time point for a delay that changes
+# over the window.
 #
 # It has its own verb (rather than a `convolved` method) because it returns
-# a numeric series, not a distribution: `convolved` is kept strictly for
-# the participle idiom of lazy distribution construction, like `truncated`
-# and `censored`.
+# a numeric series, not a distribution.
 #
-# AD-safety. The vector convolution is linear, so gradients flow through
-# ForwardDiff / ReverseDiff / Enzyme / Mooncake from a `pmf` (and `series`)
-# that is itself differentiable in some upstream parameter.
+# AD-safety. The convolution is linear, so gradients flow through
+# ForwardDiff / ReverseDiff / Enzyme / Mooncake from masses (and a `series`)
+# that are themselves differentiable in some upstream parameter.
 
 # --- the causal discrete convolution series ⊛ pmf --------------------------
 
@@ -265,20 +251,10 @@ function convolve_series(
     return convolve_series(probs(pmf), series)
 end
 
-# --- time-varying delays: one delay per time point (#126) -------------------
-#
-# One delay per time point — a vector of delays, a matrix of masses (lags
-# down columns), or a ragged vector of mass vectors — all of length
-# `length(series)`. `indexed_by` names which time the delay belongs to, and
-# both readings collapse to the static form when every PMF is the same:
+# --- time-varying delays: one delay per time point --------------------------
 #
 #   :primary (default)  out[i] = Σ_s series[s] * pmf_s[i - s + 1]
-#     The delay belongs to the events: the cohort at time `s` spreads
-#     forward through its own PMF. Generative, and conserves mass.
-#
 #   :secondary          out[i] = Σ_k pmf_i[k + 1] * series[i - k]
-#     The delay belongs to the observation time: everything landing at time
-#     `i` reads `pmf_i`. Not mass-conserving in general.
 
 # The mass at time `j`, lag `k - 1`, however the caller supplied it.
 _kernel_count(ks::AbstractMatrix) = size(ks, 2)
@@ -342,13 +318,39 @@ function _check_kernel_count(kernels, series::AbstractVector)
     return nothing
 end
 
-# A delay's masses at lags `0:(n - 1)`. Convolving a unit impulse at time 0
-# through the delay's own single-delay method returns its kernel, whatever
-# the type and wherever that method is defined; a discrete delay short-cuts
-# to the `pdf` read that method makes anyway (O(n), not O(n²)). A type
-# wanting other masses overrides here.
-_delay_masses(d::DiscreteUnivariateDistribution, n::Int) = pdf.(d, 0:(n - 1))
-_delay_masses(d, n::Int) = convolve_series(d, [i == 1 ? 1.0 : 0.0 for i in 1:n])
+@doc "
+
+A delay's probability masses at lags `0:(n - 1)`.
+
+The extension point for the time-varying
+[`convolve_series(delays, series)`](@ref convolve_series): it reads each
+delay's masses through this function. The default convolves a unit impulse
+at time 0 through the delay's own single-delay
+[`convolve_series(delay, series)`](@ref convolve_series) method, which
+returns exactly that delay's kernel, so a delay type needs no method here
+at all. Discrete delays take the `pdf` read that method makes anyway, at
+O(n) rather than O(n²).
+
+Add a method when a delay's masses are NOT what its single-delay method
+would give — a discrete-support type whose lag masses are not
+`pdf(delay, k)`, say.
+
+# Arguments
+- `delay`: the delay.
+- `n`: how many lags to return, from lag 0.
+
+# Returns
+- A vector of `n` probability masses.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+ConvolvedDistributions.delay_masses(Poisson(2.0), 4)
+```
+"
+delay_masses(d::DiscreteUnivariateDistribution, n::Int) = pdf.(d, 0:(n - 1))
+delay_masses(d, n::Int) = convolve_series(d, [i == 1 ? 1.0 : 0.0 for i in 1:n])
 
 @doc "
 
@@ -402,7 +404,7 @@ function convolve_series(
     _check_kernel_count(delays, series)
     n = length(series)
     lags = _kernel_lags(n, Val(indexed_by))
-    masses = [_delay_masses(delays[j], lags[j]) for j in 1:n]
+    masses = [delay_masses(delays[j], lags[j]) for j in 1:n]
     return convolve_series(masses, series; indexed_by)
 end
 

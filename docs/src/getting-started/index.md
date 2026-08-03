@@ -109,9 +109,7 @@ infections = 100 .* exp.(-((t .- 10.0) .^ 2) ./ 40.0)
 convolve_series(Poisson(2.0), infections)
 ```
 
-A continuous delay carries no mass on the integer grid until it is discretised, and discretising it is an explicit modelling choice, so `convolve_series` has no method for one rather than doing it silently.
-This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve it — as a plain vector on the unit grid, or as a `DiscreteNonParametric` for a coarser, regularly spaced grid.
-The masses depend differentiably on the delay parameters, so this composes with gradient-based fitting.
+See [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl) for tools that turn a continuous delay into the masses this takes.
 
 ```@example getting-started
 maxlag = length(infections) - 1
@@ -123,8 +121,7 @@ convolve_series(pmf, infections)
 sum(pmf)
 ```
 
-A delay that changes over the window is passed as one delay per time point: a vector of delay distributions, a matrix of masses with lags down columns, or a ragged vector of mass vectors, each of length `length(series)`.
-The `indexed_by` keyword names which time the delay belongs to: the default `:primary` gives it to the events, so the cohort at time `s` spreads forward through its own PMF (the generative reading, which conserves mass), while `:secondary` gives it to the observation time, reading everything that lands at time `i` through the delay in force at `i`.
+A delay that changes over the window is passed as one delay per time point; the [Convolving a timeseries](@ref timeseries-convolution) tutorial works through it.
 
 ```@example getting-started
 delays = [Poisson(λ) for λ in range(3.0, 1.0; length = length(infections))]

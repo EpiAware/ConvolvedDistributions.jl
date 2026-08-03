@@ -99,8 +99,7 @@ infections = 100 .* exp.(-((t .- 10.0) .^ 2) ./ 40.0)
 convolve_series(Poisson(2.0), infections)
 ```
 
-A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice, so `convolve_series(delay, series)` has no method for one rather than picking a scheme silently.
-This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve the resulting PMF.
+See [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl) for tools that handle continuous delays in a discrete convolution.
 `convolve_series(pmf, series)` takes any already-discretised PMF vector and only convolves, with the masses used exactly as given:
 
 ```@example faq
@@ -113,29 +112,19 @@ convolve_series(masses, infections)
 sum(masses)
 ```
 
-A plain vector always reads as the unit grid.
-For a coarser grid (e.g. weekly bins), pass a `DiscreteNonParametric` instead: its support is read as the delay's lag grid (regularly spaced, starting at `0`) and its probabilities as the masses at those lags.
-
-The masses depend differentiably on the delay parameters, so the timeseries form composes with gradient-based fitting.
+A plain vector always reads as the unit grid; a `DiscreteNonParametric` carries its own, coarser one.
 
 ## Can the delay change over the series?
 
-Yes: pass one delay per time point ([issue #126](https://github.com/EpiAware/ConvolvedDistributions.jl/issues/126)) — a vector of delay distributions, a matrix of masses with lags down columns, or a ragged vector of mass vectors, each of length `length(series)`.
-
-Which time the delay belongs to is a modelling choice, so it is the explicit `indexed_by` keyword, in the primary/secondary vocabulary of the censoring literature:
-
-- `:primary` (the default) attaches the delay to the events, so the cohort at time `s` spreads forward through its own PMF: `out[i] = Σ_s series[s] * pmf_s[i - s + 1]`. This is the generative reading and conserves mass up to the truncated tail.
-- `:secondary` attaches it to the observation time, so everything landing at time `i` reads the delay in force at `i`: `out[i] = Σ_k pmf_i[k + 1] * series[i - k]`. Use it when the delay is a property of the reporting date; it does not conserve mass in general.
-
-Both reduce to the single-delay form when every PMF is the same.
+Yes: pass one delay per time point — a vector of delays, a matrix of masses with lags down columns, or a ragged vector of mass vectors — and name which time the delay belongs to with `indexed_by`, `:primary` (the default) or `:secondary`.
+[`convolve_series`](@ref) documents both readings.
 
 ```@example faq
 delays = [Poisson(λ) for λ in range(3.0, 1.0; length = length(infections))]
 convolve_series(delays, infections)
 ```
 
-The vector of delays is generic in its element type, and the elements may be of mixed types: each delay's lag masses come from its own single-delay `convolve_series` method, so a delay type that adds such a method elsewhere — CensoredDistributions' interval-censored delays, say — works in the time-varying form with nothing added here, and an element with no method (a continuous delay) fails there rather than on a check in the vector form.
-Caller-supplied masses are still used exactly as given.
+The elements can be of any, and of mixed, types: each delay's masses come from its own single-delay method, via [`ConvolvedDistributions.delay_masses`](@ref).
 
 ## Can I use this with automatic differentiation?
 
