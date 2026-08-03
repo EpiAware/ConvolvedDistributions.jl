@@ -17,13 +17,13 @@
 # ForwardDiff / ReverseDiff / Enzyme / Mooncake from masses (and a `series`)
 # that are themselves differentiable in some upstream parameter.
 
-# --- the causal discrete convolution series ⊛ pmf --------------------------
+# --- the convolution kernels: series ⊛ pmf ---------------------------------
 
-# Causal discrete convolution of a series with a delay PMF, truncated to the
-# series window. `out[i] = Σ_{k≥0} pmf[k + 1] * series[i - k]`, i.e. mass from
-# lag `k` carries `series[i - k]` forward to time `i`. The accumulator element
-# type is seeded from the product so `Dual`/tracked numbers propagate.
-function _causal_convolve(series::AbstractVector, pmf::AbstractVector)
+# One PMF for the whole window: `out[i] = Σ_{k≥0} pmf[k + 1] * series[i - k]`,
+# so mass at lag `k` carries `series[i - k]` forward to time `i`. The
+# accumulator type is seeded from the product so `Dual` / tracked numbers
+# propagate.
+function _convolve_series_fixed(series::AbstractVector, pmf::AbstractVector)
     # The @inbounds loop below indexes both vectors from 1; offset axes
     # would silently shift every mass and read past the end.
     Base.require_one_based_indexing(series, pmf)
@@ -166,7 +166,7 @@ function convolve_series(
         pmf::AbstractVector{<:Real}, series::AbstractVector{<:Real})
     isempty(pmf) &&
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
-    return _causal_convolve(series, pmf)
+    return _convolve_series_fixed(series, pmf)
 end
 
 # --- the non-unit-grid form: DiscreteNonParametric --------------------------
