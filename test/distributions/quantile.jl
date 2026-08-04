@@ -245,3 +245,75 @@ end
     @test all(-2.0 .<= zs .<= 5.0)
     @test median(zs) ≈ quantile(tz, 0.5) atol=0.05
 end
+
+@testitem "quantile_by_optimization public API" begin
+    using ConvolvedDistributions: quantile_by_optimization
+    using Distributions, Optimization, OptimizationOptimJL
+
+    # Works directly on any UnivariateDistribution, not only the
+    # Convolved/Difference/Product family -- this is the shared entry
+    # point other EpiAware packages reuse instead of their own copy of
+    # the same solve (#112).
+    d = Normal(2.0, 1.5)
+    for p in (0.1, 0.5, 0.9)
+        q = quantile_by_optimization(d, p, [2.0])
+        @test q ≈ quantile(d, p) atol=1e-4
+    end
+
+    # Boundary shortcuts return the support ends exactly.
+    du = Uniform(1.0, 2.0)
+    @test quantile_by_optimization(du, 0.0, [1.5]) == 1.0
+    @test quantile_by_optimization(du, 1.0, [1.5]) == 2.0
+
+    # `postprocess` is applied to the solved value before it is
+    # returned, e.g. to snap it onto a discrete grid.
+    q_raw = quantile_by_optimization(d, 0.5, [2.0])
+    q_rounded = quantile_by_optimization(
+        d, 0.5, [2.0]; postprocess = x -> round(x; digits = 1))
+    @test q_rounded == round(q_raw; digits = 1)
+
+    # Out-of-range p throws, naming the offending value.
+    err = try
+        quantile_by_optimization(d, 1.5, [2.0])
+        nothing
+    catch caught
+        caught
+    end
+    @test err isa ArgumentError
+    @test occursin("1.5", err.msg)
+
+    # NaN p is rejected by default (check_nan = true).
+    @test_throws ArgumentError quantile_by_optimization(d, NaN, [2.0])
+
+    # check_nan = false leaves ordinary p values unaffected; it only
+    # widens what the NaN-specific check above rejects.
+    @test quantile_by_optimization(d, 0.5, [2.0]; check_nan = false) ≈
+          quantile(d, 0.5) atol=1e-4
+
+    # check_nan = false with an actual NaN p skips validation, but the
+    # solve has no meaningful objective and must error at the
+    # convergence check rather than return a value.
+    @test_throws ErrorException quantile_by_optimization(
+        d, NaN, [2.0]; check_nan = false)
+end
+
+@testitem "quantile_by_optimization solver and solve_kwargs" begin
+    using ConvolvedDistributions: quantile_by_optimization
+    using Distributions, Optimization, OptimizationOptimJL
+    using OptimizationOptimJL: Optim
+
+    d = Normal(2.0, 1.5)
+    p = 0.3
+
+    # `solve_kwargs` pass through to `solve`, merged over the defaults so
+    # an explicit value overrides only the matching default.
+    q = quantile_by_optimization(
+        d, p, [2.0]; maxiters = 500, reltol = 1e-6, abstol = 1e-6)
+    @test q ≈ quantile(d, p) atol=1e-4
+
+    # A non-default `solver` is used for the solve: NelderMead with fixed
+    # (rather than adaptive) step parameters still converges.
+    fixed_nm = NelderMead(parameters = Optim.FixedParameters())
+    q_solver = quantile_by_optimization(d, p, [2.0]; solver = fixed_nm)
+    @test q_solver ≈ quantile(d, p) atol=1e-4
+end
