@@ -26,6 +26,13 @@ public evaluation_path, has_closed_form
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
 
+# Shared numeric quantile (inverse-CDF) inversion (#112): the stub lives
+# in the core package so the name is public and documented from here,
+# but the method itself is added by the ConvolvedDistributionsOptimizationExt
+# extension. Other EpiAware packages needing the same numeric inversion
+# (e.g. CensoredDistributions) reuse this instead of their own copy.
+public quantile_by_optimization
+
 # The time-varying `convolve_series` extension point: how one delay's lag
 # masses are read. Defaults to the delay's own single-delay method, so a
 # delay type only adds one when its masses differ from that.
