@@ -34,6 +34,20 @@ public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
        convolved_pdf, convolved_logpdf, convolved_quantile,
        convolved_minimum, uniform_window_cdf
 
+# The probability generating function primitive (#90), mirroring
+# Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with
+# closed forms, a truncated-series fallback, and the structural Convolved
+# product. Not exported so it never shadows a downstream `pgf` (there is
+# no such name in Distributions.jl itself).
+public pgf
+
+# Shared numeric quantile (inverse-CDF) inversion (#112): the stub lives
+# in the core package so the name is public and documented from here,
+# but the method itself is added by the ConvolvedDistributionsOptimizationExt
+# extension. Other EpiAware packages needing the same numeric inversion
+# (e.g. CensoredDistributions) reuse this instead of their own copy.
+public quantile_by_optimization
+
 # The time-varying `convolve_series` extension point: how one delay's lag
 # masses are read. Defaults to the delay's own single-delay method, so a
 # delay type only adds one when its masses differ from that.
