@@ -36,6 +36,21 @@ end
     @test_throws DomainError pgf(NegativeBinomial(r, pn), boundn)
 end
 
+@testitem "_pgf_ratio_domain_guard directly, both branches" begin
+    # Geometric/NegativeBinomial's closed forms both delegate the
+    # |s| < 1/(1-p) check to this shared helper (rather than repeating
+    # the guard); test it directly, not only through the two closed
+    # forms that call it, so the guard's own contract (both the success
+    # return and the throw) is pinned independent of either family.
+    using ConvolvedDistributions: _pgf_ratio_domain_guard
+
+    p = 0.4
+    bound = 1 / (1 - p)
+    @test _pgf_ratio_domain_guard(:Geometric, p, bound - 1.0e-6) === nothing
+    @test_throws DomainError _pgf_ratio_domain_guard(:Geometric, p, bound)
+    @test_throws DomainError _pgf_ratio_domain_guard(:Geometric, p, -bound)
+end
+
 @testitem "pgf fallback matches a hand-derived finite sum" begin
     using ConvolvedDistributions: pgf
     using Distributions
