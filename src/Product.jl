@@ -24,6 +24,14 @@ density computed by exact divisor enumeration and its CDF by an exact
 conditioning sum, both replacing quadrature (see [`is_exact`](@ref)).
 Otherwise it is `Continuous`, as before.
 
+A `Product` with exactly one integer-lattice discrete side (`x` or `y`,
+not both) also evaluates exactly, folding the other side's density/CDF
+over the discrete component's own positive lattice window (#115). A
+discrete factor with mass at 0 puts an atom at 0 in `Z` mixed with a
+continuous density elsewhere -- a measure no `pdf` can represent -- so
+`product(...)` rejects that combination with an `ArgumentError` at
+construction rather than silently dropping the atom.
+
 # Independence
 
 The construction assumes `X` and `Y` are independent. The density, CDF,
@@ -98,9 +106,39 @@ struct Product{X <: UnivariateDistribution, Y <: UnivariateDistribution,
                 "product requires components with non-negative support " *
                 "(minimum(d) >= 0 for both); sign-crossing supports are " *
                 "future work"))
+        _check_mixed_atom_at_zero(x, y)
         S = _components_support((x, y))
         new{X, Y, typeof(method), S}(x, y, method)
     end
+end
+
+# A mixed discrete/continuous `Product` whose discrete factor carries
+# mass at zero puts an atom at 0 in `Z` (`P(Z = 0) = P(D = 0) > 0`)
+# alongside a continuous density elsewhere -- a mixed measure no `pdf`
+# can represent -- so construction rejects it outright rather than
+# silently dropping the atom (#115). Dispatches on the SAME
+# `_mixed_slot` trait the pdf/cdf route uses, so the guard cannot drift
+# from what would actually be evaluated; an all-discrete pair (its own
+# `P(XY = 0)` atom is already exact, see `_product_lattice_pdf`) or an
+# all-continuous pair resolves `_mixed_slot(...) === nothing` and is
+# unaffected. The comparison strips any AD tracer first (`primal`,
+# mirroring `_lattice_range`): the atom-or-not answer is a structural
+# property of the discrete component's parameters, not a differentiated
+# quantity, so it must resolve identically under every AD backend.
+function _check_mixed_atom_at_zero(x::UnivariateDistribution,
+        y::UnivariateDistribution)
+    slot = _mixed_slot(_component_support(typeof(x)), _component_support(typeof(y)))
+    discrete_comp = _mixed_discrete_component(slot, x, y)
+    discrete_comp === nothing && return nothing
+    mass_at_zero = Float64(primal(pdf_ad_safe(discrete_comp, 0)))
+    mass_at_zero > 0 &&
+        throw(ArgumentError(
+            "product(...) of a discrete component ($(nameof(typeof(discrete_comp)))) " *
+            "with mass at 0 and a continuous component puts an atom at " *
+            "0 in the product -- a mixed measure `pdf` cannot represent. " *
+            "Exclude the mass at 0 from the discrete component (e.g. a " *
+            "shifted or truncated distribution) to use `product`"))
+    return nothing
 end
 
 # Discrete-typed alias: matches only when both `x` and `y` are
@@ -109,6 +147,26 @@ end
 const _DiscreteProduct = Product{
     <:UnivariateDistribution, <:UnivariateDistribution,
     <:AbstractSolverMethod, Discrete}
+
+# Continuous-typed alias (#115): matches every `Product` with no closed
+# form, both the genuinely mixed pairs (one integer-lattice discrete
+# side, construction-time guaranteed to carry no mass at 0, see
+# `_check_mixed_atom_at_zero` above) and the ordinary all-continuous
+# pairs. `_mixed_slot` (interface.jl) narrows further, by dispatch, on
+# the component types themselves; a both-continuous pair resolves to
+# `nothing` there and falls straight back to the existing quadrature
+# path.
+const _MixedableProduct = Product{
+    <:UnivariateDistribution, <:UnivariateDistribution,
+    <:AbstractSolverMethod, Continuous}
+
+# `_has_mixed_fold` (interface.jl): true exactly when one of `x`/`y` is
+# integer-lattice discrete and the other is not. `Product` always has
+# exactly two components, so no arity guard is needed.
+function _has_mixed_fold(d::Product)
+    return _mixed_slot(_component_support(typeof(d.x)),
+        _component_support(typeof(d.y))) !== nothing
+end
 
 @doc "
 
@@ -454,6 +512,79 @@ function _product_lattice_cdf(d::Product, z::Real)
     return clamp(result, zero(result), one(result))
 end
 
+# ---------------------------------------------------------------------------
+# Mixed discrete/continuous fold (#115)
+# ---------------------------------------------------------------------------
+#
+# Only reachable for a `_MixedableProduct` whose `_mixed_slot` resolves
+# to `Val(1)`/`Val(2)` (exactly one of `x`/`y` is integer-lattice
+# discrete; see `_has_mixed_fold` above). Construction has already
+# rejected any discrete factor with mass at 0
+# (`_check_mixed_atom_at_zero`), so its support lies in the positive
+# lattice `1, 2, 3, ...`. Multiplication commutes, so `Z = X Y` folds
+# the same way regardless of which slot the discrete factor sits in:
+# writing its pmf as a lattice of point masses and substituting into the
+# Mellin convolution collapses it to an exact sum over that lattice,
+#   f_Z(z) = Σ_k P(D = k) f_C(z / k) / k,
+#   F_Z(z) = Σ_k P(D = k) F_C(z / k),
+# evaluated on D's own effective window with the `k = 0` lattice point
+# excluded (`_mixed_positive_window` below) -- necessary even though
+# construction guarantees `P(D = 0) = 0`, since a `k = 0` term would
+# still divide by zero inside the summand before that zero weight could
+# cancel it. No continuous quadrature error survives: C's density/CDF is
+# evaluated pointwise, not integrated (see `is_exact`).
+
+# `_mixed_discrete_window` (Convolved.jl) as an integer lattice range,
+# with `k = 0` excluded even if `minimum(D)` itself reports `0`.
+function _mixed_positive_window(D::UnivariateDistribution)
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    return max(t0, 1), t1
+end
+
+function _product_mixed_pdf(::Val{1}, d::Product, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    D = d.x
+    t0, t1 = _mixed_positive_window(D)
+    t1 < t0 && return zero(float(typeof(z)))
+    return _lattice_sum(
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, z / k) / k, t0, t1)
+end
+function _product_mixed_pdf(::Val{2}, d::Product, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    D = d.y
+    t0, t1 = _mixed_positive_window(D)
+    t1 < t0 && return zero(float(typeof(z)))
+    return _lattice_sum(
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z / k) / k, t0, t1)
+end
+_product_mixed_pdf(::Nothing, d::Product, z::Real) = _product_numeric_pdf(d, z)
+
+function _product_mixed_cdf(::Val{1}, d::Product, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    z <= minimum(d) && return zero(float(typeof(z)))
+    z >= maximum(d) && return one(float(typeof(z)))
+    D = d.x
+    t0, t1 = _mixed_positive_window(D)
+    t1 < t0 && return zero(float(typeof(z)))
+    result = _lattice_sum(
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.y, z / k), t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+function _product_mixed_cdf(::Val{2}, d::Product, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    z <= minimum(d) && return zero(float(typeof(z)))
+    z >= maximum(d) && return one(float(typeof(z)))
+    D = d.y
+    t0, t1 = _mixed_positive_window(D)
+    t1 < t0 && return zero(float(typeof(z)))
+    result = _lattice_sum(
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.x, z / k), t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+_product_mixed_cdf(::Nothing, d::Product, z::Real) = _product_numeric_cdf(d, z)
+
 # Dispatch on the `Discrete` type parameter selects the exact divisor
 # fold; `is_exact` (`src/interface.jl`) keys off the same
 # `_exact_discrete_route` predicate, so reported and executed exactness
@@ -462,6 +593,19 @@ _product_pdf_route(d::Product, z::Real) = _product_numeric_pdf(d, z)
 _product_pdf_route(d::_DiscreteProduct, z::Real) = _product_lattice_pdf(d, z)
 _product_cdf_route(d::Product, z::Real) = _product_numeric_cdf(d, z)
 _product_cdf_route(d::_DiscreteProduct, z::Real) = _product_lattice_cdf(d, z)
+
+# Mixed route (#115): more specific than the bare `Product` method
+# above, so it wins for any `Continuous`-typed pair.
+function _product_pdf_route(d::_MixedableProduct, z::Real)
+    return _product_mixed_pdf(
+        _mixed_slot(_component_support(typeof(d.x)),
+            _component_support(typeof(d.y))), d, z)
+end
+function _product_cdf_route(d::_MixedableProduct, z::Real)
+    return _product_mixed_cdf(
+        _mixed_slot(_component_support(typeof(d.x)),
+            _component_support(typeof(d.y))), d, z)
+end
 
 # ---------------------------------------------------------------------------
 # CDF / logcdf / pdf / logpdf

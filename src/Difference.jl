@@ -25,6 +25,12 @@ two-sided integer support, and its density/CDF are computed by an exact
 fold over the integer lattice instead of quadrature (see
 [`is_exact`](@ref)). Otherwise it is `Continuous`, as before.
 
+A `Difference` with exactly one integer-lattice discrete side (`x` or
+`y`, not both) also evaluates exactly, folding the other side's
+density/CDF over the discrete component's own lattice window (#115);
+the two argument orders reflect differently since subtraction is not
+commutative (see the mixed fold in `src/Difference.jl`).
+
 # Independence
 
 The construction assumes `X` and `Y` are independent. The density, CDF,
@@ -94,6 +100,25 @@ end
 const _DiscreteDifference = Difference{
     <:UnivariateDistribution, <:UnivariateDistribution,
     <:AbstractSolverMethod, Discrete}
+
+# Continuous-typed alias (#115): matches every `Difference` with no
+# closed form, both the genuinely mixed pairs (one integer-lattice
+# discrete side) and the ordinary all-continuous pairs. `_mixed_slot`
+# (interface.jl) narrows further, by dispatch, on the component types
+# themselves; a both-continuous pair resolves to `nothing` there and
+# falls straight back to the existing quadrature path.
+const _MixedableDifference = Difference{
+    <:UnivariateDistribution, <:UnivariateDistribution,
+    <:AbstractSolverMethod, Continuous}
+
+# `_has_mixed_fold` (interface.jl): true exactly when one of `x`/`y` is
+# integer-lattice discrete and the other is not. `Difference` always has
+# exactly two components (unlike `Convolved`), so no arity guard is
+# needed.
+function _has_mixed_fold(d::Difference)
+    return _mixed_slot(_component_support(typeof(d.x)),
+        _component_support(typeof(d.y))) !== nothing
+end
 
 @doc "
 
@@ -346,6 +371,77 @@ function _difference_lattice_cdf(d::Difference, z::Real)
     return clamp(result, zero(result), one(result))
 end
 
+# ---------------------------------------------------------------------------
+# Mixed discrete/continuous fold (#115)
+# ---------------------------------------------------------------------------
+#
+# Only reachable for a `_MixedableDifference` whose `_mixed_slot`
+# resolves to `Val(1)`/`Val(2)` (exactly one of `x`/`y` is
+# integer-lattice discrete; see `_has_mixed_fold` above). Unlike
+# `Convolved`, subtraction is not commutative, so the two argument
+# orders reflect differently:
+#
+# - discrete MINUEND (`x = D`, slot 1): `Z = D - C`, so
+#   `P(Z <= z) = P(C >= D - z) = Σ_k P(D=k) P(C >= k - z)`, the
+#   complementary form `ccdf_C(k - z)`;
+# - discrete SUBTRAHEND (`y = D`, slot 2): `Z = C - D`, so
+#   `P(Z <= z) = P(C <= z + D) = Σ_k P(D=k) P(C <= z + k)`, the direct
+#   form `cdf_C(z + k)`.
+#
+# Both densities are `Σ_k P(D=k) f_C(k - z)` (slot 1) /
+# `Σ_k P(D=k) f_C(z + k)` (slot 2) -- the derivative of each cdf form
+# above. The sum runs over D's own effective window
+# (`_mixed_discrete_window`, shared with `Convolved`), so this is exact
+# in the same sense the all-discrete fold is (see `is_exact`).
+
+function _difference_mixed_pdf(::Val{1}, d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    D = d.x
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(z)))
+    return _lattice_sum(
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, k - z), t0, t1)
+end
+function _difference_mixed_pdf(::Val{2}, d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    D = d.y
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(z)))
+    return _lattice_sum(
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z + k), t0, t1)
+end
+function _difference_mixed_pdf(::Nothing, d::Difference, z::Real)
+    return _difference_numeric_pdf(d, z)
+end
+
+function _difference_mixed_cdf(::Val{1}, d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    z <= minimum(d) && return zero(float(typeof(z)))
+    z >= maximum(d) && return one(float(typeof(z)))
+    D = d.x
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(z)))
+    result = _lattice_sum(
+        k -> pdf_ad_safe(D, k) * ccdf_ad_safe(d.y, k - z), t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+function _difference_mixed_cdf(::Val{2}, d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    z <= minimum(d) && return zero(float(typeof(z)))
+    z >= maximum(d) && return one(float(typeof(z)))
+    D = d.y
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(z)))
+    result = _lattice_sum(
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.x, z + k), t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+function _difference_mixed_cdf(::Nothing, d::Difference, z::Real)
+    return _difference_numeric_cdf(d, z)
+end
+
 # Dispatch on the `Discrete` type parameter selects the exact lattice
 # fold; `is_exact` (`src/interface.jl`) keys off the same
 # `_exact_discrete_route` predicate, so reported and executed exactness
@@ -354,6 +450,19 @@ _difference_pdf_route(d::Difference, z::Real) = _difference_numeric_pdf(d, z)
 _difference_pdf_route(d::_DiscreteDifference, z::Real) = _difference_lattice_pdf(d, z)
 _difference_cdf_route(d::Difference, z::Real) = _difference_numeric_cdf(d, z)
 _difference_cdf_route(d::_DiscreteDifference, z::Real) = _difference_lattice_cdf(d, z)
+
+# Mixed route (#115): more specific than the bare `Difference` method
+# above, so it wins for any `Continuous`-typed pair.
+function _difference_pdf_route(d::_MixedableDifference, z::Real)
+    return _difference_mixed_pdf(
+        _mixed_slot(_component_support(typeof(d.x)),
+            _component_support(typeof(d.y))), d, z)
+end
+function _difference_cdf_route(d::_MixedableDifference, z::Real)
+    return _difference_mixed_cdf(
+        _mixed_slot(_component_support(typeof(d.x)),
+            _component_support(typeof(d.y))), d, z)
+end
 
 # ---------------------------------------------------------------------------
 # CDF / logcdf / pdf / logpdf
