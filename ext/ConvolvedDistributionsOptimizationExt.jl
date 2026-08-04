@@ -17,6 +17,7 @@ module ConvolvedDistributionsOptimizationExt
 
 using ConvolvedDistributions: ConvolvedDistributions, Convolved, Difference,
                               Product, NumericSolver, _maybe_analytic
+import ConvolvedDistributions: quantile_by_optimization
 import Distributions
 using Distributions: UnivariateDistribution, cdf, insupport, quantile
 using Optimization: OptimizationFunction, OptimizationProblem, solve,
@@ -32,24 +33,24 @@ function _clamped_logit(p::Real)
     return log(pc) - log1p(-pc)
 end
 
-# Numerically invert `cdf(d, q) = p` by minimising the squared log-odds
-# residual `(logit(cdf(d, q)) - logit(p))^2` with Nelder-Mead from a
-# caller-supplied initial guess vector `x0`. Minimising the plain squared
-# residual `(cdf(d, q) - p)^2` is nearly flat in `q` in the far tails, so
-# the solve stopped early there (#48); the logit transform keeps the
-# objective steep at extreme `p`. Validates `p` (rejecting NaN), returns
-# the support ends exactly for p = 0 / 1, and penalises iterates outside
-# the support heavily so the optimiser is guided back in. Errors if the
-# solve does not converge.
-function _quantile_optimization(
-        d::UnivariateDistribution, p::Real, x0::AbstractVector{<:Real})
-    if isnan(p) || p < 0 || p > 1
+# Minimises the squared log-odds residual, not the plain squared residual
+# on `cdf`, because the latter is nearly flat in `q` in the far tails and
+# the solve stopped early there (#48).
+function quantile_by_optimization(
+        d::UnivariateDistribution, p::Real,
+        initial_guess::AbstractVector{<:Real};
+        postprocess = identity, check_nan::Bool = true,
+        solver = NelderMead(), solve_kwargs...)
+    if check_nan && isnan(p)
+        throw(ArgumentError("p must be in [0, 1], got $p"))
+    end
+    if p < 0 || p > 1
         throw(ArgumentError("p must be in [0, 1], got $p"))
     end
 
     # Boundary cases are exact: the support ends.
-    p == 0 && return minimum(d)
-    p == 1 && return maximum(d)
+    p == 0 && return postprocess(minimum(d))
+    p == 1 && return postprocess(maximum(d))
 
     target = _clamped_logit(p)
     objective = function (q, _)
@@ -77,13 +78,13 @@ function _quantile_optimization(
     end
 
     optfun = OptimizationFunction(objective)
-    prob = OptimizationProblem(optfun, x0, nothing)
+    prob = OptimizationProblem(optfun, initial_guess, nothing)
 
-    sol = solve(prob, NelderMead();
-        reltol = 1e-8, abstol = 1e-8, maxiters = 10000)
+    default_solve_kwargs = (; reltol = 1e-8, abstol = 1e-8, maxiters = 10000)
+    sol = solve(prob, solver; merge(default_solve_kwargs, solve_kwargs)...)
 
     if sol.retcode == ReturnCode.Success || sol.retcode == ReturnCode.Default
-        return sol.u[1]
+        return postprocess(sol.u[1])
     end
     error("Quantile optimization failed to converge for p = $p")
 end
@@ -129,7 +130,7 @@ method lives in the `ConvolvedDistributionsOptimizationExt` extension).
 "
 function ConvolvedDistributions._convolved_general_quantile(
         d::Convolved, p::Real)
-    return _quantile_optimization(d, p, _convolved_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, _convolved_quantile_guess(d, p))
 end
 
 @doc "
@@ -141,7 +142,7 @@ component quantiles.
 function ConvolvedDistributions.convolved_quantile(
         d::Convolved, d1::UnivariateDistribution, d2::UnivariateDistribution,
         p::Real, method::NumericSolver)
-    return _quantile_optimization(d, p, _convolved_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, _convolved_quantile_guess(d, p))
 end
 
 @doc "
@@ -164,7 +165,7 @@ See also: [`cdf`](@ref)
 function Distributions.quantile(d::Difference, p::Real)
     a = _maybe_analytic(d)
     a === nothing || return quantile(a, p)
-    return _quantile_optimization(d, p, _difference_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, _difference_quantile_guess(d, p))
 end
 
 @doc "
@@ -188,7 +189,7 @@ See also: [`cdf`](@ref)
 function Distributions.quantile(d::Product, p::Real)
     a = _maybe_analytic(d)
     a === nothing || return quantile(a, p)
-    return _quantile_optimization(d, p, _product_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, _product_quantile_guess(d, p))
 end
 
 end # module

@@ -368,6 +368,50 @@ end
     @test isfinite(logpdf(d, 1000.0))
 end
 
+@testitem "Uniform + Uniform tie-break for pdf/logpdf" begin
+    using Distributions
+
+    # `convolved_pdf`/`convolved_logpdf` mirror the (delay, primary) order
+    # for every `UnivariateDistribution` delay, including `Uniform`
+    # itself -- the resulting method collision at (Uniform, Uniform) is
+    # resolved by a dedicated tie-break method (S1.5). Checked against
+    # NumericSolver since the density is exact and symmetric either way.
+    d = convolved(Uniform(0.0, 1.0), Uniform(0.5, 1.5))
+    dn = convolved(
+        Uniform(0.0, 1.0), Uniform(0.5, 1.5); method = NumericSolver())
+    for x in (0.2, 0.75, 1.2, 1.6)
+        @test pdf(d, x) ≈ pdf(dn, x) atol=1e-9
+        @test logpdf(d, x) ≈ logpdf(dn, x) atol=1e-6
+    end
+end
+
+@testitem "vector-x pdf/logpdf agree with scalar, both component orders" begin
+    using Distributions
+
+    # Only `cdf`'s vector form is checked against its scalar counterpart
+    # elsewhere in this file; `pdf`/`logpdf` have their own vector-`x`
+    # skeleton methods (S1.4), mirrored the same way as the scalar ones,
+    # so exercise all four combinations: (delay, primary) and
+    # (primary, delay) order, `pdf` and `logpdf`.
+    xs = [0.5, 1.0, 2.0, 3.0]
+
+    forward = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
+    reversed = convolved(Uniform(0.0, 2.0), Gamma(2.0, 1.5))
+    for d in (forward, reversed)
+        @test pdf(d, xs) == [pdf(d, x) for x in xs]
+        @test logpdf(d, xs) == [logpdf(d, x) for x in xs]
+    end
+
+    # The (Uniform, Uniform) tie-break also has its own vector-`x` method.
+    du = convolved(Uniform(0.0, 1.0), Uniform(0.5, 1.5))
+    @test pdf(du, xs) == [pdf(du, x) for x in xs]
+    @test logpdf(du, xs) == [logpdf(du, x) for x in xs]
+
+    # And the mirrored vector-`x` cdf, not just the forward order checked
+    # above.
+    @test cdf(reversed, xs) == [cdf(reversed, x) for x in xs]
+end
+
 @testitem "Uniform-window analytic path is faster than quadrature (S9b.6)" begin
     using Distributions
     using BenchmarkTools

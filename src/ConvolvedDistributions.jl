@@ -5,9 +5,9 @@ Raw-distribution convolution and the shared numeric quadrature machinery for
 the EpiAware distribution-operations stack. Provides [`Convolved`](@ref) (the
 sum of independent components), [`Difference`](@ref) (the `X - Y` dual),
 [`Product`](@ref) (the `X * Y` Mellin convolution for non-negative
-components), the pluggable Gauss-Legendre `integrate`/`gl_integrate` layer,
-and the solver-method types `AnalyticalSolver`/`NumericSolver` selecting the
-analytic-vs-numeric backend. Operates on any
+components), the solver-method types `AnalyticalSolver`/`NumericSolver` selecting the
+analytic-vs-numeric backend, and, for discrete distributions, the
+probability generating function primitive `pgf`. Operates on any
 `Distributions.UnivariateDistribution`; no censoring. A combination whose
 components are all integer-lattice discrete distributions is itself
 discrete and evaluates exactly (an integer-lattice fold replaces
@@ -43,9 +43,10 @@ import Base: minimum, maximum
 using Distributions: Distributions, UnivariateDistribution,
                      DiscreteUnivariateDistribution, DiscreteNonParametric,
                      Continuous, Discrete, Exponential, Gamma, LogNormal,
-                     Normal, Poisson, Binomial, NegativeBinomial, Uniform,
-                     Weibull, succprob, scale, shape, meanlogx, stdlogx,
-                     quantile, support, probs, partype
+                     Normal, Poisson, Bernoulli, Binomial, Geometric,
+                     NegativeBinomial, Uniform, Weibull, succprob, scale,
+                     shape, meanlogx, stdlogx, quantile, support, probs,
+                     partype
 
 using LogExpFunctions: log1mexp, logsubexp
 
@@ -107,18 +108,29 @@ include("Difference.jl")
 # components. Also after Convolved.jl for `_window_quantile` /
 # `_CONVOLVED_TAIL` / `_max2` / `_min2`.
 include("Product.jl")
+# The probability generating function primitive (#90): closed forms for
+# the standard count families, a truncated-series fallback for any other
+# `DiscreteUnivariateDistribution`, and the structural `Convolved` product.
+# After Convolved.jl since the structural method dispatches on `Convolved`.
+include("pgf.jl")
 # The timeseries form `convolve_series`: a numeric series convolved with
 # a delay PMF on the unit lag grid — direct for a discrete delay, via a
 # caller-supplied PMF (e.g. from CensoredDistributions.jl) for a
 # continuous one (#6, #31, #68).
 include("convolve_with_vector.jl")
 
-# `quantile` (inverse CDF) for a two-component analytic `Convolved` pair
-# (S2.4) lives in core and needs no solver. Everything else -- the
-# numeric `Convolved` fallback, and `Difference`/`Product` `quantile`
-# entirely -- lives in the ConvolvedDistributionsOptimizationExt
+# Public stub for the shared numeric quantile inversion (#112); the
+# method itself lives in the ConvolvedDistributionsOptimizationExt
 # extension, loaded when both Optimization.jl and OptimizationOptimJL.jl
 # are present, so the core package carries no solver dependency.
+include("quantile.jl")
+
+# `quantile` (inverse CDF) for a two-component analytic `Convolved` pair
+# (S2.4) lives in core and needs no solver, built on `convolved_quantile`
+# above. Everything else -- the numeric `Convolved` fallback, and
+# `Difference`/`Product` `quantile` entirely -- lives in the
+# ConvolvedDistributionsOptimizationExt extension, built on
+# `quantile_by_optimization` above.
 
 # Interface-contract verifiers, shipped so downstream family members can
 # self-verify (mirrors CensoredDistributions.TestUtils).
