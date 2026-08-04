@@ -76,6 +76,74 @@
     end
 end
 
+@testitem "Unknown solver type errors for every convolved_* generic" begin
+    # "Convolved cdf dispatch" above pins this for the scalar cdf arm only.
+    # Every convolved_* generic shares the same method-1 skeleton (a plain
+    # `error` for a solver type that is neither `AnalyticalSolver` nor
+    # `NumericSolver`), including the scalar/vector-`x` pairs and the two
+    # quantities with no evaluation point (`quantile`, `minimum`) -- this
+    # exercises all of them so the shared skeleton shape stays proven for
+    # every quantity, not just `cdf`.
+    using ConvolvedDistributions: convolved_cdf, convolved_logcdf,
+                                  convolved_ccdf, convolved_logccdf,
+                                  convolved_pdf, convolved_logpdf,
+                                  convolved_quantile, convolved_minimum,
+                                  Convolved, AbstractSolverMethod
+    using Distributions
+
+    struct BrokenMethod <: AbstractSolverMethod end
+
+    d1, d2 = Gamma(2.0, 1.0), Uniform(0.0, 1.0)
+    d = Convolved((d1, d2); method = BrokenMethod())
+    xs = [1.0, 2.0]
+
+    @test_throws ErrorException convolved_cdf(d, d1, d2, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_cdf(d, d1, d2, xs, BrokenMethod())
+    @test_throws ErrorException convolved_logcdf(
+        d, d1, d2, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_ccdf(d, d1, d2, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_logccdf(
+        d, d1, d2, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_pdf(d, d1, d2, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_pdf(d, d1, d2, xs, BrokenMethod())
+    @test_throws ErrorException convolved_logpdf(
+        d, d1, d2, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_logpdf(
+        d, d1, d2, xs, BrokenMethod())
+    @test_throws ErrorException convolved_quantile(
+        d, d1, d2, 0.5, BrokenMethod())
+    @test_throws ErrorException convolved_minimum(d, d1, d2, BrokenMethod())
+end
+
+@testitem "evaluation_path covers every quantity's route check" begin
+    # #92's per-quantity route check (`_is_analytic`/`_convolved_route`)
+    # is only ever exercised through `evaluation_path`'s default
+    # `(pdf, cdf)` or an explicit `cdf`/`pdf` elsewhere in the suite, so
+    # the `_convolved_generic` entries for `logcdf`/`ccdf`/`logccdf`/
+    # `logpdf` -- and the `_has_analytic_route` specialisation each one
+    # drives -- go untouched without this.
+    #
+    # The uniform-window pair (Gamma + Uniform) only registers a
+    # pair-specific closed form for `cdf`/`pdf`/`logpdf` (S1); `logcdf`/
+    # `ccdf`/`logccdf` fall back to `NumericSolver` quadrature even for
+    # this pair (they are derived from `cdf` only on the `NumericSolver`
+    # arm, not the analytic one), so `:numeric` is the correct answer for
+    # those three, not a gap in the route check.
+    using ConvolvedDistributions: evaluation_path
+    using Distributions
+
+    analytic = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
+    numeric = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+
+    @test evaluation_path(analytic, logpdf) === :analytic
+    for f in (logcdf, ccdf, logccdf, logpdf)
+        @test evaluation_path(numeric, f) === :numeric
+    end
+    for f in (logcdf, ccdf, logccdf)
+        @test evaluation_path(analytic, f) === :numeric
+    end
+end
+
 @testitem "Convolved quantile dispatch: analytic without Optimization.jl" begin
     using ConvolvedDistributions
     using Distributions
