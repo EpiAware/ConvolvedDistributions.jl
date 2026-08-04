@@ -26,6 +26,13 @@ public evaluation_path, has_closed_form
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
 
+# The probability generating function primitive (#90), mirroring
+# Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with
+# closed forms, a truncated-series fallback, and the structural Convolved
+# product. Not exported so it never shadows a downstream `pgf` (there is
+# no such name in Distributions.jl itself).
+public pgf
+
 # Shared numeric quantile (inverse-CDF) inversion (#112): the stub lives
 # in the core package so the name is public and documented from here,
 # but the method itself is added by the ConvolvedDistributionsOptimizationExt
