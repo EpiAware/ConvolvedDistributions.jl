@@ -17,7 +17,7 @@ Raw-distribution convolution and shared numeric quadrature for any `Distribution
 - A convolution is usually only available in closed form for a few matching distribution families; `convolved` builds the distribution of a sum of independent delays from any two or more `Distributions.jl` distributions, not just those pairs.
 - Closed-form convolutions (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`) are used where they exist, with an AD-safe Gauss-Legendre quadrature fallback for every other pair.
 - Sums are not the only combination we support: `difference` builds the `X - Y` signed gap between two independent events, `product` the `X * Y` Mellin convolution for a delay scaled by an independent multiplicative factor, and `ratio` the `X / Y` quotient for a rate, a proportion, or a normalised measurement.
-- Turning expected events into expected downstream counts is usually a hand-rolled discrete convolution; `convolve_series` does it directly from a numeric series and a delay's PMF.
+- Turning expected events into expected downstream counts is usually a hand-rolled discrete convolution; `convolve_series` does it directly from a numeric series and a delay's PMF, including a delay that changes over the series (one distribution or PMF per time point).
 
 ## Getting started
 
