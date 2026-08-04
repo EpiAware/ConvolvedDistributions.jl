@@ -408,9 +408,12 @@ end
         @test pdf(db, z) ≈ bf atol=1e-12
     end
 
-    # A mixed pair stays Continuous.
-    dmix = product(Poisson(2.0), LogNormal(0.5, 0.4))
-    @test Distributions.value_support(typeof(dmix)) === Continuous
+    # A mixed pair stays Continuous. `Poisson(2.0)` has mass at 0, which
+    # would put an atom at 0 in the product alongside a continuous
+    # density elsewhere -- rejected at construction (#115); see
+    # test/distributions/mixed.jl for the accepted mixed case (a
+    # discrete factor with no mass at 0) and the fixed pdf/cdf.
+    @test_throws ArgumentError product(Poisson(2.0), LogNormal(0.5, 0.4))
 end
 
 # The AD-safety of Product (gradients flowing through both components'

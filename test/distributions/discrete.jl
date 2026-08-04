@@ -16,16 +16,17 @@
     @test pdf(c, 3) ≈ bruteforce
     @test pdf(c, 3.0) ≈ bruteforce
 
-    # Regression on the mixed case: a mixed pair stays Continuous, and
-    # its pdf is bit-identical to `main` (unaffected by the value-support
-    # derivation, which only changes the all-discrete case). A discrete
-    # component used as a continuous-quadrature integration variable is
-    # a separate, pre-existing defect (its density is ~0 everywhere,
-    # confirmed unchanged against `main` via `git stash`) — out of scope
-    # here and filed as #115 rather than fixed silently in this PR.
+    # Regression on the mixed case (#115): a mixed pair stays Continuous
+    # (`_components_support` only reports `Discrete` when EVERY
+    # component is), but its pdf is no longer silently zero -- the
+    # mixed discrete/continuous fold sums the continuous density over
+    # the Poisson's lattice, exactly, rather than falling into
+    # continuous quadrature over a comb of point masses.
     mixed = convolved(Poisson(3.0), Normal(0.0, 1.0))
     @test Distributions.value_support(typeof(mixed)) === Continuous
-    @test pdf(mixed, 2.0) == 0.0
+    @test pdf(mixed, 2.0) > 0.0
+    @test ConvolvedDistributions.is_exact(mixed)
+    @test ConvolvedDistributions.evaluation_path(mixed) === :numeric
 end
 
 @testsnippet DiscreteConvolvedCases begin

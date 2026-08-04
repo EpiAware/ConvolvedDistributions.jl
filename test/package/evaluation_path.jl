@@ -162,12 +162,18 @@ end
     @test !has_closed_form(dl)
     @test is_exact(dl)
 
-    # :numeric stays unchanged (and inexact) for mixed and continuous
-    # cases with no closed form.
+    # :numeric stays unchanged for a mixed pair with no closed form
+    # (evaluation_path's two-valued contract, #92), but a TWO-component
+    # mixed pair (exactly one integer-lattice discrete side) IS exact
+    # via its own fold (#115) — the same discrete-vs-continuous
+    # orthogonality `dl` demonstrates above, extended to the mixed case.
     dmixed = convolved(Poisson(1.0), Normal(0.0, 1.0))
     @test evaluation_path(dmixed) === :numeric
-    @test !is_exact(dmixed)
+    @test !has_closed_form(dmixed)
+    @test is_exact(dmixed)
 
+    # A genuinely all-continuous pair with no closed form stays
+    # :numeric and inexact.
     dnum = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     @test evaluation_path(dnum) === :numeric
     @test !is_exact(dnum)
@@ -186,11 +192,13 @@ end
         Gamma(2.0, 1.0), LogNormal(0.5, 0.4); strict = true)
 
     # Route-vs-execution guard: whenever `is_exact` reports true via the
-    # discrete route (no closed form), `pdf` actually took that route —
-    # for a representative discrete, mixed and continuous case.
+    # discrete or mixed route (no closed form), `pdf` actually took that
+    # route — for a representative discrete, mixed and continuous case.
     @test is_exact(dl) && !has_closed_form(dl)
     @test pdf(dl, 2) === ConvolvedDistributions._convolved_lattice_pdf(dl, 2)
-    @test !is_exact(dmixed)
+    @test is_exact(dmixed) && !has_closed_form(dmixed)
+    @test pdf(dmixed, 2.0) ===
+          ConvolvedDistributions._convolved_mixed_pdf(Val(1), dmixed, 2.0)
     @test !is_exact(dnum)
 end
 

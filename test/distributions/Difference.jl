@@ -368,9 +368,14 @@ end
         @test cdf(d, k) ≈ running atol=1e-6
     end
 
-    # A mixed pair stays Continuous and unchanged.
+    # A mixed pair stays Continuous (`_components_support` only reports
+    # `Discrete` when EVERY component is), but is exact via its own
+    # mixed fold rather than falling into quadrature (#115); see
+    # test/distributions/mixed.jl for the full mixed-fold coverage.
     dmix = difference(Poisson(2.0), Normal(0.0, 1.0))
     @test Distributions.value_support(typeof(dmix)) === Continuous
+    @test pdf(dmix, 1.0) > 0
+    @test ConvolvedDistributions.is_exact(dmix)
 end
 
 # The AD-safety of Difference (gradients flowing through both the minuend X and
