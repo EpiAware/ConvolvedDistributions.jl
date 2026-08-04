@@ -28,19 +28,9 @@ function _clamped_logit(p::Real)
     return log(pc) - log1p(-pc)
 end
 
-# Numerically invert `cdf(d, q) = p` by minimising the squared log-odds
-# residual `(logit(cdf(d, q)) - logit(p))^2` with Nelder-Mead from a
-# caller-supplied initial guess vector `initial_guess`. Minimising the
-# plain squared residual `(cdf(d, q) - p)^2` is nearly flat in `q` in the
-# far tails, so the solve stopped early there (#48); the logit transform
-# keeps the objective steep at extreme `p`. Validates `p`, returns the
-# support ends exactly for p = 0 / 1, and penalises iterates outside the
-# support heavily so the optimiser is guided back in. Errors if the solve
-# does not converge. This is the shared numeric quantile inversion (#112);
-# `Convolved`/`Difference`/`Product` below are its first callers, and
-# other EpiAware packages facing the same no-closed-form problem (e.g.
-# CensoredDistributions' `PrimaryCensored`/`IntervalCensored`) reuse it
-# directly instead of carrying their own copy.
+# Minimises the squared log-odds residual, not the plain squared residual
+# on `cdf`, because the latter is nearly flat in `q` in the far tails and
+# the solve stopped early there (#48).
 function quantile_by_optimization(
         d::UnivariateDistribution, p::Real,
         initial_guess::AbstractVector{<:Real};
