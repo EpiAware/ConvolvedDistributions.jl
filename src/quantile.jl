@@ -36,6 +36,11 @@ solve stop early (issue #48).
   (the default). With `check_nan = false` a `NaN` `p` skips validation
   and the solve errors at the convergence check instead; it never
   returns a value for a `NaN` target.
+- `solver`: The Optim.jl solver passed to `solve`. Defaults to
+  `NelderMead()`.
+- `solve_kwargs...`: Passed through to `solve`, merged over the defaults
+  `reltol = 1e-8`, `abstol = 1e-8`, `maxiters = 10000` (explicit values
+  win).
 
 # Returns
 - The quantile `q` such that `cdf(d, q) ≈ p`, after `postprocess`.

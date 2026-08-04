@@ -34,7 +34,8 @@ end
 function quantile_by_optimization(
         d::UnivariateDistribution, p::Real,
         initial_guess::AbstractVector{<:Real};
-        postprocess = identity, check_nan::Bool = true)
+        postprocess = identity, check_nan::Bool = true,
+        solver = NelderMead(), solve_kwargs...)
     if check_nan && isnan(p)
         throw(ArgumentError("p must be in [0, 1], got $p"))
     end
@@ -74,8 +75,8 @@ function quantile_by_optimization(
     optfun = OptimizationFunction(objective)
     prob = OptimizationProblem(optfun, initial_guess, nothing)
 
-    sol = solve(prob, NelderMead();
-        reltol = 1e-8, abstol = 1e-8, maxiters = 10000)
+    default_solve_kwargs = (; reltol = 1e-8, abstol = 1e-8, maxiters = 10000)
+    sol = solve(prob, solver; merge(default_solve_kwargs, solve_kwargs)...)
 
     if sol.retcode == ReturnCode.Success || sol.retcode == ReturnCode.Default
         return postprocess(sol.u[1])

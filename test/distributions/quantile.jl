@@ -260,3 +260,24 @@ end
     @test_throws ErrorException quantile_by_optimization(
         d, NaN, [2.0]; check_nan = false)
 end
+
+@testitem "quantile_by_optimization solver and solve_kwargs" begin
+    using ConvolvedDistributions: quantile_by_optimization
+    using Distributions, Optimization, OptimizationOptimJL
+    using OptimizationOptimJL: Optim
+
+    d = Normal(2.0, 1.5)
+    p = 0.3
+
+    # `solve_kwargs` pass through to `solve`, merged over the defaults so
+    # an explicit value overrides only the matching default.
+    q = quantile_by_optimization(
+        d, p, [2.0]; maxiters = 500, reltol = 1e-6, abstol = 1e-6)
+    @test q ≈ quantile(d, p) atol=1e-4
+
+    # A non-default `solver` is used for the solve: NelderMead with fixed
+    # (rather than adaptive) step parameters still converges.
+    fixed_nm = NelderMead(parameters = Optim.FixedParameters())
+    q_solver = quantile_by_optimization(d, p, [2.0]; solver = fixed_nm)
+    @test q_solver ≈ quantile(d, p) atol=1e-4
+end
