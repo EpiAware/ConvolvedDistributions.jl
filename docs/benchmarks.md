@@ -53,6 +53,13 @@ Product/
                         logpdf/cdf broadcast, rand, mean)
   numeric/             (same operations)
 
+Ratio/
+  analytic/            (construction, logpdf/cdf scalar,
+                        logpdf/cdf broadcast, rand, mean)
+  numeric/             (construction, logpdf/cdf scalar,
+                        logpdf/cdf broadcast, rand -- no mean row:
+                        the numeric pair has no closed-form moment)
+
 Timeseries/
   Gamma delay          (convolve_series(pmf, series), pmf precomputed)
   Convolved delay
@@ -72,7 +79,7 @@ AD gradients/
 
 ## Analytic vs numeric
 
-`convolved`, `difference`, and `product` use a closed form where one exists (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`; `Normal` - `Normal`; `LogNormal` * `LogNormal`) and AD-safe Gauss-Legendre quadrature otherwise.
+`convolved`, `difference`, `product`, and `ratio` use a closed form where one exists (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`; `Normal` - `Normal`; `LogNormal` * `LogNormal`; zero-mean `Normal` / `Normal`, `Gamma` / `Gamma`, `Chisq` / `Chisq`) and AD-safe Gauss-Legendre quadrature otherwise.
 The analytic rows should sit near the `Baseline` floor; the gap between the numeric rows and their analytic counterparts is the cost of the quadrature backend.
 The `batched` rows share the composite quadrature grid across evaluation points; their gap to the `logpdf broadcast` row over the same points is the headline batching win.
 Pass `method = NumericSolver()` to force the numeric path.

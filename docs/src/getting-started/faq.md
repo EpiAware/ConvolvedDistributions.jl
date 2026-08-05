@@ -3,7 +3,7 @@
 This page answers common questions about ConvolvedDistributions.jl.
 If your question is not answered here, open a discussion on the [GitHub repository](https://github.com/EpiAware/ConvolvedDistributions.jl).
 
-## How do I build a convolved, difference, or product distribution?
+## How do I build a convolved, difference, product, or ratio distribution?
 
 Each constructor takes distributions and returns a distribution:
 
@@ -13,12 +13,14 @@ using ConvolvedDistributions, Distributions
 d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
 z = difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
 w = product(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
+r = ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
 
-cdf(d, 5.0), cdf(z, 0.0), cdf(w, 5.0)
+cdf(d, 5.0), cdf(z, 0.0), cdf(w, 5.0), cdf(r, 5.0)
 ```
 
 `convolved` accepts two or more components as varargs, a tuple, or a vector.
 `product` requires both components to have non-negative support (sign-crossing supports are future work).
+`ratio` requires only that the denominator carry no probability mass at zero; either component may otherwise be two-sided.
 
 ## Can I nest combinations?
 
@@ -32,6 +34,8 @@ gap = difference(d, Gamma(2.5, 1.0))
 
 mean(nested) ≈ mean(flat), cdf(nested, 8.0) ≈ cdf(flat, 8.0), mean(gap)
 ```
+
+A `Ratio` nests too, but only when both its numerator and its denominator are non-negative (this includes the `Gamma`/`Gamma` and `Chisq`/`Chisq` analytic pairs, and any non-negative numeric pair, but not the two-sided `Normal`/`Normal` pair): a ratio that can run negative on either side has Cauchy-like tails with no cheap effective-support bound, so nesting one throws rather than silently narrowing the outer window.
 
 The [Getting started](@ref getting-started) walkthrough and the [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), and [The product of two delays](@ref product-distributions) tutorials show nesting in more detail.
 
@@ -59,13 +63,13 @@ using Optimization, OptimizationOptimJL
 quantile(d, 0.5)
 ```
 
-Loading the extension also enables `rand` on `truncated` wrappers of `Convolved`, `Difference`, and `Product`, which routes through the base `quantile`.
-`rand` on a bare `Convolved`, `Difference`, or `Product` samples the components directly and needs no extension.
+Loading the extension also enables `rand` on `truncated` wrappers of `Convolved`, `Difference`, `Product`, and `Ratio`, which routes through the base `quantile`.
+`rand` on a bare `Convolved`, `Difference`, `Product`, or `Ratio` samples the components directly and needs no extension.
 
 ## What is the difference between `AnalyticalSolver` and `NumericSolver`?
 
 Both constructors take a `method` keyword.
-The default `AnalyticalSolver()` uses the closed form when `Distributions.convolve` applies to every component pair (for `difference`, when both components are `Normal`; for `product`, when both are `LogNormal`) and falls back to Gauss-Legendre quadrature otherwise.
+The default `AnalyticalSolver()` uses the closed form when `Distributions.convolve` applies to every component pair (for `difference`, when both components are `Normal`; for `product`, when both are `LogNormal`; for `ratio`, when both are zero-mean `Normal`, both `Gamma`, or both `Chisq`) and falls back to Gauss-Legendre quadrature otherwise.
 `NumericSolver()` forces the quadrature path even when a closed form exists.
 Results agree to quadrature accuracy, so forcing the numeric path is mainly useful for testing, debugging, and comparing the two:
 
@@ -106,8 +110,8 @@ discrete_total = convolved(NegativeBinomial(5, 0.5), Poisson(2.0))
 convolve_series(discrete_total, infections)
 ```
 
-A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice this package does not make, so it matches no `convolve_series` method here — a `MethodError`, not a gate: `convolve_series` works through dispatch (a method for every value support it can actually handle) rather than an eager `ArgumentError` pre-emptively blocking a whole input class.
-This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve the resulting PMF.
+A continuous delay has no mass on the integer grid until it is discretised, so it matches no `convolve_series` method here — a `MethodError`, not a design gate.
+For a continuous delay, use [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl) to build the PMF (it owns primary and interval censoring), then convolve the resulting PMF with `convolve_series`.
 `convolve_series(pmf, series)` takes any already-discretised PMF vector and only convolves, with the masses used exactly as given:
 
 ```@example faq

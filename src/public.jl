@@ -1,10 +1,12 @@
 # Public API declarations for Julia 1.11+ (public but not exported). These form
 # the surface ComposedDistributions re-exports downstream, so keep it clean.
 
-# Convolution / difference / product distribution types, and the multi-base
-# algebraic-combination family supertype they subtype. `Product` is public,
-# not exported, so it never clashes with Distributions' deprecated exported
-# `Product`; construct via the exported `product` verb.
+# Convolution / difference / product / ratio distribution types, and the
+# multi-base algebraic-combination family supertype they subtype. `Product`
+# is public, not exported, so it never clashes with Distributions' deprecated
+# exported `Product`; construct via the exported `product` verb. `Ratio` is
+# exported directly (`Distributions` exports no `Ratio`), so it needs no
+# `public` declaration here.
 public Convolved, Product, AbstractConvolvedDistribution
 
 # Interface-contract verifiers (`TestUtils.test_convolved_interface`,
@@ -16,8 +18,8 @@ public TestUtils
 public AbstractSolverMethod
 
 # Queryable evaluation path (#92): reports which route (`:analytic` or
-# `:numeric`) a Convolved/Difference/Product will take for its density and
-# CDF, without evaluating either, and the boolean convenience form.
+# `:numeric`) a Convolved/Difference/Product/Ratio will take for its density
+# and CDF, without evaluating either, and the boolean convenience form.
 # `is_exact` (#85, #89) is the orthogonal predicate for whether that route
 # carries any quadrature error at all: true for a closed form OR the exact
 # discrete lattice/divisor fold (which reports `:numeric` route-wise).
@@ -31,11 +33,12 @@ public GaussLegendre, integrate, gl_integrate
 
 # Solver-method dispatch (#77): the per-quantity multiple-dispatch
 # extension points a downstream package (or this one) adds an analytic
-# pair method to, plus the shared uniform-window CDF arithmetic a new
-# delay family plugs its partial first moment into.
+# pair method to (on a tuple-typed `components` argument -- see review
+# A on #137), plus the shared uniform-window CDF arithmetic a new
+# distribution family plugs its `partial_expectation` into.
 public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
        convolved_pdf, convolved_logpdf, convolved_quantile,
-       convolved_minimum, uniform_window_cdf
+       convolved_minimum, uniform_window_cdf, partial_expectation
 
 # The probability generating function primitive (#90), mirroring
 # Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with

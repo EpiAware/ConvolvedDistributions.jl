@@ -2,8 +2,8 @@
     ADFixtures
 
 Shared AD gradient scenarios and backend metadata for ConvolvedDistributions.
-Used by `test/ad/runtests.jl`. Covers the `Convolved`, `Difference`, and
-`Product` densities and moments on the analytic, numeric
+Used by `test/ad/runtests.jl`. Covers the `Convolved`, `Difference`,
+`Product`, and `Ratio` densities and moments on the analytic, numeric
 (Gauss-Legendre quadrature), and exact discrete lattice/divisor fold
 (#85, #89) paths, across the ForwardDiff / ReverseDiff / Enzyme /
 Mooncake backend matrix.
@@ -311,6 +311,37 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
         (θ, xs) -> sum(
             x -> logpdf(convolved(Poisson(θ[1]), Normal(θ[2], 1.0)), x), xs),
         [3.0, 0.0], (Constant(obs),))
+
+    # Ratio (Z = X / Y), the quotient member. The analytic zero-mean
+    # Normal/Normal pair differentiates the two scales through the
+    # closed-form Cauchy; the Gamma/LogNormal pairs exercise the numeric
+    # branch-split quadrature. Two pairs cover gradients through the
+    # numerator X and the denominator Y: Y is the integration component
+    # (the `_panel_integrate` calls in src/Ratio.jl all integrate over
+    # `d.y`), whose window narrowing against X's effective support and
+    # own quantile-panel breaks must stay off the AD path
+    # (`_window_quantile` shields, as for Difference/Product).
+    _push!("Ratio Normal/Normal analytical",
+        (θ, obs) -> sum(
+            z -> logpdf(ratio(
+                    Normal(0.0, θ[1]), Normal(0.0, θ[2])), z), obs),
+        [2.0, 0.5], (Constant(obs),))
+    _push!("Ratio Gamma/LogNormal numerical wrt X",
+        (θ, obs) -> sum(
+            z -> logpdf(ratio(
+                    Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4)), z), obs),
+        [3.0, 1.0], (Constant(obs),))
+    _push!("Ratio LogNormal/Gamma numerical wrt Y",
+        (θ, obs) -> sum(
+            z -> logpdf(ratio(
+                    LogNormal(0.5, 0.4), Gamma(θ[1], θ[2])), z), obs),
+        [3.0, 1.0], (Constant(obs),))
+    _push!("Ratio Gamma/Gamma analytic moments",
+        (θ, _obs) -> let d = ratio(
+                Gamma(θ[1], θ[2]), Gamma(θ[3], θ[4]))
+            mean(d) + var(d)
+        end,
+        [2.0, 1.5, 3.0, 0.5], (Constant(obs),))
 
     # Timeseries convolution. This package no longer discretises
     # continuous delays itself (#68 — CensoredDistributions.jl owns that),

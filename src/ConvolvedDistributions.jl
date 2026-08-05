@@ -5,9 +5,11 @@ Raw-distribution convolution and the shared numeric quadrature machinery for
 the EpiAware distribution-operations stack. Provides [`Convolved`](@ref) (the
 sum of independent components), [`Difference`](@ref) (the `X - Y` dual),
 [`Product`](@ref) (the `X * Y` Mellin convolution for non-negative
-components), the solver-method types `AnalyticalSolver`/`NumericSolver` selecting the
-analytic-vs-numeric backend, and, for discrete distributions, the
-probability generating function primitive `pgf`. Operates on any
+components), [`Ratio`](@ref) (the `X / Y` quotient), the pluggable
+Gauss-Legendre `integrate`/`gl_integrate` layer, the solver-method types
+`AnalyticalSolver`/`NumericSolver` selecting the analytic-vs-numeric
+backend, and, for discrete distributions, the probability generating
+function primitive `pgf`. Operates on any
 `Distributions.UnivariateDistribution`; no censoring. A combination whose
 components are all integer-lattice discrete distributions is itself
 discrete and evaluates exactly (an integer-lattice fold replaces
@@ -28,6 +30,10 @@ mean(z)
 # A delay scaled by an independent multiplicative factor
 w = product(Gamma(3.0, 1.0), LogNormal(0.0, 0.3))
 mean(w)
+
+# A rate: an independent count over an independent exposure time
+r = ratio(Gamma(3.0, 1.0), Gamma(2.0, 1.0))
+mean(r)
 ```
 """
 module ConvolvedDistributions
@@ -42,11 +48,11 @@ import Base: minimum, maximum
 # Types, constructors, and helpers used without method extension.
 using Distributions: Distributions, UnivariateDistribution,
                      DiscreteUnivariateDistribution, DiscreteNonParametric,
-                     Continuous, Discrete, Exponential, Gamma, LogNormal,
-                     Normal, Poisson, Bernoulli, Binomial, Geometric,
-                     NegativeBinomial, Uniform, Weibull, succprob, scale,
-                     shape, meanlogx, stdlogx, quantile, support, probs,
-                     partype
+                     Continuous, Discrete, BetaPrime, Cauchy, Chisq,
+                     Exponential, FDist, Gamma, LogNormal, Normal, Poisson,
+                     Bernoulli, Binomial, Geometric, NegativeBinomial,
+                     Uniform, Weibull, succprob, scale, shape, meanlogx,
+                     stdlogx, quantile, support, probs, partype
 
 using LogExpFunctions: log1mexp, logsubexp
 
@@ -76,10 +82,12 @@ using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
 # are defined (see src/docstrings.jl).
 include("docstrings.jl")
 
-# Public convolution constructor, its dual difference constructor, and the
+# Public convolution constructor, its dual difference constructor, the
 # multiplicative product constructor (`Product` itself is public, not
-# exported, to avoid clashing with Distributions' deprecated `Product`).
-export convolved, convolve_series, Difference, difference, product
+# exported, to avoid clashing with Distributions' deprecated `Product`),
+# and the quotient ratio constructor.
+export convolved, convolve_series, Difference, difference, product,
+       Ratio, ratio
 
 # Solver methods for choosing the analytic-vs-numeric backend.
 export AnalyticalSolver, NumericSolver
@@ -95,10 +103,11 @@ include("interface.jl")
 # that use it.
 include("lattice.jl")
 include("Convolved.jl")
-# Solver-method dispatch (#77): the per-quantity generics `Convolved`'s
-# two-component methods call into, and the native uniform-window forms
-# hosted on them. After Convolved.jl, whose numeric quadrature helpers
-# and struct the `NumericSolver` arms and both-orders retry reuse.
+# Solver-method dispatch (#77): the per-quantity generics `Convolved`
+# calls into for any number of components (review A), and the native
+# uniform-window forms hosted on them. After Convolved.jl, whose numeric
+# quadrature helpers and struct the `NumericSolver` arms and both-orders
+# retry reuse.
 include("solver_dispatch.jl")
 include("uniform_window.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
@@ -108,6 +117,10 @@ include("Difference.jl")
 # components. Also after Convolved.jl for `_window_quantile` /
 # `_CONVOLVED_TAIL` / `_max2` / `_min2`.
 include("Product.jl")
+# Ratio (Z = X / Y), the quotient member. After Convolved.jl for
+# `_window_quantile` / `_CONVOLVED_TAIL` / `_max2` / `_min2` /
+# `_panel_integrate`.
+include("Ratio.jl")
 # The probability generating function primitive (#90): closed forms for
 # the standard count families, a truncated-series fallback for any other
 # `DiscreteUnivariateDistribution`, and the structural `Convolved` product.
@@ -125,8 +138,8 @@ include("convolve_with_vector.jl")
 # are present, so the core package carries no solver dependency.
 include("quantile.jl")
 
-# `quantile` (inverse CDF) for a two-component analytic `Convolved` pair
-# (S2.4) lives in core and needs no solver, built on `convolved_quantile`
+# `quantile` (inverse CDF) for a fully analytic `Convolved` fold (S2.4)
+# lives in core and needs no solver, built on `convolved_quantile`
 # above. Everything else -- the numeric `Convolved` fallback, and
 # `Difference`/`Product` `quantile` entirely -- lives in the
 # ConvolvedDistributionsOptimizationExt extension, built on

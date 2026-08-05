@@ -5,18 +5,19 @@
 # Mirrors the CensoredDistributions.jl family model: related concrete types
 # share one supertype, and the documented interface contract plus any shared
 # behaviour hang off the abstract. This package has a single family — the
-# algebraic combinations `Convolved`, `Difference`, and `Product` — so one
-# abstract type carries the contract that a future member (e.g. a min/max
-# order statistic) implements and `TestUtils.test_convolved_interface`
+# algebraic combinations `Convolved`, `Difference`, `Product`, and `Ratio` —
+# so one abstract type carries the contract that a future member (e.g. a
+# min/max order statistic) implements and `TestUtils.test_convolved_interface`
 # verifies.
 
 @doc "
 
 Supertype of the distributions of `X op Y` for independent components —
 the generalised convolutions. [`Convolved`](@ref) is the classical sum,
-[`Difference`](@ref) the reflected form (`Z = X - Y`), and
-[`Product`](@ref) the Mellin form (`Z = X * Y`); further operations
-(order statistics) fit the same family.
+[`Difference`](@ref) the reflected form (`Z = X - Y`), [`Product`](@ref)
+the Mellin form (`Z = X * Y`), and [`Ratio`](@ref) the Mellin-quotient
+form (`Z = X / Y`); further operations (order statistics) fit the same
+family.
 
 Parametric on variate form and value support (`Distribution{F, S}`), so
 the univariate members stay `UnivariateDistribution`s and existing
@@ -40,8 +41,8 @@ Verify a subtype with
 membership with `ConvolvedDistributions.TestUtils.test_abstract_membership`.
 
 # See also
-- [`Convolved`](@ref), [`Difference`](@ref),
-  [`Product`](@ref): the concrete members.
+- [`Convolved`](@ref), [`Difference`](@ref), [`Product`](@ref),
+  [`Ratio`](@ref): the concrete members.
 - `ConvolvedDistributions.TestUtils`: the interface verifiers for a new
   subtype.
 "
@@ -168,23 +169,25 @@ end
 # ---------------------------------------------------------------------------
 #
 # `evaluation_path`/`has_closed_form` answer per quantity without
-# evaluating it. For a two-component `Convolved` this is method lookup
-# (`_has_analytic_route`, solver_dispatch.jl) plus the same
-# `_try_convolve` check the `AnalyticalSolver` generic itself runs
-# (S2.3/S4.1) -- checking whether the analytic distribution can be built
-# is not evaluating the quantity. Every other case (three or more
-# components, `Difference`, `Product`) answers via `_maybe_analytic`,
-# unchanged from before this file's rewrite. Recursion through nesting
-# falls out for free: a nested combination only matches a component-typed
+# evaluating it. `Difference`/`Product`/`Ratio` answer through this
+# generic default: `_maybe_analytic` either builds the analytic
+# distribution or returns `nothing` -- checking whether it can be built
+# is not evaluating the quantity, and every quantity is analytic
+# together (a genuine `Distributions.jl` object answers all of them), so
+# one check covers `pdf`/`cdf`/... alike. `Convolved` overrides this
+# with a construction-time-resolved answer instead (solver_dispatch.jl,
+# review B on #137): its pair-specific closed forms (e.g. the
+# Gamma+Uniform uniform-window forms) are NOT `_maybe_analytic`-visible
+# (they compute a quantity directly, with no analytic distribution
+# object behind them), so it needs a per-quantity answer this generic
+# default cannot give. Recursion through nesting falls out for free
+# either way: a nested combination only matches a component-typed
 # analytic method when it names a leaf distribution, so a nested
-# `Convolved`/`Difference`/`Product` component falls through to
+# `Convolved`/`Difference`/`Product`/`Ratio` component falls through to
 # `:numeric`, exactly mirroring what evaluation does.
 
 # Whether `d` has an exact route for quantity function `f`, without
-# evaluating `f`. The generic fallback (three-or-more components,
-# `Difference`, `Product`) reuses each type's own `_maybe_analytic`; the
-# `Convolved` two-component method lives in solver_dispatch.jl, after
-# `Convolved`'s struct definition.
+# evaluating `f`. Reuses each type's own `_maybe_analytic`.
 function _is_analytic(d::AbstractConvolvedDistribution, f)
     return _maybe_analytic(d) !== nothing
 end
@@ -208,7 +211,8 @@ distinction matters (whether evaluating `d` carries any quadrature
 error at all).
 
 Recurses through nesting: a combination with any non-analytic component
-(including a nested [`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref)
+(including a nested
+[`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref)/[`Ratio`](@ref)
 using [`NumericSolver`](@ref), or one with no matching closed form)
 reports `:numeric`, since evaluating it falls back to quadrature
 somewhere in the recursion.
@@ -325,11 +329,12 @@ end
 # The component-family names named in a `strict = true` construction
 # error, one method per concrete type (each knows its own fields):
 # `_family_names(d::Convolved)` in Convolved.jl, `_family_names(d::Difference)`
-# in Difference.jl, `_family_names(d::Product)` in Product.jl.
+# in Difference.jl, `_family_names(d::Product)` in Product.jl,
+# `_family_names(d::Ratio)` in Ratio.jl.
 
 # Shared strict-construction check: called by each type's outer
-# constructor function (`convolved`/`difference`/`product`) after
-# building `d`. Errors, naming the component families, rather than
+# constructor function (`convolved`/`difference`/`product`/`ratio`)
+# after building `d`. Errors, naming the component families, rather than
 # silently returning an object that would fall back to quadrature —
 # `strict = true` promises an exact route (#92), and gates on
 # `is_exact`, NOT `evaluation_path`, so the exact discrete fold (which

@@ -1,22 +1,23 @@
 module ConvolvedDistributionsOptimizationExt
 
-# Optional inverse-CDF (quantile) support for `Convolved`, `Difference`, and
-# `Product`.
+# Optional inverse-CDF (quantile) support for `Convolved`, `Difference`,
+# `Product`, and `Ratio`.
 #
-# No closed form exists for a generic convolution or difference, so the
-# quantile is found by numerically inverting `cdf` with a Nelder-Mead
-# solve. The solver stack (Optimization.jl + OptimizationOptimJL.jl) is
-# deliberately a weak dependency: `cdf`/`pdf`/`logpdf` and `truncated`
-# scoring never need it, so the core package stays dependency-light and
-# only consumers that need inverse-CDF sampling pull the solver. Ported
-# from CensoredDistributions `src/utils/quantile_optimization.jl`.
+# No closed form exists for a generic convolution, difference, product, or
+# ratio, so the quantile is found by numerically inverting `cdf` with a
+# Nelder-Mead solve. The solver stack (Optimization.jl +
+# OptimizationOptimJL.jl) is deliberately a weak dependency:
+# `cdf`/`pdf`/`logpdf` and `truncated` scoring never need it, so the core
+# package stays dependency-light and only consumers that need inverse-CDF
+# sampling pull the solver. Ported from CensoredDistributions
+# `src/utils/quantile_optimization.jl`.
 #
 # For a `Discrete`-typed `d` this inverts an EXACT cdf (#85, #89) but
 # still returns a non-lattice `Float64`, not the exact integer quantile;
 # see #116 for a dedicated lattice-scan quantile.
 
 using ConvolvedDistributions: ConvolvedDistributions, Convolved, Difference,
-                              Product, NumericSolver, _maybe_analytic
+                              Product, Ratio, NumericSolver, _maybe_analytic
 import ConvolvedDistributions: quantile_by_optimization
 import Distributions
 using Distributions: UnivariateDistribution, cdf, insupport, quantile
@@ -114,34 +115,34 @@ function _product_quantile_guess(d::Product, p::Real)
     return [float(quantile(d.x, p)) * float(quantile(d.y, p))]
 end
 
-@doc "
-
-Numeric quantile for a `Convolved` the core two-component pair
-mechanism does not resolve analytically -- three or more components, or
-a non-analytic two-component pair (S2.4). Found by numerically
-inverting [`cdf`](@ref) with a Nelder-Mead solve, starting from the sum
-of the component quantiles (exact when the components are degenerate, a
-good guess otherwise). `quantile(d::Convolved, p)` itself lives in core
-and calls this only when it cannot resolve `d` analytically without a
-solver.
-
-Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
-method lives in the `ConvolvedDistributionsOptimizationExt` extension).
-"
-function ConvolvedDistributions._convolved_general_quantile(
-        d::Convolved, p::Real)
-    return quantile_by_optimization(d, p, _convolved_quantile_guess(d, p))
+# Numerator quantile at `p` over denominator quantile at `1 - p`: the
+# ratio increases in X and decreases in Y, so pair opposing tails (as
+# the Difference guess does for subtraction). Falls back to the median
+# ratio when that guess is not finite (a sign-crossing denominator makes
+# the opposing-tail pairing meaningless, e.g. quantile(Y, 1 - p) == 0).
+# The median-ratio fallback is itself a 0 / 0 = NaN for a Ratio whose
+# numerator AND denominator are both symmetric about zero -- exactly the
+# headline sign-crossing `Normal`/`Normal` case -- so a final fallback to
+# 0 (a reasonable starting guess for a symmetric ratio; NelderMead only
+# needs a finite, non-degenerate simplex point) catches that.
+function _ratio_quantile_guess(d::Ratio, p::Real)
+    g = float(quantile(d.x, p)) / float(quantile(d.y, 1 - p))
+    isfinite(g) && return [g]
+    m = float(quantile(d.x, 0.5)) / float(quantile(d.y, 0.5))
+    return [isfinite(m) ? m : zero(m)]
 end
 
 @doc "
 
 `NumericSolver` arm of [`convolved_quantile`](@ref): invert the numeric
 [`cdf`](@ref) with a Nelder-Mead solve, starting from the sum of the
-component quantiles.
+component quantiles (exact when the components are degenerate, a good
+guess otherwise). This is the fallback for any fold the
+`AnalyticalSolver` arm's pairwise collapse gets stuck on -- any number
+of components, not just three-or-more (review A).
 "
 function ConvolvedDistributions.convolved_quantile(
-        d::Convolved, d1::UnivariateDistribution, d2::UnivariateDistribution,
-        p::Real, method::NumericSolver)
+        d::Convolved, components::Tuple, p::Real, method::NumericSolver)
     return quantile_by_optimization(d, p, _convolved_quantile_guess(d, p))
 end
 
@@ -190,6 +191,28 @@ function Distributions.quantile(d::Product, p::Real)
     a = _maybe_analytic(d)
     a === nothing || return quantile(a, p)
     return quantile_by_optimization(d, p, _product_quantile_guess(d, p))
+end
+
+@doc "
+
+Compute the quantile (inverse CDF) of the ratio.
+
+No closed form exists for a generic ratio, so the quantile is found by
+numerically inverting [`cdf`](@ref) with a Nelder-Mead solve, starting
+from the numerator quantile at `p` over the denominator quantile at
+`1 - p` (the ratio increases in the numerator and decreases in the
+denominator, so opposing tails pair, as the Difference guess does for
+subtraction). Providing this method lets a `Ratio` compose under
+`truncated`, where `Distributions` derives the truncated quantile and
+inverse-CDF sampler from the base `quantile`.
+
+Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
+method lives in the `ConvolvedDistributionsOptimizationExt` extension).
+
+See also: [`cdf`](@ref)
+"
+function Distributions.quantile(d::Ratio, p::Real)
+    return quantile_by_optimization(d, p, _ratio_quantile_guess(d, p))
 end
 
 end # module

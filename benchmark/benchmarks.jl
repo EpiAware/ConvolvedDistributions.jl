@@ -4,12 +4,12 @@
 # `SUITE`; the managed `run.jl` / `compare.jl` consume it.
 #
 # The suite benchmarks the package's real hot paths: `Convolved`,
-# `Difference`, and `Product` densities and CDFs on both the analytic and
-# the numeric Gauss-Legendre quadrature backends (scalar broadcast vs the
-# batched vector methods that share quadrature nodes across evaluation
-# points), the timeseries convolution, and `quantile` via the Optimization
-# extension. Groups follow the CensoredDistributions.jl convention:
-# `SUITE[<group>][<variant>][<operation>]`.
+# `Difference`, `Product`, and `Ratio` densities and CDFs on both the
+# analytic and the numeric Gauss-Legendre quadrature backends (scalar
+# broadcast vs the batched vector methods that share quadrature nodes
+# across evaluation points), the timeseries convolution, and `quantile`
+# via the Optimization extension. Groups follow the
+# CensoredDistributions.jl convention: `SUITE[<group>][<variant>][<operation>]`.
 
 using BenchmarkTools
 using ConvolvedDistributions
@@ -34,6 +34,7 @@ include("src/baseline.jl")
 include("src/convolved.jl")
 include("src/difference.jl")
 include("src/product.jl")
+include("src/ratio.jl")
 include("src/timeseries.jl")
 include("src/quantile.jl")
 include("src/ad_gradients.jl")

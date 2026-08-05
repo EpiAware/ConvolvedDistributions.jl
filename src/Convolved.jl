@@ -70,6 +70,11 @@ numeric path is quadrature; for a `Discrete`-typed one it is the exact
 integer-lattice fold, never quadrature — `NumericSolver` means "skip the
 closed form", not "run Gauss-Legendre".
 
+The `_closed_form` field caches [`evaluation_path`](@ref)'s per-quantity
+answer, resolved once here at construction rather than on every
+`pdf`/`cdf` call (#92); it is private and carries no public meaning of
+its own.
+
 # See also
 - [`convolved`](@ref): Constructor function
 """
@@ -80,6 +85,9 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
     components::C
     "Solver method choosing the analytic vs numeric quadrature backend."
     method::M
+    "Per-quantity closed-form answer, resolved once here (#92, review B)."
+    _closed_form::NamedTuple{
+        (:pdf, :logpdf, :cdf, :logcdf, :ccdf, :logccdf), NTuple{6, Bool}}
 
     function Convolved(components::C;
             method::AbstractSolverMethod = AnalyticalSolver()) where {
@@ -94,7 +102,31 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
             throw(ArgumentError(
                 "All components must be UnivariateDistributions"))
         S = _components_support(components)
-        new{C, typeof(method), S}(components, method)
+        closed_form = _resolve_closed_form(components, method)
+        new{C, typeof(method), S}(components, method, closed_form)
+    end
+
+    # Internal fast path (review B follow-up, PR #137): the transient
+    # wrapper `_convolved_analytic_arm` builds mid pairwise-collapse
+    # recursion (`solver_dispatch.jl`) never has its `_closed_form`
+    # queried -- only `components`/`method`/the derived support type
+    # parameter `S` drive the rest of that evaluation -- so this
+    # positional-only form skips `_resolve_closed_form`'s which()-based
+    # pair-method probe, which would otherwise re-run on every recursive
+    # step of every `pdf`/`cdf` call rather than once at outer
+    # construction.
+    function Convolved(components::C, method::M) where {
+            C <: Tuple, M <: AbstractSolverMethod}
+        length(components) >= 1 ||
+            throw(ArgumentError("Convolved needs at least one component"))
+        all(c -> c isa UnivariateDistribution, components) ||
+            throw(ArgumentError(
+                "All components must be UnivariateDistributions"))
+        S = _components_support(components)
+        closed_form = NamedTuple{
+            (:pdf, :logpdf, :cdf, :logcdf, :ccdf, :logccdf)}(
+            ntuple(_ -> false, 6))
+        new{C, M, S}(components, method, closed_form)
     end
 end
 
@@ -297,7 +329,7 @@ See also: [`var`](@ref), [`mean`](@ref)
 std(d::Convolved) = sqrt(var(d))
 
 # ---------------------------------------------------------------------------
-# Analytical fast path for three-or-more components
+# Analytical fast path: pairwise collapse for any number of components
 # ---------------------------------------------------------------------------
 #
 # `_try_convolve` (defined in solver_dispatch.jl, S1) returns the
@@ -312,31 +344,20 @@ std(d::Convolved) = sqrt(var(d))
 # mirroring `Distributions._check_convolution_args`'s own guard) — else
 # the runtime `convolve` would throw — so a parameter check guards those
 # and falls through to the exact discrete lattice fold (still exact,
-# just not a closed form) rather than to quadrature. The two-component
-# case also routes through `_try_convolve` via the solver-method
-# dispatch in solver_dispatch.jl (S1); this pairwise fold is what
-# three-or-more components use (S1.6), reusing the SAME analytic-pair
-# definitions rather than duplicating them.
+# just not a closed form) rather than to quadrature. Every component
+# count routes through `_try_convolve` the SAME way, via
+# `_collapse_analytic_pair`/`_fully_collapse` in solver_dispatch.jl
+# (review A): a pair need not be adjacent, or even both original
+# components (a partial fold's merged result can itself collapse
+# further with a remaining raw component).
 
-# Reduce the component tuple to a single distribution, folding pairwise
-# with `_try_convolve` where it applies. Returns the fully convolved
-# distribution when every pair convolves analytically, else `nothing` so
-# the caller falls back to numeric quadrature.
-function _analytic_convolution(components::Tuple)
-    acc = components[1]
-    for i in 2:length(components)
-        acc = _try_convolve(acc, components[i])
-        acc === nothing && return nothing
-    end
-    return acc
-end
-
-# The analytic convolution to use for `d`, or `nothing` when none exists
-# or when `d.method` is a `NumericSolver` requesting the numeric quadrature
-# path.
+# The analytic convolution to use for `d` -- the fully collapsed single
+# distribution `_fully_collapse` (solver_dispatch.jl) returns, or
+# `nothing` when the fold gets stuck or when `d.method` is a
+# `NumericSolver` requesting the numeric quadrature path.
 function _maybe_analytic(d::Convolved)
     d.method isa NumericSolver && return nothing
-    return _analytic_convolution(d.components)
+    return _fully_collapse(d.components)
 end
 
 # Fraction of probability trimmed from each tail of an unbounded
@@ -899,7 +920,7 @@ _convolved_mixed_cdf(::Nothing, d::Convolved, x::Real) = _convolved_numeric_cdf(
 # `convolved(...)` always builds two or more components, but `Convolved`
 # itself is public and its inner constructor permits one — reachable
 # directly, bypassing `convolved`'s check. Under the default
-# `AnalyticalSolver`, `_analytic_convolution` already short-circuits a
+# `AnalyticalSolver`, `_fully_collapse` already short-circuits a
 # one-tuple to its single component, so `_maybe_analytic` never falls
 # through to the numeric/lattice routes for that case. Under
 # `NumericSolver`, `_maybe_analytic` always returns `nothing`, and the
@@ -929,21 +950,16 @@ _convolved_lattice_cdf(d::_SingleConvolved, x::Real) = cdf(d.components[1], x)
 
 Compute the cumulative distribution function.
 
-A two-component `Convolved` routes through [`convolved_cdf`](@ref)
-(S1): an analytical fast path where `d1 + d2` names a distribution or a
-component-specific method exists, otherwise AD-safe numeric quadrature.
-Three or more components keep the pre-existing pairwise analytic fold.
+Routes through [`convolved_cdf`](@ref) (S1, review A): an analytical
+fast path where a component pair collapses (`d1 + d2` names a
+distribution) or a component-specific method exists, otherwise AD-safe
+numeric quadrature. Any number of components is handled uniformly --
+there is no separate two-component-only path.
 
 See also: [`logcdf`](@ref)
 "
 function cdf(d::Convolved, x::Real)
-    if length(d.components) == 2
-        d1, d2 = d.components
-        return convolved_cdf(d, d1, d2, x, d.method)
-    end
-    a = _maybe_analytic(d)
-    a === nothing || return cdf(a, x)
-    return _convolved_cdf_route(d, x)
+    return convolved_cdf(d, d.components, x, d.method)
 end
 
 @doc "
@@ -953,57 +969,30 @@ Compute the log cumulative distribution function.
 See also: [`cdf`](@ref)
 "
 function logcdf(d::Convolved, x::Real)
-    if length(d.components) == 2
-        d1, d2 = d.components
-        return convolved_logcdf(d, d1, d2, x, d.method)
-    end
-    a = _maybe_analytic(d)
-    a === nothing || return logcdf(a, x)
-    c = _convolved_cdf_route(d, x)
-    return c <= 0 ? oftype(float(c), -Inf) : log(c)
+    return convolved_logcdf(d, d.components, x, d.method)
 end
 
 function ccdf(d::Convolved, x::Real)
-    if length(d.components) == 2
-        d1, d2 = d.components
-        return convolved_ccdf(d, d1, d2, x, d.method)
-    end
-    return 1 - cdf(d, x)
+    return convolved_ccdf(d, d.components, x, d.method)
 end
 
 function logccdf(d::Convolved, x::Real)
-    if length(d.components) == 2
-        d1, d2 = d.components
-        return convolved_logccdf(d, d1, d2, x, d.method)
-    end
-    logcdf_val = logcdf(d, x)
-    if logcdf_val == -Inf
-        return zero(logcdf_val)
-    elseif logcdf_val >= 0
-        return oftype(logcdf_val, -Inf)
-    end
-    return log1mexp(logcdf_val)
+    return convolved_logccdf(d, d.components, x, d.method)
 end
 
 @doc "
 
 Compute the probability density function.
 
-A two-component `Convolved` routes through [`convolved_pdf`](@ref)
-(S1): an analytical fast path where one applies, otherwise the AD-safe
-numeric density convolution ``f_X(x) = \\int f_R(x - t) f_C(t) \\, dt``.
-Three or more components keep the pre-existing pairwise analytic fold.
+Routes through [`convolved_pdf`](@ref) (S1, review A): an analytical
+fast path where one applies, otherwise the AD-safe numeric density
+convolution ``f_X(x) = \\int f_R(x - t) f_C(t) \\, dt``. Any number of
+components is handled uniformly.
 
 See also: [`logpdf`](@ref)
 "
 function pdf(d::Convolved, x::Real)
-    if length(d.components) == 2
-        d1, d2 = d.components
-        return convolved_pdf(d, d1, d2, x, d.method)
-    end
-    a = _maybe_analytic(d)
-    a === nothing || return pdf(a, x)
-    return _convolved_pdf_route(d, x)
+    return convolved_pdf(d, d.components, x, d.method)
 end
 
 @doc "
@@ -1013,36 +1002,24 @@ Compute the log probability density function.
 See also: [`pdf`](@ref), [`logcdf`](@ref)
 "
 function logpdf(d::Convolved, x::Real)
-    if length(d.components) == 2
-        d1, d2 = d.components
-        return convolved_logpdf(d, d1, d2, x, d.method)
-    end
-    a = _maybe_analytic(d)
-    a === nothing || return logpdf(a, x)
-    if !insupport(d, x)
-        return oftype(float(x), -Inf)
-    end
-    p = _convolved_pdf_route(d, x)
-    return p <= 0 ? oftype(float(x), -Inf) : log(p)
+    return convolved_logpdf(d, d.components, x, d.method)
 end
 
 @doc "
 
 Compute the quantile (inverse CDF) of the convolution.
 
-A two-component `Convolved` routes through [`convolved_quantile`](@ref)
-(S1/S2.4): exact where `d1 + d2` names a distribution (e.g.
+Routes through [`convolved_quantile`](@ref) (S1/S2.4, review A): exact
+where the components collapse to a named distribution (e.g.
 `Normal`+`Normal`, equal-scale `Gamma`, equal-rate `Exponential`), with
-no dependency on Optimization.jl. Three or more components, or a
-non-analytic two-component pair, fall back to the numeric quantile in
-the `ConvolvedDistributionsOptimizationExt` extension.
+no dependency on Optimization.jl. A fold that gets stuck falls back to
+the numeric quantile in the `ConvolvedDistributionsOptimizationExt`
+extension, for any number of components.
 
 See also: [`cdf`](@ref)
 "
 function quantile(d::Convolved, p::Real)
-    length(d.components) == 2 || return _convolved_general_quantile(d, p)
-    d1, d2 = d.components
-    return convolved_quantile(d, d1, d2, p, d.method)
+    return convolved_quantile(d, d.components, p, d.method)
 end
 
 # ---------------------------------------------------------------------------
@@ -1066,13 +1043,7 @@ beyond) stay within ~1e-6. See the FAQ.
 See also: [`cdf`](@ref)
 "
 function cdf(d::Convolved, x::AbstractVector{<:Real})
-    if length(d.components) == 2
-        d1, d2 = d.components
-        return convolved_cdf(d, d1, d2, x, d.method)
-    end
-    a = _maybe_analytic(d)
-    a === nothing || return map(xi -> cdf(a, xi), x)
-    return _convolved_cdf_route(d, x)
+    return convolved_cdf(d, d.components, x, d.method)
 end
 
 # Batched numeric CDF via the composite panel grid: each point keeps the
@@ -1152,13 +1123,7 @@ method for the analytic-vs-numeric routing).
 See also: [`pdf`](@ref)
 "
 function pdf(d::Convolved, x::AbstractVector{<:Real})
-    if length(d.components) == 2
-        d1, d2 = d.components
-        return convolved_pdf(d, d1, d2, x, d.method)
-    end
-    a = _maybe_analytic(d)
-    a === nothing || return map(xi -> pdf(a, xi), x)
-    return _convolved_pdf_route(d, x)
+    return convolved_pdf(d, d.components, x, d.method)
 end
 
 @doc "
@@ -1176,21 +1141,15 @@ even for wide batches (typically near machine precision; extreme
 See also: [`logpdf`](@ref), [`pdf`](@ref)
 "
 function logpdf(d::Convolved, x::AbstractVector{<:Real})
-    if length(d.components) == 2
-        d1, d2 = d.components
-        return convolved_logpdf(d, d1, d2, x, d.method)
-    end
-    a = _maybe_analytic(d)
-    a === nothing || return map(xi -> logpdf(a, xi), x)
-    return _batched_numeric_logpdf(d, x)
+    return convolved_logpdf(d, d.components, x, d.method)
 end
 
 # Batched numeric logpdf: log of the shared composite-quadrature pdf
 # batch (or, for a discrete-typed `d`, the exact lattice pmf batch via
 # `_convolved_pdf_route`, #85), promoted with its result type since
 # `eltype(d)` misses AD tracers on the component parameters (#43). Also
-# the `NumericSolver` arm of the two-component vector `convolved_logpdf`
-# skeleton (solver_dispatch.jl).
+# the `NumericSolver` arm of the vector-`x` `convolved_logpdf` skeleton
+# (solver_dispatch.jl).
 function _batched_numeric_logpdf(d::Convolved, x::AbstractVector{<:Real})
     pdfs = _convolved_pdf_route(d, x)
     T = promote_type(eltype(x), float(eltype(d)), eltype(pdfs))

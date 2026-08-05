@@ -1,9 +1,8 @@
 # [Adding a new combination](@id extending)
 
 A combined distribution is a type built from two or more base distributions joined by an algebraic operation.
-The package ships three members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`), [`Difference`](@ref) (`Z = X - Y`), and [`Product`](@ref ConvolvedDistributions.Product) (`Z = X * Y`, the Mellin convolution), and the family is designed to grow (a min or max order statistic is the natural next member).
+The package ships four members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`), [`Difference`](@ref) (`Z = X - Y`), [`Product`](@ref ConvolvedDistributions.Product) (`Z = X * Y`, the Mellin convolution), and [`Ratio`](@ref) (`Z = X / Y`, the Mellin-quotient form), and the family is designed to grow (a min or max order statistic is the natural next member).
 This page documents the contract a new member implements and the conventions the built-in members follow, using them as worked examples.
-`Product` was added by following this page, so it doubles as a worked end-to-end example: `src/Product.jl` for the type and numeric path, the Optimization extension for `quantile`, `test/distributions/Product.jl` and the `test/ADFixtures` scenarios for the verification surface.
 
 ## The family supertype
 
@@ -31,7 +30,7 @@ The documented interface contract on the abstract type requires of a concrete su
 
 ## Conventions the built-ins follow
 
-Beyond the minimal contract, `Convolved`, `Difference`, and `Product` share conventions a new member should copy so the family behaves uniformly.
+Beyond the minimal contract, `Convolved`, `Difference`, `Product`, and `Ratio` share conventions a new member should copy so the family behaves uniformly.
 
 **A solver-method field.**
 Each type carries a `method::AbstractSolverMethod` field, defaulting to `AnalyticalSolver()`.
@@ -62,8 +61,7 @@ A new member adds a `quantile` method and a starting-guess helper there, not in 
 
 ## A worked sketch
 
-A sketch of a `Largest` member, the maximum of independent components, where independence gives the closed form ``F_Z(z) = \prod_i F_i(z)``.
-This is illustrative rather than complete (no solver field, no batched methods, no exact discrete route, no extension `quantile`) — `is_exact` would report a discrete-typed `Largest` built this way as exact when it is not, which is exactly the trap the checklist item above warns about; a real member ships the lattice fold alongside deriving `S`:
+A sketch of a `Largest` member, the maximum of independent components, where independence gives the closed form ``F_Z(z) = \prod_i F_i(z)``:
 
 ```julia
 struct Largest{C <: Tuple, S <: Distributions.ValueSupport} <:
@@ -132,6 +130,9 @@ function pdf(d::Largest, x::Real)
 end
 ```
 
+This sketch is illustrative rather than complete: no solver field, no batched methods, no exact discrete route, no extension `quantile`.
+Building a real member from it, one gap matters more than the rest — `is_exact` would report a discrete-typed `Largest` built this way as exact when it is not, exactly the trap the checklist below warns about, so a real member ships the lattice fold alongside deriving `S`.
+
 Route CDF evaluations through `cdf_ad_safe` (from [EpiAwareADTools.jl](https://github.com/EpiAware/EpiAwareADTools.jl), the shared home of the AD-safe hook family) rather than bare `cdf` so `Gamma` components differentiate on every backend.
 A wrapper package with its own component types extends the EpiAwareADTools hooks (`cdf_ad_safe`, `logcdf_ad_safe`, `ccdf_ad_safe`, `logccdf_ad_safe`, `pdf_ad_safe`) by depending on EpiAwareADTools directly.
 A member whose operation has no closed form at all (as for a general convolution) instead builds its `cdf`/`pdf` on `gl_integrate`, following `Convolved`'s numeric path.
@@ -149,12 +150,8 @@ test_convolved_interface(largest(Gamma(2.0, 1.0), LogNormal(0.5, 0.4));
     x = 3.0)
 test_abstract_membership()
 
-# When the member can be typed `Discrete` (every component
-# integer-lattice discrete) and ships an exact route, also verify it
-# with `test_discrete_pmf` — NOT on the illustrative `Largest` sketch
-# above (it has no exact discrete route, so `test_discrete_pmf` would
-# fail on it); this is what a real member with a lattice fold looks
-# like, e.g. the built-in `Convolved`:
+# A Discrete-typed member with a lattice fold also gets `test_discrete_pmf`
+# (not the `Largest` sketch above, which has no exact discrete route):
 test_discrete_pmf(convolved(Poisson(2.0), Poisson(3.0));
     support = 0:30)
 ```
