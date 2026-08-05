@@ -134,32 +134,15 @@ end
 
 @doc "
 
-Numeric quantile for a `Convolved` the core two-component pair
-mechanism does not resolve analytically -- three or more components, or
-a non-analytic two-component pair (S2.4). Found by numerically
-inverting [`cdf`](@ref) with a Nelder-Mead solve, starting from the sum
-of the component quantiles (exact when the components are degenerate, a
-good guess otherwise). `quantile(d::Convolved, p)` itself lives in core
-and calls this only when it cannot resolve `d` analytically without a
-solver.
-
-Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
-method lives in the `ConvolvedDistributionsOptimizationExt` extension).
-"
-function ConvolvedDistributions._convolved_general_quantile(
-        d::Convolved, p::Real)
-    return quantile_by_optimization(d, p, _convolved_quantile_guess(d, p))
-end
-
-@doc "
-
 `NumericSolver` arm of [`convolved_quantile`](@ref): invert the numeric
 [`cdf`](@ref) with a Nelder-Mead solve, starting from the sum of the
-component quantiles.
+component quantiles (exact when the components are degenerate, a good
+guess otherwise). This is the fallback for any fold the
+`AnalyticalSolver` arm's pairwise collapse gets stuck on -- any number
+of components, not just three-or-more (review A).
 "
 function ConvolvedDistributions.convolved_quantile(
-        d::Convolved, d1::UnivariateDistribution, d2::UnivariateDistribution,
-        p::Real, method::NumericSolver)
+        d::Convolved, components::Tuple, p::Real, method::NumericSolver)
     return quantile_by_optimization(d, p, _convolved_quantile_guess(d, p))
 end
 

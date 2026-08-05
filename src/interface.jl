@@ -116,15 +116,22 @@ end
 # ---------------------------------------------------------------------------
 #
 # `evaluation_path`/`has_closed_form` answer per quantity without
-# evaluating it. For every type (`Convolved`/`Difference`/`Product`/
-# `Ratio`, two components or more) this is the same `_try_convolve`-style
-# check the `AnalyticalSolver` generic itself runs to decide whether it
-# can build the analytic distribution -- checking whether the analytic
-# distribution can be built is not evaluating the quantity. Recursion
-# through nesting falls out for free: a nested combination only matches a
-# component-typed analytic method when it names a leaf distribution, so a
-# nested `Convolved`/`Difference`/`Product`/`Ratio` component falls
-# through to `:numeric`, exactly mirroring what evaluation does.
+# evaluating it. `Difference`/`Product`/`Ratio` answer through this
+# generic default: `_maybe_analytic` either builds the analytic
+# distribution or returns `nothing` -- checking whether it can be built
+# is not evaluating the quantity, and every quantity is analytic
+# together (a genuine `Distributions.jl` object answers all of them), so
+# one check covers `pdf`/`cdf`/... alike. `Convolved` overrides this
+# with a construction-time-resolved answer instead (solver_dispatch.jl,
+# review B on #137): its pair-specific closed forms (e.g. the
+# Gamma+Uniform uniform-window forms) are NOT `_maybe_analytic`-visible
+# (they compute a quantity directly, with no analytic distribution
+# object behind them), so it needs a per-quantity answer this generic
+# default cannot give. Recursion through nesting falls out for free
+# either way: a nested combination only matches a component-typed
+# analytic method when it names a leaf distribution, so a nested
+# `Convolved`/`Difference`/`Product`/`Ratio` component falls through to
+# `:numeric`, exactly mirroring what evaluation does.
 
 # Whether `d` has an exact route for quantity function `f`, without
 # evaluating `f`. Reuses each type's own `_maybe_analytic`.

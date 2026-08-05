@@ -19,9 +19,12 @@
     Distributions.cdf(::DispatchTestDelay, x::Real) = 1 - exp(-x)
     Distributions.pdf(::DispatchTestDelay, x::Real) = exp(-x)
 
+    # A downstream analytic pair is just a method on a two-element tuple
+    # TYPE (review A, #80) -- no registration call, plain dispatch picks
+    # it up over the generic `Tuple` fallback.
     analytic_called = Ref(false)
     function ConvolvedDistributions.convolved_cdf(
-            ::Convolved, ::DispatchTestDelay, ::Uniform, x::Real,
+            ::Convolved, ::Tuple{DispatchTestDelay, Uniform}, x::Real,
             ::AnalyticalSolver)
         analytic_called[] = true
         return 0.12345
@@ -29,9 +32,10 @@
     # Mirrored order (S1.5): dispatch never swaps arguments itself, so a
     # downstream method for one order needs its mirror defined too.
     function ConvolvedDistributions.convolved_cdf(
-            d::Convolved, primary::Uniform, delay::DispatchTestDelay,
+            d::Convolved, components::Tuple{Uniform, DispatchTestDelay},
             x::Real, m::AnalyticalSolver)
-        return ConvolvedDistributions.convolved_cdf(d, delay, primary, x, m)
+        return ConvolvedDistributions.convolved_cdf(
+            d, reverse(components), x, m)
     end
 
     @testset "Dispatch to analytical method" begin
@@ -53,7 +57,8 @@
 
     @testset "Fallback for unsupported distributions" begin
         # No `convolved_cdf` method for Exponential + Exponential (unequal
-        # rate), so this falls through method 2 to quadrature.
+        # rate), so this falls through the `AnalyticalSolver` generic to
+        # quadrature.
         d = convolved(Exponential(2.0), Exponential(3.0))
         result = cdf(d, 2.0)
         @test 0 < result < 1
@@ -64,7 +69,7 @@
         d = Convolved((Gamma(2.0, 1.0), Uniform(0.0, 1.0));
             method = BrokenMethod())
         @test_throws ErrorException convolved_cdf(
-            d, Gamma(2.0, 1.0), Uniform(0.0, 1.0), 1.0, BrokenMethod())
+            d, (Gamma(2.0, 1.0), Uniform(0.0, 1.0)), 1.0, BrokenMethod())
     end
 
     @testset "Reversed component order" begin
@@ -78,8 +83,8 @@ end
 
 @testitem "Unknown solver type errors for every convolved_* generic" begin
     # "Convolved cdf dispatch" above pins this for the scalar cdf arm only.
-    # Every convolved_* generic shares the same method-1 skeleton (a plain
-    # `error` for a solver type that is neither `AnalyticalSolver` nor
+    # Every convolved_* generic shares the same skeleton (a plain `error`
+    # for a solver type that is neither `AnalyticalSolver` nor
     # `NumericSolver`), including the scalar/vector-`x` pairs and the two
     # quantities with no evaluation point (`quantile`, `minimum`) -- this
     # exercises all of them so the shared skeleton shape stays proven for
@@ -93,35 +98,68 @@ end
 
     struct BrokenMethod <: AbstractSolverMethod end
 
-    d1, d2 = Gamma(2.0, 1.0), Uniform(0.0, 1.0)
-    d = Convolved((d1, d2); method = BrokenMethod())
+    components = (Gamma(2.0, 1.0), Uniform(0.0, 1.0))
+    d = Convolved(components; method = BrokenMethod())
     xs = [1.0, 2.0]
 
-    @test_throws ErrorException convolved_cdf(d, d1, d2, 1.0, BrokenMethod())
-    @test_throws ErrorException convolved_cdf(d, d1, d2, xs, BrokenMethod())
+    @test_throws ErrorException convolved_cdf(
+        d, components, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_cdf(
+        d, components, xs, BrokenMethod())
     @test_throws ErrorException convolved_logcdf(
-        d, d1, d2, 1.0, BrokenMethod())
-    @test_throws ErrorException convolved_ccdf(d, d1, d2, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_ccdf(
+        d, components, 1.0, BrokenMethod())
     @test_throws ErrorException convolved_logccdf(
-        d, d1, d2, 1.0, BrokenMethod())
-    @test_throws ErrorException convolved_pdf(d, d1, d2, 1.0, BrokenMethod())
-    @test_throws ErrorException convolved_pdf(d, d1, d2, xs, BrokenMethod())
+        d, components, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_pdf(
+        d, components, 1.0, BrokenMethod())
+    @test_throws ErrorException convolved_pdf(
+        d, components, xs, BrokenMethod())
     @test_throws ErrorException convolved_logpdf(
-        d, d1, d2, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod())
     @test_throws ErrorException convolved_logpdf(
-        d, d1, d2, xs, BrokenMethod())
+        d, components, xs, BrokenMethod())
     @test_throws ErrorException convolved_quantile(
-        d, d1, d2, 0.5, BrokenMethod())
-    @test_throws ErrorException convolved_minimum(d, d1, d2, BrokenMethod())
+        d, components, 0.5, BrokenMethod())
+    @test_throws ErrorException convolved_minimum(
+        d, components, BrokenMethod())
+end
+
+@testitem "Analytic collapse works for any component count (review A)" begin
+    using ConvolvedDistributions: evaluation_path
+    using Distributions
+
+    # Three components, no arm restricted to exactly two: the two
+    # equal-scale Gammas are not adjacent, so this exercises the
+    # any-pair search, not just a left-to-right adjacent fold.
+    d = convolved(Gamma(2.0, 1.5), Normal(0.0, 1.0), Gamma(3.0, 1.5))
+    ref_gammas = convolve(Gamma(2.0, 1.5), Gamma(3.0, 1.5))
+    ref = convolved(ref_gammas, Normal(0.0, 1.0); method = NumericSolver())
+    for x in (0.5, 2.0, 5.0)
+        @test cdf(d, x) ≈ cdf(ref, x)
+        @test pdf(d, x) ≈ pdf(ref, x)
+    end
+    # Collapsing to two components (one analytic, one raw) rather than
+    # falling straight to three-way quadrature is not fully analytic
+    # (the Gamma/Normal pair itself has no closed form), so this reports
+    # :numeric, matching the reduced quadrature `cdf` actually runs.
+    @test evaluation_path(d) === :numeric
+
+    # Four equal-scale Gammas, scrambled: every pair collapses, so the
+    # fold reduces all the way to one distribution regardless of which
+    # pair it happens to pick first, and reports :analytic.
+    d4 = convolved(
+        Gamma(1.0, 1.5), Gamma(3.0, 1.5), Gamma(2.0, 1.5), Gamma(4.0, 1.5))
+    @test evaluation_path(d4) === :analytic
 end
 
 @testitem "evaluation_path covers every quantity's route check" begin
-    # #92's per-quantity route check (`_is_analytic`/`_convolved_route`)
-    # is only ever exercised through `evaluation_path`'s default
-    # `(pdf, cdf)` or an explicit `cdf`/`pdf` elsewhere in the suite, so
-    # the `_convolved_generic` entries for `logcdf`/`ccdf`/`logccdf`/
-    # `logpdf` -- and the `_has_analytic_route` specialisation each one
-    # drives -- go untouched without this.
+    # #92's per-quantity route check (`_resolve_closed_form`, resolved
+    # once at construction -- review B) is only ever exercised through
+    # `evaluation_path`'s default `(pdf, cdf)` or an explicit `cdf`/`pdf`
+    # elsewhere in the suite, so the `logcdf`/`ccdf`/`logccdf`/`logpdf`
+    # entries go untouched without this.
     #
     # The uniform-window pair (Gamma + Uniform) only registers a
     # pair-specific closed form for `cdf`/`pdf`/`logpdf` (S1); `logcdf`/

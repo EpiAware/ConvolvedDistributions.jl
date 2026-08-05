@@ -103,10 +103,11 @@ include("interface.jl")
 # that use it.
 include("lattice.jl")
 include("Convolved.jl")
-# Solver-method dispatch (#77): the per-quantity generics `Convolved`'s
-# two-component methods call into, and the native uniform-window forms
-# hosted on them. After Convolved.jl, whose numeric quadrature helpers
-# and struct the `NumericSolver` arms and both-orders retry reuse.
+# Solver-method dispatch (#77): the per-quantity generics `Convolved`
+# calls into for any number of components (review A), and the native
+# uniform-window forms hosted on them. After Convolved.jl, whose numeric
+# quadrature helpers and struct the `NumericSolver` arms and both-orders
+# retry reuse.
 include("solver_dispatch.jl")
 include("uniform_window.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
@@ -137,8 +138,8 @@ include("convolve_with_vector.jl")
 # are present, so the core package carries no solver dependency.
 include("quantile.jl")
 
-# `quantile` (inverse CDF) for a two-component analytic `Convolved` pair
-# (S2.4) lives in core and needs no solver, built on `convolved_quantile`
+# `quantile` (inverse CDF) for a fully analytic `Convolved` fold (S2.4)
+# lives in core and needs no solver, built on `convolved_quantile`
 # above. Everything else -- the numeric `Convolved` fallback, and
 # `Difference`/`Product` `quantile` entirely -- lives in the
 # ConvolvedDistributionsOptimizationExt extension, built on
