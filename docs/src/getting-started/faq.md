@@ -110,8 +110,8 @@ discrete_total = convolved(NegativeBinomial(5, 0.5), Poisson(2.0))
 convolve_series(discrete_total, infections)
 ```
 
-A continuous delay has no mass on the integer grid until it is discretised, and discretisation is an explicit modelling choice this package does not make, so it matches no `convolve_series` method here — a `MethodError`, not a gate: `convolve_series` works through dispatch (a method for every value support it can actually handle) rather than an eager `ArgumentError` pre-emptively blocking a whole input class.
-This package does not discretise continuous delays itself: build the PMF with [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl), which owns primary and interval censoring, then convolve the resulting PMF.
+A continuous delay has no mass on the integer grid until it is discretised, so it matches no `convolve_series` method here — a `MethodError`, not a design gate.
+For a continuous delay, use [CensoredDistributions.jl](https://github.com/EpiAware/CensoredDistributions.jl) to build the PMF (it owns primary and interval censoring), then convolve the resulting PMF with `convolve_series`.
 `convolve_series(pmf, series)` takes any already-discretised PMF vector and only convolves, with the masses used exactly as given:
 
 ```@example faq
