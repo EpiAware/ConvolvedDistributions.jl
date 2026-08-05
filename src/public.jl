@@ -33,11 +33,12 @@ public GaussLegendre, integrate, gl_integrate
 
 # Solver-method dispatch (#77): the per-quantity multiple-dispatch
 # extension points a downstream package (or this one) adds an analytic
-# pair method to, plus the shared uniform-window CDF arithmetic a new
-# delay family plugs its partial first moment into.
+# pair method to (on a tuple-typed `components` argument -- see review
+# A on #137), plus the shared uniform-window CDF arithmetic a new
+# distribution family plugs its `partial_expectation` into.
 public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
        convolved_pdf, convolved_logpdf, convolved_quantile,
-       convolved_minimum, uniform_window_cdf
+       convolved_minimum, uniform_window_cdf, partial_expectation
 
 # The probability generating function primitive (#90), mirroring
 # Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with
