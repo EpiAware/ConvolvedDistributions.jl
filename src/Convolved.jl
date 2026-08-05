@@ -15,7 +15,7 @@ component is unbounded.
 
 # Value support
 
-The value support is DERIVED from the components, not hardcoded: when
+The value support is derived from the components, not hardcoded: when
 every component is an integer-lattice discrete distribution (discrete
 with `eltype <: Integer`), `Convolved` is itself `Discrete` and its
 density/CDF are computed by an exact fold over the integer lattice
@@ -25,10 +25,10 @@ points per evaluation (and multiplies across nested components), so
 evaluating at a very large point is correspondingly expensive; no cap is
 imposed.
 
-A TWO-component `Convolved` with exactly one integer-lattice discrete
+A two-component `Convolved` with exactly one integer-lattice discrete
 side and one non-integer-lattice side also evaluates exactly, by summing
 the other side's density/CDF over the discrete component's own lattice
-window (#115) rather than falling back to quadrature, which cannot
+window rather than falling back to quadrature, which cannot
 integrate a component whose density is a comb of point masses. Three or
 more components with a mixed discrete/continuous split do not get this
 treatment yet and fall back to ordinary quadrature over the discrete
@@ -92,10 +92,6 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
     function Convolved(components::C;
             method::AbstractSolverMethod = AnalyticalSolver()) where {
             C <: Tuple}
-        # The type allows a single-component (degenerate) convolution so the
-        # recursive moment fold and rebuild paths can wrap one component; the
-        # user-facing `convolved` requires two or more, since
-        # convolving fewer is a no-op.
         length(components) >= 1 ||
             throw(ArgumentError("Convolved needs at least one component"))
         all(c -> c isa UnivariateDistribution, components) ||
@@ -106,15 +102,6 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
         new{C, typeof(method), S}(components, method, closed_form)
     end
 
-    # Internal fast path (review B follow-up, PR #137): the transient
-    # wrapper `_convolved_analytic_arm` builds mid pairwise-collapse
-    # recursion (`solver_dispatch.jl`) never has its `_closed_form`
-    # queried -- only `components`/`method`/the derived support type
-    # parameter `S` drive the rest of that evaluation -- so this
-    # positional-only form skips `_resolve_closed_form`'s which()-based
-    # pair-method probe, which would otherwise re-run on every recursive
-    # step of every `pdf`/`cdf` call rather than once at outer
-    # construction.
     function Convolved(components::C, method::M) where {
             C <: Tuple, M <: AbstractSolverMethod}
         length(components) >= 1 ||
@@ -130,27 +117,12 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
     end
 end
 
-# Discrete-typed alias: matches only when every component is an
-# integer-lattice discrete distribution (see `_components_support` in
-# `src/interface.jl`). Used to dispatch to the exact lattice fold.
 const _DiscreteConvolved = Convolved{<:Tuple, <:AbstractSolverMethod, Discrete}
 
-# Two-component, Continuous-typed alias (#115): matches EVERY
-# two-component `Convolved` with no closed form, both the genuinely
-# mixed pairs (one integer-lattice discrete side, one not) and the
-# ordinary all-continuous pairs. `_mixed_slot` (interface.jl) narrows
-# further, by dispatch, on the component types themselves; a
-# both-continuous pair resolves to `nothing` there and falls straight
-# back to the existing quadrature path, so this alias changes no
-# behaviour for a pair that was already handled correctly.
 const _MixedableConvolved = Convolved{
     <:Tuple{<:UnivariateDistribution, <:UnivariateDistribution},
     <:AbstractSolverMethod, Continuous}
 
-# `_has_mixed_fold` (interface.jl): true exactly for a two-component
-# `Convolved` with one integer-lattice discrete side and one not. Falls
-# through to the generic `false` for one component or three-or-more
-# (Tuple{D1,D2} matches only an exact pair).
 function _has_mixed_fold(::Convolved{<:Tuple{
         D1, D2}}) where {
         D1 <: UnivariateDistribution, D2 <: UnivariateDistribution}
@@ -158,12 +130,6 @@ function _has_mixed_fold(::Convolved{<:Tuple{
            nothing
 end
 
-# Single-component alias. `convolved(...)` always builds two or more
-# components (see below), but `Convolved` itself is public and its inner
-# constructor permits one component — the recursive rebuild uses this for
-# the degenerate "rest of one" case. Used below to fix a pre-existing bug:
-# a directly-constructed, single-component `Convolved` under
-# `NumericSolver` throws instead of evaluating.
 const _SingleConvolved = Convolved{<:Tuple{UnivariateDistribution}}
 
 @doc "
@@ -257,11 +223,6 @@ rather than clashing with it.
 """
 components(d::Convolved) = d.components
 
-# The element type of the SUM, not a bare `promote_type` of the
-# components: for `Bernoulli`+`Bernoulli` (`eltype == Bool` each),
-# `promote_type(Bool, Bool) == Bool`, too narrow for a sum that reaches
-# 2 and throws `InexactError` from `rand`. `Base.promote_op(+, ...)`
-# infers the type `+` actually produces (`Int64` for two `Bool`s).
 function Base.eltype(::Type{<:Convolved{C}}) where {C <: Tuple}
     return Base.promote_op(+, map(eltype, fieldtypes(C))...)
 end
