@@ -95,6 +95,29 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
         closed_form = _resolve_closed_form(components, method)
         new{C, typeof(method), S}(components, method, closed_form)
     end
+
+    # Internal fast path (review B follow-up, PR #137): the transient
+    # wrapper `_convolved_analytic_arm` builds mid pairwise-collapse
+    # recursion (`solver_dispatch.jl`) never has its `_closed_form`
+    # queried -- only `components`/`method`/the derived support type
+    # parameter `S` drive the rest of that evaluation -- so this
+    # positional-only form skips `_resolve_closed_form`'s which()-based
+    # pair-method probe, which would otherwise re-run on every recursive
+    # step of every `pdf`/`cdf` call rather than once at outer
+    # construction.
+    function Convolved(components::C, method::M) where {
+            C <: Tuple, M <: AbstractSolverMethod}
+        length(components) >= 1 ||
+            throw(ArgumentError("Convolved needs at least one component"))
+        all(c -> c isa UnivariateDistribution, components) ||
+            throw(ArgumentError(
+                "All components must be UnivariateDistributions"))
+        S = _components_support(components)
+        closed_form = NamedTuple{
+            (:pdf, :logpdf, :cdf, :logcdf, :ccdf, :logccdf)}(
+            ntuple(_ -> false, 6))
+        new{C, M, S}(components, method, closed_form)
+    end
 end
 
 # Discrete-typed alias: matches only when every component is an

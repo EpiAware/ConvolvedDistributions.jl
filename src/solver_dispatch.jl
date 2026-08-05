@@ -134,7 +134,11 @@ function _convolved_analytic_arm(generic::F, direct::G,
     reduced === nothing &&
         return generic(d, components, x, NumericSolver(method.solver))
     length(reduced) == 1 && return direct(reduced[1], x)
-    d2 = Convolved(reduced; method = method)
+    # `Convolved(reduced, method)` -- the two-positional-argument form --
+    # skips `_resolve_closed_form`'s which() probe: `d2` is transient,
+    # discarded once this call returns, and its `_closed_form` is never
+    # read (only `generic` continuing the fold on `reduced` matters).
+    d2 = Convolved(reduced, method)
     return generic(d2, reduced, x, method)
 end
 
@@ -423,9 +427,16 @@ end
 # `Tuple` fallback IS still how the family-specific pair closed forms
 # (uncollapsible via `_try_convolve`, e.g. the Gamma+Uniform
 # uniform-window forms) get detected for `evaluation_path`'s per-quantity
-# report, but it runs exactly ONCE, inside the inner constructor, and the
-# six-quantity answer is cached on `Convolved._closed_form`. Every later
+# report, but it runs only from the *public* inner constructor (the
+# one-positional-plus-`method`-keyword form), and the six-quantity
+# answer is cached on `Convolved._closed_form`. Every later
 # `evaluation_path`/`has_closed_form` query is then a plain field read.
+# The transient `Convolved` wrappers `_convolved_analytic_arm` builds
+# mid pairwise-collapse recursion use the *other* inner constructor (the
+# two-positional-argument form, no closed-form probe) instead, precisely
+# because their `_closed_form` is never queried -- so a `pdf`/`cdf` call
+# on a 3-or-more-component `Convolved` never runs `which()` at all, only
+# the outer, user-facing construction does.
 
 # Whether `generic`'s `AnalyticalSolver` method for `components` resolves
 # to something more specific than the untyped-`Tuple` fallback -- i.e. a
