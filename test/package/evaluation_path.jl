@@ -19,6 +19,10 @@
           :analytic
     @test evaluation_path(product(LogNormal(0.5, 0.4), LogNormal(1.0, 0.3))) ===
           :analytic
+    @test evaluation_path(ratio(Normal(0.0, 1.0), Normal(0.0, 1.0))) ===
+          :analytic
+    @test evaluation_path(ratio(Gamma(2.0, 1.5), Gamma(3.0, 0.5))) === :analytic
+    @test evaluation_path(ratio(Chisq(4), Chisq(6))) === :analytic
     @test has_closed_form(convolved(Normal(1.0, 2.0), Normal(-0.5, 1.5)))
 
     # No matching closed form.
@@ -27,6 +31,10 @@
     @test evaluation_path(difference(Gamma(3.0, 1.0), Gamma(2.0, 1.0))) ===
           :numeric
     @test evaluation_path(product(Gamma(2.0, 1.0), Weibull(1.5, 1.0))) ===
+          :numeric
+    @test evaluation_path(ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))) ===
+          :numeric
+    @test evaluation_path(ratio(Normal(1.0, 2.0), Normal(0.0, 0.5))) ===
           :numeric
     @test !has_closed_form(convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
 
@@ -41,6 +49,9 @@
     # Forcing NumericSolver on an otherwise-analytic pair reports :numeric.
     @test evaluation_path(
         convolved(Normal(0.0, 1.0), Normal(1.0, 2.0); method = NumericSolver())) ===
+          :numeric
+    @test evaluation_path(
+        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0); method = NumericSolver())) ===
           :numeric
 end
 
@@ -62,6 +73,8 @@ end
     @test evaluation_path(
         product(convolved(Gamma(2.0, 1.0), Exponential(1.0)),
         Weibull(1.5, 1.0))) === :numeric
+    @test evaluation_path(ratio(numeric_inner, Gamma(1.0, 1.0))) === :numeric
+    @test evaluation_path(ratio(analytic_inner, Gamma(1.0, 1.0))) === :numeric
 end
 
 @testitem "strict construction errors naming the component families" begin
@@ -76,6 +89,8 @@ end
     @test evaluation_path(
         product(LogNormal(0.0, 0.3), LogNormal(0.2, 0.5); strict = true)) ===
           :analytic
+    @test evaluation_path(
+        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0); strict = true)) === :analytic
 
     # No closed form: errors, naming the families.
     err = @test_throws ArgumentError convolved(
@@ -87,6 +102,8 @@ end
         Gamma(3.0, 1.0), Gamma(2.0, 1.0); strict = true)
     @test_throws ArgumentError product(
         Gamma(2.0, 1.0), Weibull(1.5, 1.0); strict = true)
+    @test_throws ArgumentError ratio(
+        Gamma(3.0, 1.0), LogNormal(0.5, 0.4); strict = true)
 
     # An explicit NumericSolver breaks the strict = true guarantee just as
     # much as a mismatched family pair does.
@@ -134,8 +151,12 @@ end
         difference(Normal(5.0, 1.0), Normal(2.0, 1.0)); x = 2.0)
     test_analytic_skips_quadrature(
         product(LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)); x = 3.0)
+    test_analytic_skips_quadrature(
+        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0)); x = 0.5)
 
     # A no-op (nothing asserted, no failure) for a numeric-only case.
     test_analytic_skips_quadrature(
         convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)); x = 3.0)
+    test_analytic_skips_quadrature(
+        ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)); x = 1.0)
 end

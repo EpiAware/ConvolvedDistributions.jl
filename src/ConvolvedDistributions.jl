@@ -5,10 +5,11 @@ Raw-distribution convolution and the shared numeric quadrature machinery for
 the EpiAware distribution-operations stack. Provides [`Convolved`](@ref) (the
 sum of independent components), [`Difference`](@ref) (the `X - Y` dual),
 [`Product`](@ref) (the `X * Y` Mellin convolution for non-negative
-components), the pluggable Gauss-Legendre `integrate`/`gl_integrate` layer,
-the solver-method types `AnalyticalSolver`/`NumericSolver` selecting the
-analytic-vs-numeric backend, and, for discrete distributions, the
-probability generating function primitive `pgf`. Operates on any
+components), [`Ratio`](@ref) (the `X / Y` quotient), the pluggable
+Gauss-Legendre `integrate`/`gl_integrate` layer, the solver-method types
+`AnalyticalSolver`/`NumericSolver` selecting the analytic-vs-numeric
+backend, and, for discrete distributions, the probability generating
+function primitive `pgf`. Operates on any
 `Distributions.UnivariateDistribution`; no censoring.
 
 # Examples
@@ -26,6 +27,10 @@ mean(z)
 # A delay scaled by an independent multiplicative factor
 w = product(Gamma(3.0, 1.0), LogNormal(0.0, 0.3))
 mean(w)
+
+# A rate: an independent count over an independent exposure time
+r = ratio(Gamma(3.0, 1.0), Gamma(2.0, 1.0))
+mean(r)
 ```
 """
 module ConvolvedDistributions
@@ -40,7 +45,8 @@ import Base: minimum, maximum
 # Types, constructors, and helpers used without method extension.
 using Distributions: Distributions, UnivariateDistribution,
                      DiscreteUnivariateDistribution, DiscreteNonParametric,
-                     Continuous, Exponential, Gamma, LogNormal, Normal,
+                     Continuous, BetaPrime, Cauchy, Chisq, Exponential,
+                     FDist, Gamma, LogNormal, Normal,
                      scale, quantile, support, probs,
                      Poisson, Bernoulli, Binomial, Geometric,
                      NegativeBinomial
@@ -67,10 +73,12 @@ using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
 # are defined (see src/docstrings.jl).
 include("docstrings.jl")
 
-# Public convolution constructor, its dual difference constructor, and the
+# Public convolution constructor, its dual difference constructor, the
 # multiplicative product constructor (`Product` itself is public, not
-# exported, to avoid clashing with Distributions' deprecated `Product`).
-export convolved, convolve_series, Difference, difference, product
+# exported, to avoid clashing with Distributions' deprecated `Product`),
+# and the quotient ratio constructor.
+export convolved, convolve_series, Difference, difference, product,
+       Ratio, ratio
 
 # Solver methods for choosing the analytic-vs-numeric backend.
 export AnalyticalSolver, NumericSolver
@@ -88,6 +96,10 @@ include("Difference.jl")
 # components. Also after Convolved.jl for `_window_quantile` /
 # `_CONVOLVED_TAIL` / `_max2` / `_min2`.
 include("Product.jl")
+# Ratio (Z = X / Y), the quotient member. After Convolved.jl for
+# `_window_quantile` / `_CONVOLVED_TAIL` / `_max2` / `_min2` /
+# `_panel_integrate`.
+include("Ratio.jl")
 # The probability generating function primitive (#90): closed forms for
 # the standard count families, a truncated-series fallback for any other
 # `DiscreteUnivariateDistribution`, and the structural `Convolved` product.

@@ -1,9 +1,10 @@
 # [Adding a new combination](@id extending)
 
 A combined distribution is a type built from two or more base distributions joined by an algebraic operation.
-The package ships three members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`), [`Difference`](@ref) (`Z = X - Y`), and [`Product`](@ref ConvolvedDistributions.Product) (`Z = X * Y`, the Mellin convolution), and the family is designed to grow (a min or max order statistic is the natural next member).
+The package ships four members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`), [`Difference`](@ref) (`Z = X - Y`), [`Product`](@ref ConvolvedDistributions.Product) (`Z = X * Y`, the Mellin convolution), and [`Ratio`](@ref) (`Z = X / Y`, the Mellin-quotient form), and the family is designed to grow (a min or max order statistic is the natural next member).
 This page documents the contract a new member implements and the conventions the built-in members follow, using them as worked examples.
 `Product` was added by following this page, so it doubles as a worked end-to-end example: `src/Product.jl` for the type and numeric path, the Optimization extension for `quantile`, `test/distributions/Product.jl` and the `test/ADFixtures` scenarios for the verification surface.
+`Ratio` is a second worked example, and one that had to depart from `Product`'s numerics: `src/Ratio.jl` splits its quadrature at zero (the denominator's support need not be one-sided) and windows the integrand against the *numerator's* effective support rather than only the integration component's, since the ratio's mass moves with the evaluation point in a way the product's does not — see the module docstring's *Density and CDF computation* section for the derivation.
 
 ## The family supertype
 
@@ -28,7 +29,7 @@ The documented interface contract on the abstract type requires of a concrete su
 
 ## Conventions the built-ins follow
 
-Beyond the minimal contract, `Convolved`, `Difference`, and `Product` share conventions a new member should copy so the family behaves uniformly.
+Beyond the minimal contract, `Convolved`, `Difference`, `Product`, and `Ratio` share conventions a new member should copy so the family behaves uniformly.
 
 **A solver-method field.**
 Each type carries a `method::AbstractSolverMethod` field, defaulting to `AnalyticalSolver()`.
