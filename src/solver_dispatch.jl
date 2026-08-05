@@ -416,7 +416,7 @@ end
 # A): one skeleton covers every component count.
 
 # ---------------------------------------------------------------------------
-# Construction-time closed-form resolution (#92, review B)
+# Construction-time closed-form resolution
 # ---------------------------------------------------------------------------
 #
 # `evaluation_path`/`has_closed_form`/`is_exact` must answer without a
