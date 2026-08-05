@@ -5,10 +5,21 @@
 # `convolve_series` convolves a numeric timeseries with a delay PMF on the
 # unit lag grid. With `series` the expected events at times `0..t` (e.g.
 # infections), the result is the expected downstream event counts at the
-# same times: the renewal-style observation layer. A discrete delay reads
-# its own PMF; caller-supplied masses come as a vector, a
-# `DiscreteNonParametric`, or one per time point for a delay that changes
-# over the window.
+# same times: the renewal-style observation layer.
+#
+# The delay enters as a PMF over integer lags. For a DISCRETE delay the
+# lag-`k` mass is simply `pdf(delay, k)`, so the discrete method below is
+# the only distribution method: it reads the distribution's own PMF
+# directly, and a `Convolved`/`Difference`/`Product` of integer-lattice
+# discrete components is itself a `DiscreteUnivariateDistribution` (#85),
+# so it flows straight through the same method. A CONTINUOUS delay has no
+# mass on the integer grid until it is discretised, and discretisation is
+# a modelling choice this package does not make; a continuous delay
+# simply matches no method here — `convolve_series(Gamma(2.0, 1.0),
+# series)` is a `MethodError` naming what is actually missing, not a
+# hand-rolled `ArgumentError` (#95). Caller-supplied masses come as a
+# vector, a `DiscreteNonParametric`, or one per time point for a delay
+# that changes over the window (#79).
 #
 # It has its own verb (rather than a `convolved` method) because it returns
 # a numeric series, not a distribution.
@@ -71,11 +82,16 @@ integer grid is out of scope (a lag grid means masses at the integers),
 and mass at negative lags cannot enter a causal convolution, so lags
 below `0` are not read (consistent with the causal kernel).
 
-A CONTINUOUS delay has no method: it carries no mass on the integer grid
-until it is discretised, and discretisation is a censoring choice this
-package does not make. Discretise first (e.g. with
-CensoredDistributions.jl) and pass the masses to
-[`convolve_series(pmf, series)`](@ref convolve_series).
+A [`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref) of
+integer-lattice discrete components is itself a
+`DiscreteUnivariateDistribution` (#85) and flows straight through this
+method, reading its exact masses. A CONTINUOUS delay has no mass on the
+integer grid until it is discretised, and discretisation is an explicit
+modelling choice this package does not make; it matches no method here,
+so `convolve_series(a_continuous_delay, series)` is a `MethodError`
+naming what is actually missing, rather than a pre-emptive gate (#95) —
+see [`convolve_series(pmf, series)`](@ref convolve_series) below for the
+caller-owned discretisation path.
 
 Unlike [`convolved`](@ref), which combines distributions into a single
 [`Convolved`](@ref) distribution, this returns a numeric series; the

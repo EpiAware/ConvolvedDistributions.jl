@@ -337,6 +337,47 @@ end
     @test pdf(d, 1.0) ≈ 0.221923353983705 atol=1e-9
 end
 
+@testitem "Difference of two discrete components is Discrete and exact (#85, #89)" begin
+    using Distributions
+
+    d = difference(Poisson(2.0), Poisson(3.0))
+    @test Distributions.value_support(typeof(d)) === Discrete
+    @test ConvolvedDistributions.is_exact(d)
+
+    # Two-sided integer support.
+    @test minimum(d) == -Inf
+    @test maximum(d) == Inf
+
+    # Agreement with brute force over a truncated Y range.
+    for z in -5:5
+        bf = sum(pdf(Poisson(2.0), z + y) * pdf(Poisson(3.0), y)
+        for y in 0:200)
+        @test pdf(d, z) ≈ bf atol=1e-8
+    end
+
+    masses = [pdf(d, k) for k in -100:100]
+    @test all(m -> m >= 0, masses)
+    @test isapprox(sum(masses), 1; atol = 1e-6)
+
+    @test pdf(d, 2.5) == 0
+    @test logpdf(d, 2.5) == -Inf
+    @test !insupport(d, 2.5)
+
+    running_sums = cumsum(masses)
+    for (k, running) in zip(-100:100, running_sums)
+        @test cdf(d, k) ≈ running atol=1e-6
+    end
+
+    # A mixed pair stays Continuous (`_components_support` only reports
+    # `Discrete` when EVERY component is), but is exact via its own
+    # mixed fold rather than falling into quadrature (#115); see
+    # test/distributions/mixed.jl for the full mixed-fold coverage.
+    dmix = difference(Poisson(2.0), Normal(0.0, 1.0))
+    @test Distributions.value_support(typeof(dmix)) === Continuous
+    @test pdf(dmix, 1.0) > 0
+    @test ConvolvedDistributions.is_exact(dmix)
+end
+
 # The AD-safety of Difference (gradients flowing through both the minuend X and
 # the subtrahend Y parameters, on the numeric cross-correlation path) is covered
 # by the multi-backend AD suite in `test/ADFixtures`, which has the AD backends

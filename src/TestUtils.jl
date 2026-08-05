@@ -23,10 +23,14 @@ module TestUtils
 
 using Test: Test, @test, @testset
 
-using Distributions: Distributions, cdf, logcdf, logpdf, params, pdf
+using Random: Random
+
+using Distributions: Distributions, Discrete, cdf, insupport, logcdf, logpdf,
+                     params, pdf
 
 using ..ConvolvedDistributions: AbstractConvolvedDistribution, Convolved,
-                                Difference, Product, Ratio, _maybe_analytic
+                                Difference, Product, Ratio, _maybe_analytic,
+                                is_exact
 
 @doc "
 
@@ -60,11 +64,18 @@ tolerance a quadrature computation could also hit by coincidence.
 
 A no-op when `d` has no closed form (nothing is asserted), so it can be
 called unconditionally in a sweep over both analytic and numeric cases.
-Returns the `@testset` object.
+This only covers the `:analytic` route: an object whose exact discrete
+fold makes it [`is_exact`](@ref ConvolvedDistributions.is_exact) but
+which has no closed form (`evaluation_path(d) === :numeric`) has no
+reference distribution to compare against here, so it is also a no-op
+for that case — use [`test_discrete_pmf`](@ref) instead. Returns the
+`@testset` object.
 
 # See also
 - `ConvolvedDistributions.evaluation_path`: the queryable predicate this
   guards (#92).
+- [`test_discrete_pmf`](@ref): the verifier for an exact discrete
+  combination.
 "
 function test_analytic_skips_quadrature(
         d; name::AbstractString = string(nameof(typeof(d))), x::Real = 1.0)
@@ -76,6 +87,65 @@ function test_analytic_skips_quadrature(
             @test cdf(d, x) === cdf(analytic, x)
             @test logcdf(d, x) === logcdf(analytic, x)
         end
+    end
+end
+
+@doc "
+
+Assert a discrete-typed combination is a well-formed, exact pmf over
+`support`.
+
+`test_discrete_pmf(d; support)` verifies `d` for any family member typed
+`Discrete` (a [`Convolved`](@ref ConvolvedDistributions.Convolved),
+[`Difference`](@ref), [`Product`](@ref ConvolvedDistributions.Product),
+or a downstream member such as a compound distribution or an order
+statistic): `Distributions.value_support(typeof(d)) === Discrete`; every
+mass over `support` is non-negative; the masses over `support` sum to
+`1` to within `atol`; `cdf(d, k)` equals the running sum of masses to the
+same tolerance; the half-integer point just above `first(support)`
+carries zero density (`pdf` `0`, `logpdf` `-Inf`); and
+[`is_exact`](@ref ConvolvedDistributions.is_exact)`(d)` — evaluating `d`
+carries no quadrature error, whether from a registered closed form or
+the exact discrete fold; and that `rand(d, 20)` draws land in `d`'s
+support (a `Base.eltype` that merely `promote_type`s the component
+element types, rather than the type the combining operation actually
+produces, is too narrow for some `Discrete`-typed members and throws
+`InexactError` here). `support` should cover enough of `d`'s mass for
+the sum-to-one check to be meaningful (the full support for a bounded
+combination, a wide enough range for an unbounded one). Returns the
+`@testset` object.
+"
+function test_discrete_pmf(d; support::AbstractVector{<:Integer},
+        name::AbstractString = string(nameof(typeof(d))),
+        atol::Real = 1e-8)
+    return @testset "discrete pmf: $name" begin
+        @test Distributions.value_support(typeof(d)) === Discrete
+
+        masses = [pdf(d, k) for k in support]
+        @test all(m -> m >= 0, masses)
+        @test isapprox(sum(masses), 1; atol = atol)
+
+        running = zero(atol)
+        for (k, m) in zip(support, masses)
+            running += m
+            @test isapprox(cdf(d, k), running; atol = atol)
+        end
+
+        off_lattice = first(support) + 0.5
+        @test pdf(d, off_lattice) == 0
+        @test logpdf(d, off_lattice) == -Inf
+
+        @test is_exact(d)
+
+        # `rand(d, n)` must not throw: a `Base.eltype` that merely
+        # `promote_type`s the component element types (rather than the
+        # type the combining operation actually produces) is too narrow
+        # for a `Discrete`-typed member built from e.g. `Bernoulli`
+        # components (`eltype == Bool`), and `Distributions.rand`
+        # allocates `Array{eltype(d)}` for a discrete distribution, so
+        # the first out-of-range draw throws `InexactError`.
+        draws = Base.rand(Random.default_rng(), d, 20)
+        @test all(x -> insupport(d, x), draws)
     end
 end
 

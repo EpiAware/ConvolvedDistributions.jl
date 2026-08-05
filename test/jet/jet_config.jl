@@ -14,3 +14,19 @@
 #
 # Or write your own predicate. Leaving this file with no `JET_REPORT_FILTER`
 # keeps the strict default (fail on any report).
+
+# `convolved_quantile`'s `NumericSolver` arm (src/solver_dispatch.jl) is
+# `Convolved`'s numeric quantile fallback for any fold the
+# `AnalyticalSolver` arm's pairwise collapse gets stuck on: declared
+# with no methods in core, since the Nelder-Mead implementation needs
+# Optimization.jl and lives in the extension (S2.4, review A). JET
+# analyses core alone, so it correctly (but expectedly) reports that
+# call as a possible `MethodError` -- calling `quantile` on such a fold
+# genuinely errors without the extension loaded, by design, exactly as
+# `quantile` itself required the extension for every case before this
+# rewrite. Drop only that report; everything else stays strict.
+function _no_quantile_extension_filter(report)
+    !occursin("convolved_quantile", sprint(show, report))
+end
+
+const JET_REPORT_FILTER = _no_quantile_extension_filter

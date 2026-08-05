@@ -515,3 +515,46 @@ end
         end
     end
 end
+
+@testitem "Uniform-window analytic pdf/cdf are mutually consistent" begin
+    using Distributions
+
+    # The density is the derivative of the CDF, so this validates the
+    # generic uniform-window density (S3.2) directly: `pdf` against a
+    # central finite difference of `cdf`, and `cdf` against a Simpson's-
+    # rule integral of `pdf`, across delay families and window widths
+    # (including one no analytic cdf method covers, Normal, which still
+    # gets the generic density).
+    cases = [
+        Gamma(2.0, 1.5) => Uniform(0.0, 2.0),
+        LogNormal(1.5, 0.5) => Uniform(0.0, 3.0),
+        Weibull(1.5, 2.0) => Uniform(0.0, 1.5),
+        Normal(2.0, 1.0) => Uniform(-1.0, 1.0),
+        Exponential(2.0) => Uniform(0.0, 2.0),
+        Gamma(2.0, 1.5) => Uniform(0.0, 1e-3)
+    ]
+
+    # Composite Simpson's rule on an even number of panels.
+    function simpson(f, lo, hi, n)
+        n = iseven(n) ? n : n + 1
+        h = (hi - lo) / n
+        s = f(lo) + f(hi)
+        for i in 1:(n - 1)
+            s += (iseven(i) ? 2 : 4) * f(lo + i * h)
+        end
+        return s * h / 3
+    end
+
+    for (delay, primary) in cases
+        d = convolved(delay, primary)
+        lo = max(minimum(d), 0.0) + 0.5
+        for x in (lo, lo + 1.0, lo + 3.0, lo + 8.0)
+            h = 1e-5 * max(abs(x), 1.0)
+            fd = (cdf(d, x + h) - cdf(d, x - h)) / (2h)
+            @test pdf(d, x)≈fd rtol=1e-4 atol=1e-8
+
+            integral = cdf(d, lo) + simpson(t -> pdf(d, t), lo, x, 2000)
+            @test cdf(d, x)≈integral atol=1e-5
+        end
+    end
+end

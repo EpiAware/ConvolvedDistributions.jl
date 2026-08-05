@@ -10,7 +10,10 @@ Gauss-Legendre `integrate`/`gl_integrate` layer, the solver-method types
 `AnalyticalSolver`/`NumericSolver` selecting the analytic-vs-numeric
 backend, and, for discrete distributions, the probability generating
 function primitive `pgf`. Operates on any
-`Distributions.UnivariateDistribution`; no censoring.
+`Distributions.UnivariateDistribution`; no censoring. A combination whose
+components are all integer-lattice discrete distributions is itself
+discrete and evaluates exactly (an integer-lattice fold replaces
+quadrature; see [`is_exact`](@ref)).
 
 # Examples
 ```@example
@@ -39,29 +42,35 @@ using Random: AbstractRNG
 
 # Functions extended with new methods.
 import Distributions: params, components, insupport, pdf, logpdf, cdf, logcdf,
-                      ccdf, logccdf, mean, var, std, sampler
+                      ccdf, logccdf, mean, var, std, sampler, quantile
 import Base: minimum, maximum
 
 # Types, constructors, and helpers used without method extension.
 using Distributions: Distributions, UnivariateDistribution,
                      DiscreteUnivariateDistribution, DiscreteNonParametric,
-                     Continuous, BetaPrime, Cauchy, Chisq, Exponential,
-                     FDist, Gamma, LogNormal, Normal,
-                     scale, quantile, support, probs,
-                     Poisson, Bernoulli, Binomial, Geometric,
-                     NegativeBinomial
+                     Continuous, Discrete, BetaPrime, Cauchy, Chisq,
+                     Exponential, FDist, Gamma, LogNormal, Normal, Poisson,
+                     Bernoulli, Binomial, Geometric, NegativeBinomial,
+                     Uniform, Weibull, succprob, scale, shape, meanlogx,
+                     stdlogx, quantile, support, probs, partype
 
-using LogExpFunctions: log1mexp
+using LogExpFunctions: log1mexp, logsubexp
 
 # The shared EpiAware AD-safety layer: the tape-strip pair keeps quadrature
 # hyperparameters (window endpoints, panel breaks) off the AD path, and the
 # AD-safe evaluation hooks are the sanctioned extension points wrapper
 # packages overload for their own component types (their Gamma methods carry
 # the analytic gamma-CDF derivative rules on every supported backend).
+# `_gamma_cdf` is the AD-safe regularised-lower-incomplete-gamma evaluator
+# the native Gamma/Weibull uniform-window closed forms route through
+# (src/uniform_window.jl), so their shape-parameter derivatives carry the
+# same per-backend rules as the rest of the package.
 using EpiAwareADTools: primal, primal_distribution, pdf_ad_safe,
-                       cdf_ad_safe, ccdf_ad_safe
+                       cdf_ad_safe, ccdf_ad_safe, logcdf_ad_safe,
+                       logccdf_ad_safe, _gamma_cdf
 
 import FastGaussQuadrature  # Gauss-Legendre nodes for the default solver
+import SpecialFunctions     # gamma() for the native analytic-pair closed forms
 
 # DocStringExtensions symbols for the @template conventions registered by
 # src/docstrings.jl (all module-scope using/import live in this file,
@@ -88,7 +97,19 @@ include("solvers.jl")
 # The abstract family supertype `Convolved`/`Difference` subtype, carrying
 # the documented interface contract (verified by `TestUtils`).
 include("interface.jl")
+# Shared exact-discrete-fold helpers (#85, #89): the integer-lattice sum
+# used by the additive members (Convolved/Difference) and, indirectly,
+# the Product divisor fold. Type-agnostic, so it sits before the members
+# that use it.
+include("lattice.jl")
 include("Convolved.jl")
+# Solver-method dispatch (#77): the per-quantity generics `Convolved`
+# calls into for any number of components (review A), and the native
+# uniform-window forms hosted on them. After Convolved.jl, whose numeric
+# quadrature helpers and struct the `NumericSolver` arms and both-orders
+# retry reuse.
+include("solver_dispatch.jl")
+include("uniform_window.jl")
 # Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
 # reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.
 include("Difference.jl")
@@ -117,8 +138,12 @@ include("convolve_with_vector.jl")
 # are present, so the core package carries no solver dependency.
 include("quantile.jl")
 
-# `quantile` (inverse CDF) for Convolved/Difference also lives in that
-# extension, built on `quantile_by_optimization` above.
+# `quantile` (inverse CDF) for a fully analytic `Convolved` fold (S2.4)
+# lives in core and needs no solver, built on `convolved_quantile`
+# above. Everything else -- the numeric `Convolved` fallback, and
+# `Difference`/`Product` `quantile` entirely -- lives in the
+# ConvolvedDistributionsOptimizationExt extension, built on
+# `quantile_by_optimization` above.
 
 # Interface-contract verifiers, shipped so downstream family members can
 # self-verify (mirrors CensoredDistributions.TestUtils).

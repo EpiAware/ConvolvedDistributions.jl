@@ -17,6 +17,20 @@ is unbounded. `Z` is therefore not a non-negative delay distribution;
 treat a `Difference` as an observation or derived quantity, not as a delay
 leaf.
 
+# Value support
+
+Derived from the components, not hardcoded: a `Difference` of two
+integer-lattice discrete distributions is itself `Discrete`, with a
+two-sided integer support, and its density/CDF are computed by an exact
+fold over the integer lattice instead of quadrature (see
+[`is_exact`](@ref)). Otherwise it is `Continuous`, as before.
+
+A `Difference` with exactly one integer-lattice discrete side (`x` or
+`y`, not both) also evaluates exactly, folding the other side's
+density/CDF over the discrete component's own lattice window (#115);
+the two argument orders reflect differently since subtraction is not
+commutative (see the mixed fold in `src/Difference.jl`).
+
 # Independence
 
 The construction assumes `X` and `Y` are independent. The density, CDF,
@@ -40,25 +54,31 @@ F_Z(z) = \\int F_X(z + y)\\, f_Y(y)\\, \\mathrm{d}y .
 For a `Normal`-`Normal` pair the closed form
 ``\\mathrm{Normal}(\\mu_X - \\mu_Y, \\sqrt{\\sigma_X^2 + \\sigma_Y^2})`` is
 used directly unless a [`NumericSolver`](@ref) method is set. All other
-cases use AD-safe fixed-node Gauss-Legendre quadrature (`gl_integrate`),
-the same construction [`Convolved`](@ref) uses: the integral is mapped
-from the fixed reference domain ``(-1, 1)`` onto the integration bounds
-inside the integrand and reduced as a bare weighted dot product, so every
-AD backend specialises on the integrand's own type and component `Dual`s
-and tangents propagate.
+`Continuous`-typed cases use AD-safe fixed-node Gauss-Legendre quadrature
+(`gl_integrate`), the same construction [`Convolved`](@ref) uses: the
+integral is mapped from the fixed reference domain ``(-1, 1)`` onto the
+integration bounds inside the integrand and reduced as a bare weighted
+dot product, so every AD backend specialises on the integrand's own type
+and component `Dual`s and tangents propagate. A `Discrete`-typed
+`Difference` never reaches quadrature at all — see \"Value support\"
+above.
 
 The `method` field selects the backend: an [`AnalyticalSolver`](@ref) (the
 default) uses the analytic difference where one exists and falls back to
-quadrature otherwise, while a [`NumericSolver`](@ref) forces the numeric
-path even for a `Normal`-`Normal` pair (useful for validation).
+the numeric path otherwise, while a [`NumericSolver`](@ref) forces that
+numeric path even for a `Normal`-`Normal` pair (useful for validation).
+For a `Continuous`-typed `Difference` the numeric path is quadrature;
+for a `Discrete`-typed one it is the exact integer-lattice fold, never
+quadrature — `NumericSolver` means \"skip the closed form\", not \"run
+Gauss-Legendre\".
 
 # See also
 - [`difference`](@ref): Constructor function
 - [`Convolved`](@ref): The dual sum ``X + Y``
 "
 struct Difference{X <: UnivariateDistribution, Y <: UnivariateDistribution,
-    M <: AbstractSolverMethod} <:
-       AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
+    M <: AbstractSolverMethod, S <: Distributions.ValueSupport} <:
+       AbstractConvolvedDistribution{Distributions.Univariate, S}
     "The minuend component (the `X` in `Z = X - Y`)."
     x::X
     "The subtrahend component (the `Y` in `Z = X - Y`)."
@@ -69,8 +89,35 @@ struct Difference{X <: UnivariateDistribution, Y <: UnivariateDistribution,
     function Difference(x::X, y::Y;
             method::AbstractSolverMethod = AnalyticalSolver()) where {
             X <: UnivariateDistribution, Y <: UnivariateDistribution}
-        new{X, Y, typeof(method)}(x, y, method)
+        S = _components_support((x, y))
+        new{X, Y, typeof(method), S}(x, y, method)
     end
+end
+
+# Discrete-typed alias: matches only when both `x` and `y` are
+# integer-lattice discrete distributions (see `_components_support` in
+# `src/interface.jl`). Used to dispatch to the exact lattice fold.
+const _DiscreteDifference = Difference{
+    <:UnivariateDistribution, <:UnivariateDistribution,
+    <:AbstractSolverMethod, Discrete}
+
+# Continuous-typed alias (#115): matches every `Difference` with no
+# closed form, both the genuinely mixed pairs (one integer-lattice
+# discrete side) and the ordinary all-continuous pairs. `_mixed_slot`
+# (interface.jl) narrows further, by dispatch, on the component types
+# themselves; a both-continuous pair resolves to `nothing` there and
+# falls straight back to the existing quadrature path.
+const _MixedableDifference = Difference{
+    <:UnivariateDistribution, <:UnivariateDistribution,
+    <:AbstractSolverMethod, Continuous}
+
+# `_has_mixed_fold` (interface.jl): true exactly when one of `x`/`y` is
+# integer-lattice discrete and the other is not. `Difference` always has
+# exactly two components (unlike `Convolved`), so no arity guard is
+# needed.
+function _has_mixed_fold(d::Difference)
+    return _mixed_slot(_component_support(typeof(d.x)),
+        _component_support(typeof(d.y))) !== nothing
 end
 
 @doc "
@@ -132,8 +179,13 @@ _family_names(d::Difference) = (nameof(typeof(d.x)), nameof(typeof(d.y)))
 
 params(d::Difference) = (params(d.x), params(d.y))
 
+# The element type of the DIFFERENCE, not a bare `promote_type` of the
+# components: for `Bernoulli`-`Bernoulli` (`eltype == Bool` each),
+# `promote_type(Bool, Bool) == Bool`, too narrow for a difference that
+# reaches -1 and throws `InexactError` from `rand`. `Base.promote_op(-,
+# ...)` infers the type `-` actually produces (`Int64` for two `Bool`s).
 function Base.eltype(::Type{<:Difference{X, Y}}) where {X, Y}
-    return promote_type(eltype(X), eltype(Y))
+    return Base.promote_op(-, eltype(X), eltype(Y))
 end
 
 # Reflecting Y is what gives the two-sided support: the largest difference
@@ -142,7 +194,7 @@ minimum(d::Difference) = minimum(d.x) - maximum(d.y)
 maximum(d::Difference) = maximum(d.x) - minimum(d.y)
 
 function insupport(d::Difference, z::Real)
-    return minimum(d) <= z <= maximum(d)
+    return _on_lattice(d, z) && minimum(d) <= z <= maximum(d)
 end
 
 function Base.rand(rng::AbstractRNG, d::Difference)
@@ -229,12 +281,19 @@ end
 # factor f_Y(y), negligible outside Y's effective support, so an infinite
 # endpoint is clamped to an extreme quantile of Y on AD-stripped params
 # (`_window_quantile`, shared with Convolved) so the window stays a
-# non-differentiated constant across every AD backend.
+# non-differentiated constant across every AD backend. `float(...)` on
+# the finite branch matches `_window_quantile`'s own `float(...)` wrap:
+# `minimum`/`maximum` of a discrete `Y` is often `Int` while
+# `_window_quantile` always returns `Float64`, and without matching
+# types here the ternary would infer a `Union{Int, Float64}` result —
+# the same class of union `_min2`/`_max2` guard against, and one Enzyme
+# rejects outright on the exact discrete lattice fold.
 function _difference_window(d::Difference)
     ymin = minimum(d.y)
     ymax = maximum(d.y)
-    lo = isfinite(ymin) ? ymin : _window_quantile(d.y, _CONVOLVED_TAIL)
-    hi = isfinite(ymax) ? ymax : _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
+    lo = isfinite(ymin) ? float(ymin) : _window_quantile(d.y, _CONVOLVED_TAIL)
+    hi = isfinite(ymax) ? float(ymax) :
+         _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
     return lo, hi
 end
 
@@ -274,6 +333,138 @@ function _difference_numeric_cdf(d::Difference, z::Real)
 end
 
 # ---------------------------------------------------------------------------
+# Exact discrete lattice cross-correlation (#85, #89)
+# ---------------------------------------------------------------------------
+#
+# Only reachable for a `_DiscreteDifference` (both `x` and `y`
+# integer-lattice discrete). Exact fold over the SAME `_difference_window`
+# the quadrature uses (Y's support, infinite ends clamped at the
+# `_CONVOLVED_TAIL` quantiles — exact when Y is bounded, tail-clamped at
+# ~1e-8 when Y is unbounded, e.g. `difference(Poisson, Poisson)`, which
+# does not affect `is_exact`; see its docstring).
+
+# f_Z(z) = Σ_{y ∈ lattice ∩ window} f_X(z + y) f_Y(y).
+function _difference_lattice_pdf(d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    insupport(d, z) || return zero(float(typeof(z)))
+
+    lo, hi = _difference_window(d)
+    t0, t1 = _lattice_range(lo, hi)
+    t1 < t0 && return zero(float(typeof(z)))
+
+    return _lattice_sum(
+        y -> pdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y), t0, t1)
+end
+
+# F_Z(z) = Σ_{y ∈ lattice ∩ window} F_X(z + y) f_Y(y).
+function _difference_lattice_cdf(d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    z < minimum(d) && return zero(float(typeof(z)))
+    z >= maximum(d) && return one(float(typeof(z)))
+
+    lo, hi = _difference_window(d)
+    t0, t1 = _lattice_range(lo, hi)
+    t1 < t0 && return zero(float(typeof(z)))
+
+    result = _lattice_sum(
+        y -> cdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y), t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+
+# ---------------------------------------------------------------------------
+# Mixed discrete/continuous fold (#115)
+# ---------------------------------------------------------------------------
+#
+# Only reachable for a `_MixedableDifference` whose `_mixed_slot`
+# resolves to `Val(1)`/`Val(2)` (exactly one of `x`/`y` is
+# integer-lattice discrete; see `_has_mixed_fold` above). Unlike
+# `Convolved`, subtraction is not commutative, so the two argument
+# orders reflect differently:
+#
+# - discrete MINUEND (`x = D`, slot 1): `Z = D - C`, so
+#   `P(Z <= z) = P(C >= D - z) = Σ_k P(D=k) P(C >= k - z)`, the
+#   complementary form `ccdf_C(k - z)`;
+# - discrete SUBTRAHEND (`y = D`, slot 2): `Z = C - D`, so
+#   `P(Z <= z) = P(C <= z + D) = Σ_k P(D=k) P(C <= z + k)`, the direct
+#   form `cdf_C(z + k)`.
+#
+# Both densities are `Σ_k P(D=k) f_C(k - z)` (slot 1) /
+# `Σ_k P(D=k) f_C(z + k)` (slot 2) -- the derivative of each cdf form
+# above. The sum runs over D's own effective window
+# (`_mixed_discrete_window`, shared with `Convolved`), so this is exact
+# in the same sense the all-discrete fold is (see `is_exact`).
+
+function _difference_mixed_pdf(::Val{1}, d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    D = d.x
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(z)))
+    return _lattice_sum(
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, k - z), t0, t1)
+end
+function _difference_mixed_pdf(::Val{2}, d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    D = d.y
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(z)))
+    return _lattice_sum(
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z + k), t0, t1)
+end
+function _difference_mixed_pdf(::Nothing, d::Difference, z::Real)
+    return _difference_numeric_pdf(d, z)
+end
+
+function _difference_mixed_cdf(::Val{1}, d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    z <= minimum(d) && return zero(float(typeof(z)))
+    z >= maximum(d) && return one(float(typeof(z)))
+    D = d.x
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(z)))
+    result = _lattice_sum(
+        k -> pdf_ad_safe(D, k) * ccdf_ad_safe(d.y, k - z), t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+function _difference_mixed_cdf(::Val{2}, d::Difference, z::Real)
+    isnan(z) && return convert(float(typeof(z)), NaN)
+    z <= minimum(d) && return zero(float(typeof(z)))
+    z >= maximum(d) && return one(float(typeof(z)))
+    D = d.y
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(z)))
+    result = _lattice_sum(
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.x, z + k), t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+function _difference_mixed_cdf(::Nothing, d::Difference, z::Real)
+    return _difference_numeric_cdf(d, z)
+end
+
+# Dispatch on the `Discrete` type parameter selects the exact lattice
+# fold; `is_exact` (`src/interface.jl`) keys off the same
+# `_exact_discrete_route` predicate, so reported and executed exactness
+# cannot drift.
+_difference_pdf_route(d::Difference, z::Real) = _difference_numeric_pdf(d, z)
+_difference_pdf_route(d::_DiscreteDifference, z::Real) = _difference_lattice_pdf(d, z)
+_difference_cdf_route(d::Difference, z::Real) = _difference_numeric_cdf(d, z)
+_difference_cdf_route(d::_DiscreteDifference, z::Real) = _difference_lattice_cdf(d, z)
+
+# Mixed route (#115): more specific than the bare `Difference` method
+# above, so it wins for any `Continuous`-typed pair.
+function _difference_pdf_route(d::_MixedableDifference, z::Real)
+    return _difference_mixed_pdf(
+        _mixed_slot(_component_support(typeof(d.x)),
+            _component_support(typeof(d.y))), d, z)
+end
+function _difference_cdf_route(d::_MixedableDifference, z::Real)
+    return _difference_mixed_cdf(
+        _mixed_slot(_component_support(typeof(d.x)),
+            _component_support(typeof(d.y))), d, z)
+end
+
+# ---------------------------------------------------------------------------
 # CDF / logcdf / pdf / logpdf
 # ---------------------------------------------------------------------------
 
@@ -291,7 +482,7 @@ function cdf(d::Difference, z::Real)
     if analytic !== nothing
         return cdf(analytic, z)
     end
-    return _difference_numeric_cdf(d, z)
+    return _difference_cdf_route(d, z)
 end
 
 @doc "
@@ -305,7 +496,7 @@ function logcdf(d::Difference, z::Real)
     if analytic !== nothing
         return logcdf(analytic, z)
     end
-    c = _difference_numeric_cdf(d, z)
+    c = _difference_cdf_route(d, z)
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
 end
 
@@ -338,7 +529,7 @@ function pdf(d::Difference, z::Real)
     if analytic !== nothing
         return pdf(analytic, z)
     end
-    return _difference_numeric_pdf(d, z)
+    return _difference_pdf_route(d, z)
 end
 
 @doc "
@@ -355,6 +546,6 @@ function logpdf(d::Difference, z::Real)
     if !insupport(d, z)
         return oftype(float(z), -Inf)
     end
-    p = _difference_numeric_pdf(d, z)
+    p = _difference_pdf_route(d, z)
     return p <= 0 ? oftype(float(z), -Inf) : log(p)
 end

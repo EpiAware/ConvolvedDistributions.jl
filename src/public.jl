@@ -20,13 +20,25 @@ public AbstractSolverMethod
 # Queryable evaluation path (#92): reports which route (`:analytic` or
 # `:numeric`) a Convolved/Difference/Product/Ratio will take for its density
 # and CDF, without evaluating either, and the boolean convenience form.
-public evaluation_path, has_closed_form
+# `is_exact` (#85, #89) is the orthogonal predicate for whether that route
+# carries any quadrature error at all: true for a closed form OR the exact
+# discrete lattice/divisor fold (which reports `:numeric` route-wise).
+public evaluation_path, has_closed_form, is_exact
 
 # Pluggable integration: the default solver, the entry point, and the
 # quadrature helper. `GaussLegendre` stays unexported to avoid clashing with
 # `Integrals.GaussLegendre` when both are loaded; the Integrals.jl extension
 # adds an `integrate` method.
 public GaussLegendre, integrate, gl_integrate
+
+# Solver-method dispatch (#77): the per-quantity multiple-dispatch
+# extension points a downstream package (or this one) adds an analytic
+# pair method to (on a tuple-typed `components` argument -- see review
+# A on #137), plus the shared uniform-window CDF arithmetic a new
+# distribution family plugs its `partial_expectation` into.
+public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
+       convolved_pdf, convolved_logpdf, convolved_quantile,
+       convolved_minimum, uniform_window_cdf, partial_expectation
 
 # The probability generating function primitive (#90), mirroring
 # Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with
@@ -46,7 +58,6 @@ public quantile_by_optimization
 # masses are read. Defaults to the delay's own single-delay method, so a
 # delay type only adds one when its masses differ from that.
 public delay_masses
-
 # The AD-safe CDF/PDF-family hooks this package used to own
 # (`_cdf_ad_safe` and friends) now live in EpiAwareADTools.jl under
 # underscore-free names (`cdf_ad_safe`, `logcdf_ad_safe`, `ccdf_ad_safe`,

@@ -3,8 +3,6 @@
 A combined distribution is a type built from two or more base distributions joined by an algebraic operation.
 The package ships four members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`), [`Difference`](@ref) (`Z = X - Y`), [`Product`](@ref ConvolvedDistributions.Product) (`Z = X * Y`, the Mellin convolution), and [`Ratio`](@ref) (`Z = X / Y`, the Mellin-quotient form), and the family is designed to grow (a min or max order statistic is the natural next member).
 This page documents the contract a new member implements and the conventions the built-in members follow, using them as worked examples.
-`Product` was added by following this page, so it doubles as a worked end-to-end example: `src/Product.jl` for the type and numeric path, the Optimization extension for `quantile`, `test/distributions/Product.jl` and the `test/ADFixtures` scenarios for the verification surface.
-`Ratio` is a second worked example, and one that had to depart from `Product`'s numerics: `src/Ratio.jl` splits its quadrature at zero (the denominator's support need not be one-sided) and windows the integrand against the *numerator's* effective support rather than only the integration component's, since the ratio's mass moves with the evaluation point in a way the product's does not — see the module docstring's *Density and CDF computation* section for the derivation.
 
 ## The family supertype
 
@@ -12,10 +10,13 @@ This page documents the contract a new member implements and the conventions the
 It is parametric on variate form and value support for symmetry with the wider EpiAware family model (`Distribution{F, S}`), so a univariate member subtypes
 
 ```julia
-AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
+AbstractConvolvedDistribution{Distributions.Univariate, S}
 ```
 
 and remains a `UnivariateDistribution`, keeping all existing `Distributions.jl` dispatch.
+`S` is DERIVED from the member's own components, not hardcoded (`ConvolvedDistributions._components_support`, `src/interface.jl`): `Discrete` when every component is an integer-lattice discrete distribution (discrete with `eltype <: Integer`), `Continuous` otherwise.
+A member typed `Discrete` MUST provide an exact route for its density and CDF — the shared `is_exact` predicate reports it as exact automatically, keyed off the type parameter alone, so a missing route makes that report a lie (see the checklist).
+`Convolved`'s worked example (`_components_support(components)` in its inner constructor) is the pattern to copy, as the sketch below does.
 
 ## The contract
 
@@ -48,7 +49,7 @@ Infinite integration bounds are clamped to extreme quantiles of the integration 
 A component without an analytic moment errors from its own `mean`/`var`; there is no numeric fallback.
 
 **Support, sampling, and element type.**
-`minimum`/`maximum` combine the component supports under the operation, `insupport` derives from them, `rand` applies the operation to component draws, and `Base.eltype` promotes the component element types (without it, `rand(rng, d, n)` falls back to `Vector{Any}`).
+`minimum`/`maximum` combine the component supports under the operation, `insupport` derives from them (AND gates on `ConvolvedDistributions._on_lattice(d, x)` first, so an off-lattice point on a discrete-typed member is correctly out of support), `rand` applies the operation to component draws, and `Base.eltype` promotes the component element types (without it, `rand(rng, d, n)` falls back to `Vector{Any}`).
 
 **Batched evaluation where it pays.**
 `Convolved` provides vector-argument `cdf`/`pdf`/`logpdf` methods that share one quadrature window solve across the batch.
@@ -60,12 +61,11 @@ A new member adds a `quantile` method and a starting-guess helper there, not in 
 
 ## A worked sketch
 
-A sketch of a `Largest` member, the maximum of independent components, where independence gives the closed form ``F_Z(z) = \prod_i F_i(z)``.
-This is illustrative rather than complete (no solver field, no batched methods, no extension `quantile`):
+A sketch of a `Largest` member, the maximum of independent components, where independence gives the closed form ``F_Z(z) = \prod_i F_i(z)``:
 
 ```julia
-struct Largest{C <: Tuple} <:
-       AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
+struct Largest{C <: Tuple, S <: Distributions.ValueSupport} <:
+       AbstractConvolvedDistribution{Distributions.Univariate, S}
     "Tuple of independent component distributions."
     components::C
 
@@ -75,7 +75,8 @@ struct Largest{C <: Tuple} <:
         all(c -> c isa UnivariateDistribution, components) ||
             throw(ArgumentError(
                 "All components must be UnivariateDistributions"))
-        new{C}(components)
+        S = ConvolvedDistributions._components_support(components)
+        new{C, S}(components)
     end
 end
 
@@ -100,7 +101,9 @@ end
 
 minimum(d::Largest) = maximum(map(minimum, d.components))
 maximum(d::Largest) = maximum(map(maximum, d.components))
-insupport(d::Largest, x::Real) = minimum(d) <= x <= maximum(d)
+function insupport(d::Largest, x::Real)
+    return ConvolvedDistributions._on_lattice(d, x) && minimum(d) <= x <= maximum(d)
+end
 
 Base.rand(rng::AbstractRNG, d::Largest) =
     maximum(map(c -> rand(rng, c), d.components))
@@ -127,6 +130,9 @@ function pdf(d::Largest, x::Real)
 end
 ```
 
+This sketch is illustrative rather than complete: no solver field, no batched methods, no exact discrete route, no extension `quantile`.
+Building a real member from it, one gap matters more than the rest — `is_exact` would report a discrete-typed `Largest` built this way as exact when it is not, exactly the trap the checklist below warns about, so a real member ships the lattice fold alongside deriving `S`.
+
 Route CDF evaluations through `cdf_ad_safe` (from [EpiAwareADTools.jl](https://github.com/EpiAware/EpiAwareADTools.jl), the shared home of the AD-safe hook family) rather than bare `cdf` so `Gamma` components differentiate on every backend.
 A wrapper package with its own component types extends the EpiAwareADTools hooks (`cdf_ad_safe`, `logcdf_ad_safe`, `ccdf_ad_safe`, `logccdf_ad_safe`, `pdf_ad_safe`) by depending on EpiAwareADTools directly.
 A member whose operation has no closed form at all (as for a general convolution) instead builds its `cdf`/`pdf` on `gl_integrate`, following `Convolved`'s numeric path.
@@ -137,29 +143,37 @@ Verify the contract with the shipped `TestUtils` verifiers, the same entry point
 
 ```julia
 using ConvolvedDistributions.TestUtils: test_convolved_interface,
-                                        test_abstract_membership
+                                        test_abstract_membership,
+                                        test_discrete_pmf
 
 test_convolved_interface(largest(Gamma(2.0, 1.0), LogNormal(0.5, 0.4));
     x = 3.0)
 test_abstract_membership()
+
+# A Discrete-typed member with a lattice fold also gets `test_discrete_pmf`
+# (not the `Largest` sketch above, which has no exact discrete route):
+test_discrete_pmf(convolved(Poisson(2.0), Poisson(3.0));
+    support = 0:30)
 ```
 
 `test_convolved_interface(d; x)` checks the subtyping, `params`, a finite `logpdf` at the in-support point `x`, and a non-empty `show`.
 `test_abstract_membership` asserts the built-in members sit in the right place in the hierarchy; when adding a member to this package, add your type to its tuple in `src/TestUtils.jl` so the meta-test covers it.
-A downstream package defining its own member calls `test_convolved_interface` on its instances directly.
+`test_discrete_pmf(d; support)` is the verifier for any `Discrete`-typed family member: it asserts `value_support(typeof(d)) === Discrete`, non-negative masses summing to `≈ 1` over `support`, `cdf` matching the running mass sum, an off-lattice point carrying no mass, and `is_exact(d)`; that last assertion is what catches a `Discrete`-typed member that forgot to ship an exact route (see the checklist item above).
+A downstream package defining its own member calls `test_convolved_interface` (and, when discrete, `test_discrete_pmf`) on its instances directly.
 
 ## Checklist
 
-- [ ] Struct subtyping `AbstractConvolvedDistribution{Univariate, Continuous}` with a validated inner constructor (throw an `ArgumentError` naming the restriction for out-of-scope components, as `Product` does for sign-crossing supports)
+- [ ] Struct subtyping `AbstractConvolvedDistribution{Univariate, S}` with `S` DERIVED via `_components_support(...)` in the inner constructor (not hardcoded `Continuous`), and a validated inner constructor (throw an `ArgumentError` naming the restriction for out-of-scope components, as `Product` does for sign-crossing supports)
+- [ ] If the member can be typed `Discrete` (every component an integer-lattice discrete distribution), it MUST provide an exact route (a lattice-style fold, mirroring `src/lattice.jl`) — `is_exact` will report it as exact automatically, keyed off the type parameter alone, so a missing route makes that report a lie
 - [ ] Lowercase constructor verb as the user-facing entry point; check the verb and type names against `names(Base)` and `names(Distributions)` first (`Product` is public-not-exported because Distributions exports a deprecated `Product`)
 - [ ] The contract: `params`, finite in-support `logpdf`, `Base.show`
-- [ ] Support (`minimum`/`maximum`/`insupport`), `rand`, `sampler`, `Base.eltype`
-- [ ] Analytic fast path by dispatch plus an AD-safe numeric fallback, with clamped `cdf`/`pdf` and the full log family (`logcdf`, `ccdf`, `logccdf` via `log1mexp`)
+- [ ] Support (`minimum`/`maximum`/`insupport` gating on `_on_lattice`), `rand`, `sampler`, `Base.eltype`
+- [ ] Analytic fast path by dispatch plus an AD-safe numeric fallback (and, if `Discrete`-typed, the exact discrete fold), with clamped `cdf`/`pdf` and the full log family (`logcdf`, `ccdf`, `logccdf` via `log1mexp`)
 - [ ] Include the new file after `src/Convolved.jl`, which owns the shared window helpers (`_window_quantile`, `_CONVOLVED_TAIL`, `_min2`/`_max2`)
 - [ ] Exact analytic moments where the operation admits them
 - [ ] `quantile` method in the Optimization extension if inverse-CDF support is wanted
 - [ ] Docstrings in the house style (`@doc` blocks, `# Examples`, `# See also`)
 - [ ] Export the verb; mark the type `public` in `src/public.jl`
-- [ ] Tests under `test/distributions/`, `test_convolved_interface` coverage in `test/package/interface.jl`, membership in `src/TestUtils.jl`, and ADFixtures gradient scenarios (numeric path w.r.t. each component, moments)
+- [ ] Tests under `test/distributions/`, `test_convolved_interface` coverage in `test/package/interface.jl` (plus `test_discrete_pmf` coverage there if the member can be `Discrete`-typed), membership in `src/TestUtils.jl`, and ADFixtures gradient scenarios (numeric path w.r.t. each component, moments)
 - [ ] Update the member lists in the prose surfaces: this page, the abstract-type docstring, the module docstring, the getting-started walkthrough and FAQ, the README why-bullets, and a NEWS bullet
 - [ ] Benchmark rows under `benchmark/src/` wired into `benchmark/benchmarks.jl` and the suite tree in `docs/benchmarks.md`

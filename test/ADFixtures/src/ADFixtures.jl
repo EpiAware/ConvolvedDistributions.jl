@@ -3,9 +3,10 @@
 
 Shared AD gradient scenarios and backend metadata for ConvolvedDistributions.
 Used by `test/ad/runtests.jl`. Covers the `Convolved`, `Difference`,
-`Product`, and `Ratio` densities and moments on both the analytic and
-numeric (Gauss-Legendre quadrature) paths, across the ForwardDiff /
-ReverseDiff / Enzyme / Mooncake backend matrix.
+`Product`, and `Ratio` densities and moments on the analytic, numeric
+(Gauss-Legendre quadrature), and exact discrete lattice/divisor fold
+(#85, #89) paths, across the ForwardDiff / ReverseDiff / Enzyme /
+Mooncake backend matrix.
 
 The reference gradient is computed with `ForwardDiff`. It propagates its
 Dual numbers through the package's own densities and matches the reverse
@@ -20,8 +21,9 @@ __precompile__(false)
 
 using ConvolvedDistributions
 using ConvolvedDistributions: pgf
-using Distributions: Distributions, Gamma, LogNormal, Normal, Poisson,
-                     mean, var, logpdf
+using Distributions: Distributions, Gamma, Geometric, LogNormal,
+                     NegativeBinomial, Normal, Poisson, Uniform, Weibull,
+                     mean, var, pdf, logpdf, cdf, logcdf
 using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
                AutoMooncakeForward, AutoEnzyme
 using DifferentiationInterface: DifferentiationInterface, Constant
@@ -147,6 +149,55 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
         end,
         [2.0, 1.5, -0.5, 0.8], (Constant(obs),))
 
+    # Uniform-window closed form (#77): `AnalyticalSolver` is the default,
+    # so these exercise the `convolved_cdf`/`convolved_pdf`/
+    # `convolved_logpdf` methods in src/uniform_window.jl (Gamma/
+    # LogNormal/Weibull + Uniform for cdf; any delay + Uniform for
+    # pdf/logpdf).
+    cdf_obs = [0.5, 1.5, 3.0]
+    _push!("Convolved Gamma+Uniform closed-form logcdf",
+        (θ, xs) -> sum(
+            x -> logcdf(
+                convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
+            xs),
+        [2.0, 1.5], (Constant(cdf_obs),))
+    _push!("Convolved LogNormal+Uniform closed-form logcdf",
+        (θ, xs) -> sum(
+            x -> logcdf(
+                convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), x),
+            xs),
+        [1.5, 0.5], (Constant(cdf_obs),))
+    _push!("Convolved Weibull+Uniform closed-form logcdf",
+        (θ, xs) -> sum(
+            x -> logcdf(
+                convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), x),
+            xs),
+        [1.5, 2.0], (Constant(cdf_obs),))
+    # Batched cdf through the same closed form (scalar and batched paths
+    # are separate `cdf` methods -- see src/Convolved.jl -- so both need
+    # a differentiated check).
+    _push!("Convolved Gamma+Uniform closed-form batched cdf",
+        (θ, xs) -> sum(
+            cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), xs)),
+        [2.0, 1.5], (Constant(cdf_obs),))
+    # The generic uniform-window density (S3.2): `convolved_pdf`/
+    # `convolved_logpdf` dispatch on any delay + `Uniform`, not just the
+    # three CDF families. Gamma+Uniform exercises the
+    # cancellation-guarded density; Normal+Uniform (no cdf closed form)
+    # exercises the density on a pair outside `_WINDOW_DELAY`.
+    _push!("Convolved Gamma+Uniform closed-form logpdf",
+        (θ, xs) -> sum(
+            x -> logpdf(
+                convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
+            xs),
+        [2.0, 1.5], (Constant(cdf_obs),))
+    _push!("Convolved Normal+Uniform closed-form pdf",
+        (θ, xs) -> sum(
+            x -> pdf(
+                convolved(Normal(θ[1], θ[2]), Uniform(0.0, 2.0)), x),
+            xs),
+        [1.0, 0.5], (Constant(cdf_obs),))
+
     # Difference (Z = X - Y), the dual of Convolved. The analytic Normal-Normal
     # pair differentiates through the closed-form difference; the
     # Gamma-LogNormal pairs exercise the numeric cross-correlation quadrature.
@@ -206,6 +257,60 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             mean(d) + var(d)
         end,
         [3.0, 1.5, 0.5, 0.4], (Constant(obs),))
+
+    # Exact discrete lattice fold (#85, #89): integer observation points
+    # select the lattice route rather than quadrature. Poisson+Geometric
+    # has no registered analytic pair, so it exercises the lattice fold
+    # with a gradient in the Poisson rate (the differentiated
+    # parameter); Geometric stays fixed so the scenario has one free
+    # parameter, matching the analytical scenario's shape.
+    obs_discrete = [0.0, 1.0, 2.0, 3.0, 4.0]
+    _push!("Convolved Poisson+Geometric lattice",
+        (θ, ks) -> sum(
+            k -> logpdf(convolved(Poisson(θ[1]), Geometric(0.3)), k), ks),
+        [2.0], (Constant(obs_discrete),))
+    # The #85 object itself: NegativeBinomial+Poisson, both differentiated
+    # (one parameter per component), on the lattice route.
+    _push!("Convolved NegativeBinomial+Poisson lattice (#85)",
+        (θ, ks) -> sum(
+            k -> logpdf(
+                convolved(NegativeBinomial(5.0, θ[1]), Poisson(θ[2])), k),
+            ks),
+        [0.5, 2.0], (Constant(obs_discrete),))
+    # Poisson+Poisson is newly analytic (#89): the closed-form Poisson
+    # convolution differentiates through both rates.
+    _push!("Convolved Poisson+Poisson analytical (#89)",
+        (θ, ks) -> sum(
+            k -> logpdf(convolved(Poisson(θ[1]), Poisson(θ[2])), k), ks),
+        [2.0, 1.5], (Constant(obs_discrete),))
+    # Difference and Product also route a fully-discrete pair to their own
+    # exact lattice fold (`_difference_lattice_pdf`/`_product_lattice_pdf`),
+    # gated behind the SAME `float(...)` guard on `_difference_window`/
+    # `_product_mass_window` that keeps the `_min2`/`_max2` union
+    # type-stable for Enzyme. Poisson-Geometric/Poisson*Poisson have no
+    # analytic pair for either family, so both land on the lattice route.
+    _push!("Difference Poisson-Geometric lattice",
+        (θ, ks) -> sum(
+            k -> logpdf(difference(Poisson(θ[1]), Geometric(0.3)), k), ks),
+        [2.0], (Constant(obs_discrete),))
+    _push!("Product Poisson*Poisson lattice",
+        (θ, ks) -> sum(
+            k -> logpdf(product(Poisson(θ[1]), Poisson(θ[2])), k), ks),
+        [2.0, 1.5], (Constant(obs_discrete),))
+
+    # Mixed discrete/continuous fold (#115): exactly one component
+    # (Poisson) is integer-lattice discrete, the other (Normal)
+    # genuinely continuous, so the combination is typed `Continuous`
+    # (`_component_support`) but folds exactly by summing the Normal
+    # density over the Poisson's own lattice rather than falling into
+    # quadrature over a comb of point masses. Both the discrete rate and
+    # a continuous parameter are differentiated: the rate flows through
+    # the summed pmf weights, the mean through the pointwise Normal
+    # density each weight multiplies.
+    _push!("Convolved Poisson+Normal mixed fold (#115)",
+        (θ, xs) -> sum(
+            x -> logpdf(convolved(Poisson(θ[1]), Normal(θ[2], 1.0)), x), xs),
+        [3.0, 0.0], (Constant(obs),))
 
     # Ratio (Z = X / Y), the quotient member. The analytic zero-mean
     # Normal/Normal pair differentiates the two scales through the

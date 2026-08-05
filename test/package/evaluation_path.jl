@@ -4,7 +4,7 @@
 # an exact route up front, and a solver payload the built-in quadrature
 # paths do not consult is rejected rather than silently ignored.
 
-@testitem "evaluation_path/has_closed_form report the route without evaluating" begin
+@testitem "evaluation_path/has_closed_form report route, no eval" begin
     using ConvolvedDistributions: evaluation_path, has_closed_form
     using Distributions
 
@@ -47,9 +47,9 @@
           :numeric
 
     # Forcing NumericSolver on an otherwise-analytic pair reports :numeric.
-    @test evaluation_path(
-        convolved(Normal(0.0, 1.0), Normal(1.0, 2.0); method = NumericSolver())) ===
-          :numeric
+    forced_numeric = convolved(
+        Normal(0.0, 1.0), Normal(1.0, 2.0); method = NumericSolver())
+    @test evaluation_path(forced_numeric) === :numeric
     @test evaluation_path(
         ratio(Normal(0.0, 1.0), Normal(0.0, 1.0); method = NumericSolver())) ===
           :numeric
@@ -67,9 +67,12 @@ end
     # unrecognised either way (a `Convolved` is never an analytic-pair
     # match), which is exactly the point: nesting anything non-leaf forces
     # the outer numeric, whether or not the inner itself is analytic.
-    @test evaluation_path(convolved(numeric_inner, Normal(0.0, 1.0))) === :numeric
-    @test evaluation_path(convolved(analytic_inner, Normal(0.0, 1.0))) === :numeric
-    @test evaluation_path(difference(numeric_inner, Gamma(1.0, 1.0))) === :numeric
+    @test evaluation_path(convolved(numeric_inner, Normal(0.0, 1.0))) ===
+          :numeric
+    @test evaluation_path(convolved(analytic_inner, Normal(0.0, 1.0))) ===
+          :numeric
+    @test evaluation_path(difference(numeric_inner, Gamma(1.0, 1.0))) ===
+          :numeric
     @test evaluation_path(
         product(convolved(Gamma(2.0, 1.0), Exponential(1.0)),
         Weibull(1.5, 1.0))) === :numeric
@@ -83,9 +86,11 @@ end
 
     # Analytic pairs succeed under strict = true.
     @test evaluation_path(
-        convolved(Normal(1.0, 1.0), Normal(2.0, 1.0); strict = true)) === :analytic
+        convolved(Normal(1.0, 1.0), Normal(2.0, 1.0); strict = true)) ===
+          :analytic
     @test evaluation_path(
-        difference(Normal(1.0, 1.0), Normal(0.0, 1.0); strict = true)) === :analytic
+        difference(Normal(1.0, 1.0), Normal(0.0, 1.0); strict = true)) ===
+          :analytic
     @test evaluation_path(
         product(LogNormal(0.0, 0.3), LogNormal(0.2, 0.5); strict = true)) ===
           :analytic
@@ -159,4 +164,79 @@ end
         convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)); x = 3.0)
     test_analytic_skips_quadrature(
         ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)); x = 1.0)
+end
+
+@testitem "is_exact: orthogonal to evaluation_path (#85, #89)" begin
+    using ConvolvedDistributions: evaluation_path, has_closed_form, is_exact
+    using Distributions
+
+    # A closed form is always exact.
+    da = convolved(Normal(1.0, 2.0), Normal(-0.5, 1.5))
+    @test evaluation_path(da) === :analytic
+    @test is_exact(da)
+
+    # An all-discrete-integer pair with no closed form reports :numeric
+    # (evaluation_path keeps its two-valued contract — no `:lattice`
+    # value, #92), but IS exact via the discrete fold.
+    dl = convolved(Poisson(1.0), Geometric(0.3))
+    @test evaluation_path(dl) === :numeric
+    @test !has_closed_form(dl)
+    @test is_exact(dl)
+
+    # :numeric stays unchanged for a mixed pair with no closed form
+    # (evaluation_path's two-valued contract, #92), but a TWO-component
+    # mixed pair (exactly one integer-lattice discrete side) IS exact
+    # via its own fold (#115) — the same discrete-vs-continuous
+    # orthogonality `dl` demonstrates above, extended to the mixed case.
+    dmixed = convolved(Poisson(1.0), Normal(0.0, 1.0))
+    @test evaluation_path(dmixed) === :numeric
+    @test !has_closed_form(dmixed)
+    @test is_exact(dmixed)
+
+    # A genuinely all-continuous pair with no closed form stays
+    # :numeric and inexact.
+    dnum = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    @test evaluation_path(dnum) === :numeric
+    @test !is_exact(dnum)
+
+    # NumericSolver on an analytic discrete pair still reports :numeric
+    # and is still exact (the discrete fold, not quadrature — J5).
+    dforced = convolved(Poisson(1.0), Poisson(2.0); method = NumericSolver())
+    @test evaluation_path(dforced) === :numeric
+    @test is_exact(dforced)
+
+    # `strict = true` accepts the exact discrete route (no closed form,
+    # but no quadrature either), unlike a genuinely inexact pair.
+    @test convolved(Poisson(1.0), Geometric(0.3); strict = true) isa
+          ConvolvedDistributions.Convolved
+    @test_throws ArgumentError convolved(
+        Gamma(2.0, 1.0), LogNormal(0.5, 0.4); strict = true)
+
+    # Route-vs-execution guard: whenever `is_exact` reports true via the
+    # discrete or mixed route (no closed form), `pdf` actually took that
+    # route — for a representative discrete, mixed and continuous case.
+    @test is_exact(dl) && !has_closed_form(dl)
+    @test pdf(dl, 2) === ConvolvedDistributions._convolved_lattice_pdf(dl, 2)
+    @test is_exact(dmixed) && !has_closed_form(dmixed)
+    @test pdf(dmixed, 2.0) ===
+          ConvolvedDistributions._convolved_mixed_pdf(Val(1), dmixed, 2.0)
+    @test !is_exact(dnum)
+end
+
+@testitem "evaluation_path does not drift from cdf/pdf routing (#92)" begin
+    using ConvolvedDistributions: evaluation_path, has_closed_form
+    using Distributions
+
+    # Gamma+Uniform has a closed-form cdf and pdf (the uniform-window
+    # forms), so both must report :analytic per quantity -- the report
+    # this predicate makes must match what cdf/pdf actually do.
+    d = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
+    @test evaluation_path(d, cdf) === :analytic
+    @test evaluation_path(d, pdf) === :analytic
+    @test has_closed_form(d, cdf)
+    @test has_closed_form(d, pdf)
+
+    # The fix, not a regression: strict = true now accepts this pair.
+    d_strict = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0); strict = true)
+    @test d_strict isa ConvolvedDistributions.Convolved
 end
