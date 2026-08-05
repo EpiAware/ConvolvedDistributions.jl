@@ -87,18 +87,71 @@ function _components_support(c::Tuple)
         _components_support(Base.tail(c)))
 end
 
+# ---------------------------------------------------------------------------
+# Mixed discrete/continuous fold trait (#115)
+# ---------------------------------------------------------------------------
+#
+# A two-component combination with exactly one integer-lattice discrete
+# component is typed `Continuous` by `_combine_support` above (`Discrete`
+# only fires when EVERY component is), so the ordinary
+# `_DiscreteConvolved`-style S-parameter alias cannot select it for the
+# exact mixed fold. `_mixed_slot` is a Holy-trait companion to
+# `_combine_support`: it takes the SAME per-component `_component_support`
+# results and, by dispatch (never a runtime `if`/lookup table), reports
+# which slot (if any) holds the discrete factor -- `Val(1)`, `Val(2)`, or
+# `nothing` when neither side is integer-lattice discrete. The
+# both-discrete case also resolves to `nothing`: that pair is typed
+# `Discrete` and is already routed to the all-discrete exact fold before
+# this trait is ever consulted, so this guard just keeps the trait total
+# rather than encoding a reachable third route. Every call site passes
+# concrete component types, so this resolves to a compile-time constant
+# per specialisation -- no runtime branch survives.
+_mixed_slot(::Type{Discrete}, ::Type{Discrete}) = nothing
+_mixed_slot(::Type{Discrete}, ::Type{<:Distributions.ValueSupport}) = Val(1)
+_mixed_slot(::Type{<:Distributions.ValueSupport}, ::Type{Discrete}) = Val(2)
+function _mixed_slot(::Type{<:Distributions.ValueSupport},
+        ::Type{<:Distributions.ValueSupport})
+    return nothing
+end
+
+# The discrete-slot component picked out by `_mixed_slot(...)`, or
+# `nothing` when neither `x` nor `y` is the mixed fold's discrete factor.
+_mixed_discrete_component(::Val{1}, x, y) = x
+_mixed_discrete_component(::Val{2}, x, y) = y
+_mixed_discrete_component(::Nothing, x, y) = nothing
+
+# Whether `d` is a two-component combination with exactly one
+# integer-lattice discrete side -- the mixed discrete/continuous fold's
+# applicability condition (#115). `d`'s own value-support type parameter
+# is `Continuous` for this case (see `_mixed_slot` above), so
+# `_exact_discrete_route` cannot detect it from that alone; each
+# concrete family member below overrides this with its OWN component
+# types via the SAME `_mixed_slot` trait the fold's route functions
+# dispatch on, so `is_exact`'s report can never drift from what a
+# fold-eligible pdf/cdf call actually executes. Defaults to `false` for
+# anything that does not implement the mixed fold (a future family
+# member, or a `Convolved` with three or more components -- see its own
+# docstring).
+_has_mixed_fold(::AbstractConvolvedDistribution) = false
+
 # Whether the exact discrete route (the additive lattice fold in
-# `src/lattice.jl`, or the `Product` divisor fold) is available for `d`:
-# exactly when `d`'s value-support parameter is `Discrete`, which (by
-# `_component_support` above) means every component is an integer-lattice
-# discrete distribution. This is the SAME predicate `is_exact` reads below
-# and the route functions (`_convolved_pdf_route` and its `Difference`/
-# `Product` counterparts) dispatch on, so a reported exactness can never
-# drift from the route actually executed.
+# `src/lattice.jl`, the `Product` divisor fold, or the mixed
+# discrete/continuous fold, #115) is available for `d`. `Discrete`-typed
+# `d` (every component integer-lattice discrete, by `_component_support`
+# above) always has one; `Continuous`-typed `d` has one exactly when
+# `_has_mixed_fold(d)` says so (a two-component pair with exactly one
+# integer-lattice discrete side). This is the SAME predicate `is_exact`
+# reads below and the route functions (`_convolved_pdf_route` and its
+# `Difference`/`Product` counterparts) dispatch on, so a reported
+# exactness can never drift from the route actually executed.
 _exact_discrete_route(::AbstractConvolvedDistribution) = false
 function _exact_discrete_route(
         ::AbstractConvolvedDistribution{<:Distributions.VariateForm, Discrete})
     return true
+end
+function _exact_discrete_route(d::AbstractConvolvedDistribution{
+        <:Distributions.VariateForm, Continuous})
+    return _has_mixed_fold(d)
 end
 
 # Off-lattice points carry no mass on a discrete combination; the concrete

@@ -298,6 +298,20 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             k -> logpdf(product(Poisson(θ[1]), Poisson(θ[2])), k), ks),
         [2.0, 1.5], (Constant(obs_discrete),))
 
+    # Mixed discrete/continuous fold (#115): exactly one component
+    # (Poisson) is integer-lattice discrete, the other (Normal)
+    # genuinely continuous, so the combination is typed `Continuous`
+    # (`_component_support`) but folds exactly by summing the Normal
+    # density over the Poisson's own lattice rather than falling into
+    # quadrature over a comb of point masses. Both the discrete rate and
+    # a continuous parameter are differentiated: the rate flows through
+    # the summed pmf weights, the mean through the pointwise Normal
+    # density each weight multiplies.
+    _push!("Convolved Poisson+Normal mixed fold (#115)",
+        (θ, xs) -> sum(
+            x -> logpdf(convolved(Poisson(θ[1]), Normal(θ[2], 1.0)), x), xs),
+        [3.0, 0.0], (Constant(obs),))
+
     # Ratio (Z = X / Y), the quotient member. The analytic zero-mean
     # Normal/Normal pair differentiates the two scales through the
     # closed-form Cauchy; the Gamma/LogNormal pairs exercise the numeric

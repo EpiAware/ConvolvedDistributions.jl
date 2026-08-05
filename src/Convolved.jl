@@ -15,7 +15,7 @@ component is unbounded.
 
 # Value support
 
-The value support is DERIVED from the components, not hardcoded: when
+The value support is derived from the components, not hardcoded: when
 every component is an integer-lattice discrete distribution (discrete
 with `eltype <: Integer`), `Convolved` is itself `Discrete` and its
 density/CDF are computed by an exact fold over the integer lattice
@@ -24,6 +24,16 @@ instead of quadrature (see [`is_exact`](@ref)). Otherwise it is
 points per evaluation (and multiplies across nested components), so
 evaluating at a very large point is correspondingly expensive; no cap is
 imposed.
+
+A two-component `Convolved` with exactly one integer-lattice discrete
+side and one non-integer-lattice side also evaluates exactly, by summing
+the other side's density/CDF over the discrete component's own lattice
+window rather than falling back to quadrature, which cannot
+integrate a component whose density is a comb of point masses. Three or
+more components with a mixed discrete/continuous split do not get this
+treatment yet and fall back to ordinary quadrature over the discrete
+side's near-zero-everywhere density -- tracked separately, not attempted
+here.
 
 # CDF computation
 
@@ -82,10 +92,6 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
     function Convolved(components::C;
             method::AbstractSolverMethod = AnalyticalSolver()) where {
             C <: Tuple}
-        # The type allows a single-component (degenerate) convolution so the
-        # recursive moment fold and rebuild paths can wrap one component; the
-        # user-facing `convolved` requires two or more, since
-        # convolving fewer is a no-op.
         length(components) >= 1 ||
             throw(ArgumentError("Convolved needs at least one component"))
         all(c -> c isa UnivariateDistribution, components) ||
@@ -96,15 +102,6 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
         new{C, typeof(method), S}(components, method, closed_form)
     end
 
-    # Internal fast path (review B follow-up, PR #137): the transient
-    # wrapper `_convolved_analytic_arm` builds mid pairwise-collapse
-    # recursion (`solver_dispatch.jl`) never has its `_closed_form`
-    # queried -- only `components`/`method`/the derived support type
-    # parameter `S` drive the rest of that evaluation -- so this
-    # positional-only form skips `_resolve_closed_form`'s which()-based
-    # pair-method probe, which would otherwise re-run on every recursive
-    # step of every `pdf`/`cdf` call rather than once at outer
-    # construction.
     function Convolved(components::C, method::M) where {
             C <: Tuple, M <: AbstractSolverMethod}
         length(components) >= 1 ||
@@ -120,17 +117,19 @@ struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
     end
 end
 
-# Discrete-typed alias: matches only when every component is an
-# integer-lattice discrete distribution (see `_components_support` in
-# `src/interface.jl`). Used to dispatch to the exact lattice fold.
 const _DiscreteConvolved = Convolved{<:Tuple, <:AbstractSolverMethod, Discrete}
 
-# Single-component alias. `convolved(...)` always builds two or more
-# components (see below), but `Convolved` itself is public and its inner
-# constructor permits one component — the recursive rebuild uses this for
-# the degenerate "rest of one" case. Used below to fix a pre-existing bug:
-# a directly-constructed, single-component `Convolved` under
-# `NumericSolver` throws instead of evaluating.
+const _MixedableConvolved = Convolved{
+    <:Tuple{<:UnivariateDistribution, <:UnivariateDistribution},
+    <:AbstractSolverMethod, Continuous}
+
+function _has_mixed_fold(::Convolved{<:Tuple{
+        D1, D2}}) where {
+        D1 <: UnivariateDistribution, D2 <: UnivariateDistribution}
+    return _mixed_slot(_component_support(D1), _component_support(D2)) !==
+           nothing
+end
+
 const _SingleConvolved = Convolved{<:Tuple{UnivariateDistribution}}
 
 @doc "
@@ -224,11 +223,6 @@ rather than clashing with it.
 """
 components(d::Convolved) = d.components
 
-# The element type of the SUM, not a bare `promote_type` of the
-# components: for `Bernoulli`+`Bernoulli` (`eltype == Bool` each),
-# `promote_type(Bool, Bool) == Bool`, too narrow for a sum that reaches
-# 2 and throws `InexactError` from `rand`. `Base.promote_op(+, ...)`
-# infers the type `+` actually produces (`Int64` for two `Bool`s).
 function Base.eltype(::Type{<:Convolved{C}}) where {C <: Tuple}
     return Base.promote_op(+, map(eltype, fieldtypes(C))...)
 end
@@ -389,6 +383,25 @@ function _finite_window(last_comp, lower::Real, upper::Real)
     return lo, hi
 end
 
+# The discrete factor's own effective lattice window for a mixed
+# discrete/continuous fold (#115): its own support, with an unbounded
+# end clamped at the `_CONVOLVED_TAIL` quantile -- the SAME clamp
+# `_finite_window` above applies to an unbounded integration component,
+# so the mixed fold trims at most the same ~1e-8 of mass (see
+# `is_exact`'s tail-clamping note). Shared by the `Convolved`,
+# `Difference` and `Product` mixed folds. `float(...)` on the
+# already-finite branches matches `_window_quantile`'s own `float(...)`
+# wrap, keeping the pair type-stable (the same union-avoidance as
+# `_difference_window`).
+function _mixed_discrete_window(D::UnivariateDistribution)
+    dmin = minimum(D)
+    dmax = maximum(D)
+    lo = isfinite(dmin) ? float(dmin) : _window_quantile(D, _CONVOLVED_TAIL)
+    hi = isfinite(dmax) ? float(dmax) :
+         _window_quantile(D, 1 - _CONVOLVED_TAIL)
+    return lo, hi
+end
+
 # Interior panel breaks for the quantile-panelled quadrature (issue
 # #49): the integration component's `_PANEL_PROBS` quantiles that fall
 # strictly inside the primal window `(lo, hi)`, in increasing order
@@ -470,17 +483,63 @@ _convolved_pdf_route(d::_DiscreteConvolved, x::Real) = _convolved_lattice_pdf(d,
 _convolved_cdf_route(d::Convolved, x::Real) = _convolved_numeric_cdf(d, x)
 _convolved_cdf_route(d::_DiscreteConvolved, x::Real) = _convolved_lattice_cdf(d, x)
 
+# Mixed discrete/continuous route (#115): `_convolved_mixed_pdf`/
+# `_convolved_mixed_cdf` (defined below, after the exact discrete
+# lattice fold) dispatch further on the `_mixed_slot` trait, falling
+# back to plain quadrature (`Nothing` method) for an all-continuous
+# pair. `_MixedableConvolved` is more specific than the bare `Convolved`
+# method above, so it wins for any two-component `Continuous`-typed
+# pair without changing which method a 3+-component or all-discrete
+# `Convolved` resolves to.
+function _convolved_pdf_route(d::_MixedableConvolved, x::Real)
+    return _convolved_mixed_pdf(
+        _mixed_slot(_component_support(typeof(d.components[1])),
+            _component_support(typeof(d.components[2]))), d, x)
+end
+function _convolved_cdf_route(d::_MixedableConvolved, x::Real)
+    return _convolved_mixed_cdf(
+        _mixed_slot(_component_support(typeof(d.components[1])),
+            _component_support(typeof(d.components[2]))), d, x)
+end
+
 function _convolved_pdf_route(d::Convolved, x::AbstractVector{<:Real})
     _convolved_numeric_pdf_batched(d, x)
 end
 function _convolved_pdf_route(d::_DiscreteConvolved, x::AbstractVector{<:Real})
     map(xi -> _convolved_lattice_pdf(d, xi), x)
 end
+# An all-continuous pair (`_mixed_slot === nothing`) keeps the shared
+# composite-panel batch (`_convolved_numeric_pdf_batched`) rather than
+# falling back to a per-point loop -- only a genuinely mixed pair pays
+# the per-point lattice-sum cost, mirroring `_DiscreteConvolved`'s own
+# per-point vector route above.
+function _convolved_pdf_route(d::_MixedableConvolved, x::AbstractVector{<:Real})
+    slot = _mixed_slot(_component_support(typeof(d.components[1])),
+        _component_support(typeof(d.components[2])))
+    return _convolved_mixed_pdf_batched(slot, d, x)
+end
+function _convolved_mixed_pdf_batched(::Nothing, d::Convolved, x::AbstractVector{<:Real})
+    _convolved_numeric_pdf_batched(d, x)
+end
+function _convolved_mixed_pdf_batched(slot, d::Convolved, x::AbstractVector{<:Real})
+    return map(xi -> _convolved_mixed_pdf(slot, d, xi), x)
+end
 function _convolved_cdf_route(d::Convolved, x::AbstractVector{<:Real})
     _convolved_numeric_cdf_batched(d, x)
 end
 function _convolved_cdf_route(d::_DiscreteConvolved, x::AbstractVector{<:Real})
     map(xi -> _convolved_lattice_cdf(d, xi), x)
+end
+function _convolved_cdf_route(d::_MixedableConvolved, x::AbstractVector{<:Real})
+    slot = _mixed_slot(_component_support(typeof(d.components[1])),
+        _component_support(typeof(d.components[2])))
+    return _convolved_mixed_cdf_batched(slot, d, x)
+end
+function _convolved_mixed_cdf_batched(::Nothing, d::Convolved, x::AbstractVector{<:Real})
+    _convolved_numeric_cdf_batched(d, x)
+end
+function _convolved_mixed_cdf_batched(slot, d::Convolved, x::AbstractVector{<:Real})
+    return map(xi -> _convolved_mixed_cdf(slot, d, xi), x)
 end
 
 # Recursion bases / steps for the two kernels. For a single (degenerate)
@@ -752,6 +811,68 @@ function _convolved_lattice_cdf(d::Convolved, x::Real)
         t0, t1)
     return clamp(result, zero(result), one(result))
 end
+
+# ---------------------------------------------------------------------------
+# Mixed discrete/continuous fold (#115)
+# ---------------------------------------------------------------------------
+#
+# Only reachable for a `_MixedableConvolved` whose `_mixed_slot` resolves
+# to `Val(1)`/`Val(2)` (exactly one of the two components is
+# integer-lattice discrete; see `_has_mixed_fold` above). Addition
+# commutes, so `Z = X + Y` folds the same way regardless of which slot
+# the discrete factor sits in: writing its pmf as a lattice of point
+# masses and substituting into the convolution integral collapses it to
+# an exact sum over that lattice,
+#   f_Z(z) = Σ_k P(D = k) f_C(z - k),   F_Z(z) = Σ_k P(D = k) F_C(z - k),
+# evaluated on D's own effective window (`_mixed_discrete_window`,
+# tail-clamped exactly as an unbounded integration component is on the
+# all-discrete fold above). No continuous quadrature error survives: C's
+# density/CDF is evaluated pointwise, not integrated, so this is exact
+# in the same sense the all-discrete fold is (see `is_exact`).
+
+function _convolved_mixed_pdf(::Val{1}, d::Convolved, x::Real)
+    isnan(x) && return convert(float(typeof(x)), NaN)
+    (x <= minimum(d) || x >= maximum(d)) && return zero(float(typeof(x)))
+    D, C = d.components
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(x)))
+    return _lattice_sum(
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(C, x - k), t0, t1)
+end
+function _convolved_mixed_pdf(::Val{2}, d::Convolved, x::Real)
+    isnan(x) && return convert(float(typeof(x)), NaN)
+    (x <= minimum(d) || x >= maximum(d)) && return zero(float(typeof(x)))
+    C, D = d.components
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(x)))
+    return _lattice_sum(
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(C, x - k), t0, t1)
+end
+_convolved_mixed_pdf(::Nothing, d::Convolved, x::Real) = _convolved_numeric_pdf(d, x)
+
+function _convolved_mixed_cdf(::Val{1}, d::Convolved, x::Real)
+    isnan(x) && return convert(float(typeof(x)), NaN)
+    x <= minimum(d) && return zero(float(typeof(x)))
+    x >= maximum(d) && return one(float(typeof(x)))
+    D, C = d.components
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(x)))
+    result = _lattice_sum(
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(C, x - k), t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+function _convolved_mixed_cdf(::Val{2}, d::Convolved, x::Real)
+    isnan(x) && return convert(float(typeof(x)), NaN)
+    x <= minimum(d) && return zero(float(typeof(x)))
+    x >= maximum(d) && return one(float(typeof(x)))
+    C, D = d.components
+    t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t1 < t0 && return zero(float(typeof(x)))
+    result = _lattice_sum(
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(C, x - k), t0, t1)
+    return clamp(result, zero(result), one(result))
+end
+_convolved_mixed_cdf(::Nothing, d::Convolved, x::Real) = _convolved_numeric_cdf(d, x)
 
 # ---------------------------------------------------------------------------
 # Single-component fix: `Convolved((X,); method = NumericSolver())`
