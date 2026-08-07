@@ -80,6 +80,8 @@ dn = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0);
 cdf(da, 2.0), cdf(dn, 2.0)
 ```
 
+Both constructors also accept a custom solver payload that the numeric path honours: a `NumericSolver(GaussLegendre(; n = 256))` (or `AnalyticalSolver(…)`) raises the nodal accuracy of the quadrature, and — once [`Integrals.jl`](https://github.com/SciML/Integrals.jl) is loaded — an Integrals.jl algorithm such as `NumericSolver(Integrals.QuadGKJL())` routes the integration window through `IntegralProblem`/`solve`. The same holds for [`difference`](@ref), [`product`](@ref), and [`ratio`](@ref), each of which accepts the same `method` payload.
+
 ## Do batched and scalar log densities agree?
 
 Yes, to machine precision.
