@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   test:
-    uses: EpiAware/.github/.github/workflows/tests.yml@383486033b4ae93561695411c9033f204df75d12
+    uses: EpiAware/.github/.github/workflows/tests.yml@d024dc6927cc3523292a159dc0d4a45193c9c65d
     # lts (1.10) excluded while the unregistered kit is pinned via [sources],
     # which Pkg only understands on >= 1.11 (EpiAwarePackageTools#115).
     with:
@@ -22,7 +22,7 @@ jobs:
     secrets: inherit  # pragma: allowlist secret
 
   downgrade-compat:
-    uses: EpiAware/.github/.github/workflows/downgrade.yml@383486033b4ae93561695411c9033f204df75d12
+    uses: EpiAware/.github/.github/workflows/downgrade.yml@d024dc6927cc3523292a159dc0d4a45193c9c65d
     # '1' not '1.11': on a Dependabot-authored PR, julia-runtest force-latests
     # every un-floored compat entry (downgrade.yml's `mode: deps` only floors
     # the root Project.toml, not test/Project.toml, where JET lives). JET's
