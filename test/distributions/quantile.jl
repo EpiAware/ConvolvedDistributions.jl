@@ -135,7 +135,7 @@ end
 
     # Sign-crossing denominator: the opposing-tail guess is not finite
     # (quantile(y, 1 - p) can be 0 or negative), exercising the median
-    # fallback in `_ratio_quantile_guess`.
+    # fallback in `quantile_initial_guess(::Ratio, p)`.
     dc = ratio(Normal(0.0, 2.0), Normal(0.0, 0.5))
     refc = Cauchy(0.0, 4.0)
     for p in (0.1, 0.5, 0.9)
@@ -295,6 +295,39 @@ end
     # convergence check rather than return a value.
     @test_throws ErrorException quantile_by_optimization(
         d, NaN, [2.0]; check_nan = false)
+end
+
+@testitem "quantile_initial_guess public hook" begin
+    using ConvolvedDistributions: ConvolvedDistributions, Convolved,
+                                  quantile_initial_guess
+    using Distributions, Optimization, OptimizationOptimJL
+
+    p = 0.3
+
+    # Matches the historical formula for each type.
+    dcv = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    @test quantile_initial_guess(dcv, p) ==
+          [sum(c -> float(quantile(c, p)), dcv.components)]
+
+    ddf = difference(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
+    @test quantile_initial_guess(ddf, p) ==
+          [float(quantile(ddf.x, p)) - float(quantile(ddf.y, 1 - p))]
+
+    dpr = product(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
+    @test quantile_initial_guess(dpr, p) ==
+          [float(quantile(dpr.x, p)) * float(quantile(dpr.y, p))]
+
+    drt = ratio(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
+    @test quantile_initial_guess(drt, p) ==
+          [float(quantile(drt.x, p)) / float(quantile(drt.y, 1 - p))]
+
+    # A downstream override is load-bearing: `quantile(d, p)` picks up a
+    # specialised guess method instead of the default (#150).
+    d42 = convolved(Gamma(2.0, 1.0), Uniform(0.0, 1.0))
+    ConvolvedDistributions.quantile_initial_guess(
+        d::Convolved{Tuple{Gamma, Uniform}}, p) = [42.0]
+    q = quantile(d42, 0.5)
+    @test cdf(d42, q) ≈ 0.5 atol=1e-3
 end
 
 @testitem "quantile_by_optimization solver and solve_kwargs" begin

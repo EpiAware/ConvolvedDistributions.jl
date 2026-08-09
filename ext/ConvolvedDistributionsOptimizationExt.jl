@@ -18,7 +18,8 @@ module ConvolvedDistributionsOptimizationExt
 
 using ConvolvedDistributions: ConvolvedDistributions, Convolved, Difference,
                               Product, Ratio, NumericSolver, _maybe_analytic
-import ConvolvedDistributions: quantile_by_optimization
+import ConvolvedDistributions: quantile_by_optimization,
+                               quantile_initial_guess
 import Distributions
 using Distributions: UnivariateDistribution, cdf, insupport, quantile
 using Optimization: OptimizationFunction, OptimizationProblem, solve,
@@ -90,48 +91,6 @@ function quantile_by_optimization(
     error("Quantile optimization failed to converge for p = $p")
 end
 
-# Sum of the component quantiles as the inversion starting point: exact
-# when the components are degenerate and a good guess otherwise.
-function _convolved_quantile_guess(d::Convolved, p::Real)
-    return [sum(c -> float(quantile(c, p)), d.components)]
-end
-
-# Difference of opposing component quantiles as the starting point:
-# reflecting Y flips its tail, so pair `p` in X with `1 - p` in Y. Exact
-# for degenerate components and centred for symmetric pairs.
-function _difference_quantile_guess(d::Difference, p::Real)
-    return [float(quantile(d.x, p)) - float(quantile(d.y, 1 - p))]
-end
-
-# Product of the component quantiles at `p` as the starting point. With
-# both supports non-negative the product is monotone in each factor, so
-# high `p` in X pairs with high `p` in Y (no tail flip, unlike the
-# difference). On the log scale this is exactly the Convolved guess —
-# log-quantiles add — so it is exact for degenerate components and exact
-# at the median of a `LogNormal` pair; in the tails it overshoots
-# (`σ_X + σ_Y >= sqrt(σ_X² + σ_Y²)`), which the Nelder-Mead inversion
-# tolerates as a starting point.
-function _product_quantile_guess(d::Product, p::Real)
-    return [float(quantile(d.x, p)) * float(quantile(d.y, p))]
-end
-
-# Numerator quantile at `p` over denominator quantile at `1 - p`: the
-# ratio increases in X and decreases in Y, so pair opposing tails (as
-# the Difference guess does for subtraction). Falls back to the median
-# ratio when that guess is not finite (a sign-crossing denominator makes
-# the opposing-tail pairing meaningless, e.g. quantile(Y, 1 - p) == 0).
-# The median-ratio fallback is itself a 0 / 0 = NaN for a Ratio whose
-# numerator AND denominator are both symmetric about zero -- exactly the
-# headline sign-crossing `Normal`/`Normal` case -- so a final fallback to
-# 0 (a reasonable starting guess for a symmetric ratio; NelderMead only
-# needs a finite, non-degenerate simplex point) catches that.
-function _ratio_quantile_guess(d::Ratio, p::Real)
-    g = float(quantile(d.x, p)) / float(quantile(d.y, 1 - p))
-    isfinite(g) && return [g]
-    m = float(quantile(d.x, 0.5)) / float(quantile(d.y, 0.5))
-    return [isfinite(m) ? m : zero(m)]
-end
-
 @doc "
 
 `NumericSolver` arm of [`convolved_quantile`](@ref): invert the numeric
@@ -143,7 +102,7 @@ of components, not just three-or-more (review A).
 "
 function ConvolvedDistributions.convolved_quantile(
         d::Convolved, components::Tuple, p::Real, method::NumericSolver)
-    return quantile_by_optimization(d, p, _convolved_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
 end
 
 @doc "
@@ -166,7 +125,7 @@ See also: [`cdf`](@ref)
 function Distributions.quantile(d::Difference, p::Real)
     a = _maybe_analytic(d)
     a === nothing || return quantile(a, p)
-    return quantile_by_optimization(d, p, _difference_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
 end
 
 @doc "
@@ -190,7 +149,7 @@ See also: [`cdf`](@ref)
 function Distributions.quantile(d::Product, p::Real)
     a = _maybe_analytic(d)
     a === nothing || return quantile(a, p)
-    return quantile_by_optimization(d, p, _product_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
 end
 
 @doc "
@@ -212,7 +171,7 @@ method lives in the `ConvolvedDistributionsOptimizationExt` extension).
 See also: [`cdf`](@ref)
 "
 function Distributions.quantile(d::Ratio, p::Real)
-    return quantile_by_optimization(d, p, _ratio_quantile_guess(d, p))
+    return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
 end
 
 end # module

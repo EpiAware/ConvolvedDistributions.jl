@@ -60,3 +60,21 @@ ConvolvedDistributions.quantile_by_optimization(d, 0.5, [0.0])
 See also: [`cdf`](@ref)
 "
 function quantile_by_optimization end
+
+# Declared here so the name is public and documented from the core
+# package (#150); default methods for Convolved/Difference/Product/Ratio
+# sit with each type, since none needs the solver dependency.
+
+@doc "
+
+The `initial_guess` for [`quantile_by_optimization`](@ref)'s Nelder-Mead
+solve, as a length-1 vector.
+
+Each of `Convolved`, `Difference`, `Product`, and `Ratio` ships a default
+method. A downstream package can add its own method for a more
+specific type to supply a domain-specific starting guess without
+forking the quantile machinery (#150).
+
+See also: [`quantile_by_optimization`](@ref)
+"
+function quantile_initial_guess end

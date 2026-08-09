@@ -569,6 +569,19 @@ function _throw_ratio_window(d::Ratio)
         "place the ratio outermost"))
 end
 
+# Default `quantile_initial_guess` (#150): numerator quantile at `p`
+# over denominator quantile at `1 - p` (opposing tails, as the
+# Difference guess does for subtraction), falling back to the median
+# ratio when that is not finite (sign-crossing denominator), and to
+# zero as a last resort (symmetric numerator and denominator both about
+# zero). A downstream package overrides this per type.
+function quantile_initial_guess(d::Ratio, p::Real)
+    g = float(quantile(d.x, p)) / float(quantile(d.y, 1 - p))
+    isfinite(g) && return [g]
+    m = float(quantile(d.x, 0.5)) / float(quantile(d.y, 0.5))
+    return [isfinite(m) ? m : zero(m)]
+end
+
 # ---------------------------------------------------------------------------
 # CDF / logcdf / pdf / logpdf
 # ---------------------------------------------------------------------------
