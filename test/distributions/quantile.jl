@@ -322,12 +322,41 @@ end
           [float(quantile(drt.x, p)) / float(quantile(drt.y, 1 - p))]
 
     # A downstream override is load-bearing: `quantile(d, p)` picks up a
-    # specialised guess method instead of the default (#150).
+    # specialised guess method instead of the default (#150). The
+    # override must use the concrete parametrised component type and
+    # annotate `p::Real`: a bare `Convolved{Tuple{Gamma, Uniform}}`
+    # does not match a real `Convolved{Tuple{Gamma{Float64},
+    # Uniform{Float64}}}` (struct type parameters are invariant), and
+    # an untyped `p` is ambiguous with the generic `Convolved`
+    # fallback's `p::Real`. A `called` spy proves the override
+    # actually dispatches rather than inferring it from the converged
+    # value -- Nelder-Mead reaches the same answer from many
+    # reasonable starting points regardless of which method supplied
+    # the guess, so a plausible-looking numeric result alone would not
+    # prove this.
+    #
+    # The override is added to the shared `quantile_initial_guess`
+    # method table, so it is removed again in `finally`:
+    # TestItemRunner runs every testitem in one process, and a
+    # permanent method on this widely-used
+    # `Convolved{Tuple{Gamma{Float64}, Uniform{Float64}}}` type would
+    # leak into other testitems (e.g.
+    # test/consistency/log_methods_consistency.jl constructs the same
+    # type combination).
     d42 = convolved(Gamma(2.0, 1.0), Uniform(0.0, 1.0))
+    called = Ref(false)
     ConvolvedDistributions.quantile_initial_guess(
-        d::Convolved{Tuple{Gamma, Uniform}}, p) = [42.0]
-    q = quantile(d42, 0.5)
-    @test cdf(d42, q) ≈ 0.5 atol=1e-3
+        d::Convolved{Tuple{Gamma{Float64}, Uniform{Float64}}},
+        p::Real) = (called[] = true; [3.0])
+    override = which(ConvolvedDistributions.quantile_initial_guess,
+        Tuple{typeof(d42), Float64})
+    try
+        q = quantile(d42, 0.5)
+        @test called[]
+        @test cdf(d42, q) ≈ 0.5 atol=1e-3
+    finally
+        Base.delete_method(override)
+    end
 end
 
 @testitem "quantile_by_optimization solver and solve_kwargs" begin

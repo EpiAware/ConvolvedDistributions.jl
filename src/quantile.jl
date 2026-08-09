@@ -72,9 +72,24 @@ Called as `quantile_initial_guess(d, p)`, gives the `initial_guess` for
 vector.
 
 Each of `Convolved`, `Difference`, `Product`, and `Ratio` ships a default
-method. A downstream package can add its own method for a more
-specific type to supply a domain-specific starting guess without
-forking the quantile machinery (#150).
+method. A downstream package overrides it for a more specific type to
+supply a domain-specific starting guess without forking the quantile
+machinery (#150). The override needs the concrete parametrised
+component type and an explicit `p::Real`: `Convolved`'s type
+parameters are invariant, and an untyped `p` is ambiguous with the
+generic fallback.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+d = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
+ConvolvedDistributions.quantile_initial_guess(
+    d::ConvolvedDistributions.Convolved{
+        Tuple{Gamma{Float64}, Uniform{Float64}}},
+    p::Real) = [3.0]
+ConvolvedDistributions.quantile_initial_guess(d, 0.3)
+```
 
 See also: [`quantile_by_optimization`](@ref)
 "
