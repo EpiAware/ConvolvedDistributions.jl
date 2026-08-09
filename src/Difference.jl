@@ -549,3 +549,25 @@ function logpdf(d::Difference, z::Real)
     p = _difference_pdf_route(d, z)
     return p <= 0 ? oftype(float(z), -Inf) : log(p)
 end
+
+@doc "
+
+Compute the quantile (inverse CDF) of the difference.
+
+Exact lattice route (#116): a `Discrete`-typed difference returns an
+exact integer lattice point from an upward summation scan, with no
+dependency on Optimization.jl. `minimum(d)` is `-Inf` whenever the
+subtrahend is unbounded above (e.g. `difference(Binomial(10, 0.5),
+Poisson(5.0))`); an interior `p` then has no lattice point to start the
+scan from and falls back to the `ConvolvedDistributionsOptimizationExt`
+extension's numeric quantile, unchanged from pre-#116 behaviour.
+`p == 0`/`p == 1` stay exact either way. For any other `Difference`, use
+[`quantile_by_optimization`](@ref) via that same extension.
+
+See also: [`cdf`](@ref)
+"
+function quantile(d::_DiscreteDifference, p::Real)
+    boundary = p == 0 || p == 1
+    (boundary || isfinite(minimum(d))) && return _lattice_quantile(d, p)
+    return invoke(quantile, Tuple{Difference, Real}, d, p)
+end
