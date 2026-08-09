@@ -83,8 +83,8 @@ end
         return isfinite(dmin) ? ceil(Int, dmin) : dmin
     end
 
-    dmax = Float64(primal(maximum(d)))
     if p == 1
+        dmax = Float64(primal(maximum(d)))
         return isfinite(dmax) ? floor(Int, dmax) : dmax
     end
 

@@ -554,15 +554,10 @@ end
 
 Compute the quantile (inverse CDF) of the difference.
 
-Exact lattice route (#116): a `Discrete`-typed difference returns an
-exact integer lattice point from an upward summation scan, with no
-dependency on Optimization.jl. `minimum(d)` is `-Inf` whenever the
-subtrahend is unbounded above (e.g. `difference(Binomial(10, 0.5),
-Poisson(5.0))`); an interior `p` then has no lattice point to start the
-scan from and falls back to the `ConvolvedDistributionsOptimizationExt`
-extension's numeric quantile, unchanged from pre-#116 behaviour.
-`p == 0`/`p == 1` stay exact either way. For any other `Difference`, use
-[`quantile_by_optimization`](@ref) via that same extension.
+For a `Discrete`-typed difference, returns an exact integer lattice
+point, with `p == 0`/`p == 1` always returning the bounds exactly.
+Any other case needs the `ConvolvedDistributionsOptimizationExt`
+extension loaded.
 
 See also: [`cdf`](@ref)
 "
