@@ -67,8 +67,9 @@ function quantile_by_optimization end
 
 @doc "
 
-The `initial_guess` for [`quantile_by_optimization`](@ref)'s Nelder-Mead
-solve, as a length-1 vector.
+Called as `quantile_initial_guess(d, p)`, gives the `initial_guess` for
+[`quantile_by_optimization`](@ref)'s Nelder-Mead solve, as a length-1
+vector.
 
 Each of `Convolved`, `Difference`, `Product`, and `Ratio` ships a default
 method. A downstream package can add its own method for a more
