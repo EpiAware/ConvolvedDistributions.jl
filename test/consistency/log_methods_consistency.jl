@@ -34,6 +34,8 @@
             Uniform(0.0, 2.0), Uniform(0.0, 3.0)),
         "Uniform+Gamma (bounded+unbounded, numeric)" => convolved(
             Uniform(0.0, 1.0), Gamma(2.0, 1.0)),
+        "Gamma+Uniform (closed-form window pair)" => convolved(
+            Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
         "Weibull+Normal (numeric)" => convolved(
             Weibull(1.5, 2.0), Normal(1.0, 0.5)),
         "three-component Gamma+Gamma+LogNormal (pair breadth)" => convolved(
