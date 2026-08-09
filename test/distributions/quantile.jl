@@ -1,6 +1,9 @@
-# Quantile (inverse CDF) for Convolved/Difference is provided by the
-# ConvolvedDistributionsOptimizationExt extension, so every testitem here
-# loads Optimization + OptimizationOptimJL to trigger it.
+# Quantile (inverse CDF) for a continuous Convolved/Difference/Product is
+# provided by the ConvolvedDistributionsOptimizationExt extension, so
+# every testitem for that case loads Optimization + OptimizationOptimJL
+# to trigger it. A `Discrete`-typed combination instead has an exact
+# lattice quantile in core (#116), needing no such extension -- see the
+# "discrete quantile is exact" testitems below.
 
 @testitem "Convolved quantile inverts cdf" begin
     using Distributions, Optimization, OptimizationOptimJL
@@ -37,6 +40,59 @@
     end
 end
 
+@testitem "Convolved discrete quantile is exact" begin
+    # No `using Optimization, OptimizationOptimJL` (#116): the exact
+    # lattice route needs neither.
+    using Distributions
+
+    d = convolved(Poisson(3.0), Geometric(0.4))
+    @test quantile(d, 0.0) === minimum(d)
+    @test quantile(d, 0.0) isa Int
+    # Unbounded above (known limit, #116): p = 1 returns the bound
+    # itself, `Inf`, matching the Optimization extension's own p = 1
+    # shortcut for the continuous case.
+    @test quantile(d, 1.0) === maximum(d)
+
+    for p in (0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 0.99)
+        q = quantile(d, p)
+        @test q isa Int
+        # Brute-force cumulative-sum check: q is the smallest lattice
+        # point whose cdf reaches p.
+        @test cdf(d, q - 1) < p <= cdf(d, q)
+    end
+
+    # Bounded discrete case: p = 1 lands exactly on the finite maximum.
+    db = convolved(Binomial(5, 0.3), Binomial(4, 0.6))
+    @test quantile(db, 0.0) === minimum(db)
+    @test quantile(db, 1.0) === maximum(db)
+    for p in (0.1, 0.5, 0.9)
+        q = quantile(db, p)
+        @test q isa Int
+        @test cdf(db, q - 1) < p <= cdf(db, q)
+    end
+
+    @test_throws ArgumentError quantile(d, -0.1)
+    @test_throws ArgumentError quantile(d, 1.1)
+    @test_throws ArgumentError quantile(d, NaN)
+end
+
+@testitem "Convolved discrete quantile matches old numeric quantile" begin
+    using Distributions, Optimization, OptimizationOptimJL
+    using ConvolvedDistributions: Convolved
+
+    # Regression check (#116): switching to the lattice route changed
+    # the type and the exactness, not the answer. `invoke` reaches the
+    # less-specific `quantile(d::Convolved, p)` method above, which
+    # `d`'s `_DiscreteConvolved` method now shadows, so this is the same
+    # Nelder-Mead inversion `quantile(d, p)` used before #116.
+    d = convolved(Poisson(3.0), Geometric(0.4))
+    for p in (0.1, 0.3, 0.5, 0.7, 0.9)
+        q_lattice = quantile(d, p)
+        q_nm = invoke(quantile, Tuple{Convolved, Real}, d, p)
+        @test abs(q_lattice - q_nm) <= 1
+    end
+end
+
 @testitem "Difference quantile inverts cdf" begin
     using Distributions, Optimization, OptimizationOptimJL
 
@@ -65,6 +121,65 @@ end
         q = quantile(dn, p)
         @test cdf(dn, q) ≈ p atol=1e-3
     end
+end
+
+@testitem "Difference discrete quantile is exact" begin
+    # No `using Optimization, OptimizationOptimJL` (#116): the exact
+    # lattice route needs neither. This is also the first core
+    # `quantile` method a `Difference` has ever had.
+    using Distributions
+
+    dd = difference(DiscreteUniform(1, 5), DiscreteUniform(0, 3))
+    @test quantile(dd, 0.0) === minimum(dd)
+    @test quantile(dd, 1.0) === maximum(dd)
+    for p in (0.1, 0.3, 0.5, 0.7, 0.9)
+        q = quantile(dd, p)
+        @test q isa Int
+        @test cdf(dd, q - 1) < p <= cdf(dd, q)
+    end
+
+    # Unbounded-below case (#116): the subtrahend is unbounded above, so
+    # `minimum(dd)` is `-Inf` and an interior `p` has no lattice point
+    # to start an upward scan from. `p = 0`/`p = 1` stay exact either
+    # way -- only `p = 0` exercises the non-finite return here since
+    # `maximum` is finite for this pair.
+    du = difference(Binomial(10, 0.5), Poisson(5.0))
+    @test isinf(minimum(du))
+    @test quantile(du, 0.0) === minimum(du)
+    @test quantile(du, 1.0) === maximum(du)
+    @test quantile(du, 1.0) isa Int
+
+    @test_throws ArgumentError quantile(dd, -0.1)
+    @test_throws ArgumentError quantile(dd, 1.1)
+    @test_throws ArgumentError quantile(dd, NaN)
+end
+
+@testitem "Difference discrete quantile matches old numeric quantile" begin
+    using Distributions, Optimization, OptimizationOptimJL
+    using ConvolvedDistributions: Difference
+
+    # Regression check (#116): switching to the lattice route changed
+    # the type and the exactness, not the answer. `invoke` reaches the
+    # less-specific `Distributions.quantile(d::Difference, p)` method
+    # from `ConvolvedDistributionsOptimizationExt`, which `d`'s
+    # `_DiscreteDifference` method now shadows.
+    dd = difference(Binomial(20, 0.5), Binomial(15, 0.4))
+    for p in (0.1, 0.3, 0.5, 0.7, 0.9)
+        q_lattice = quantile(dd, p)
+        q_nm = invoke(quantile, Tuple{Difference, Real}, dd, p)
+        @test abs(q_lattice - q_nm) <= 1
+    end
+
+    # Unbounded-below fallback (#116): an interior p on a `Difference`
+    # with `-Inf` minimum still returns a value, via the extension's
+    # numeric route, instead of erroring. Not checked for accuracy here:
+    # the Nelder-Mead solve's own precision on a discrete cdf is
+    # unrelated to this PR (that imprecision is the pre-#116 status quo
+    # this fallback intentionally preserves).
+    du = difference(Binomial(10, 0.5), Poisson(5.0))
+    q = quantile(du, 0.5)
+    @test q isa Real
+    @test isfinite(q)
 end
 
 @testitem "Product quantile inverts cdf" begin
@@ -111,6 +226,48 @@ end
     end
     @test_throws ArgumentError quantile(dp, -0.1)
     @test_throws ArgumentError quantile(dp, 1.1)
+end
+
+@testitem "Product discrete quantile is exact" begin
+    # No `using Optimization, OptimizationOptimJL` (#116): the exact
+    # lattice route needs neither. This is also the first core
+    # `quantile` method a `Product` has ever had.
+    using Distributions
+
+    dp = product(DiscreteUniform(1, 3), DiscreteUniform(1, 4))
+    @test quantile(dp, 0.0) === minimum(dp)
+    @test quantile(dp, 1.0) === maximum(dp)
+    for p in (0.1, 0.3, 0.5, 0.7, 0.9)
+        q = quantile(dp, p)
+        @test q isa Int
+        @test cdf(dp, q - 1) < p <= cdf(dp, q)
+    end
+
+    @test_throws ArgumentError quantile(dp, -0.1)
+    @test_throws ArgumentError quantile(dp, 1.1)
+    @test_throws ArgumentError quantile(dp, NaN)
+end
+
+@testitem "Product discrete quantile matches old numeric quantile" begin
+    using Distributions, Optimization, OptimizationOptimJL
+    using ConvolvedDistributions: Product
+
+    # Regression check (#116): switching to the lattice route changed
+    # the type and the exactness, not the answer. `invoke` reaches the
+    # less-specific `Distributions.quantile(d::Product, p)` method from
+    # `ConvolvedDistributionsOptimizationExt`, which `d`'s
+    # `_DiscreteProduct` method now shadows.
+    #
+    # Restricted to p in [0.3, 0.5]: `_product_quantile_guess`'s own
+    # docstring notes it overshoots in the tails, and Nelder-Mead's
+    # simplex does not always move off an already-integer guess, so the
+    # numeric answer is unreliable there -- unrelated to this PR.
+    dp = product(Binomial(20, 0.4), Binomial(15, 0.6))
+    for p in (0.3, 0.4, 0.5)
+        q_lattice = quantile(dp, p)
+        q_nm = invoke(quantile, Tuple{Product, Real}, dp, p)
+        @test abs(q_lattice - q_nm) <= 2
+    end
 end
 
 @testitem "Ratio quantile inverts cdf" begin
