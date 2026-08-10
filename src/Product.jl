@@ -702,3 +702,20 @@ function logpdf(d::Product, z::Real)
     p = _product_pdf_route(d, z)
     return p <= 0 ? oftype(float(z), -Inf) : log(p)
 end
+
+@doc "
+
+Compute the quantile (inverse CDF) of the product.
+
+For a `Discrete`-typed product, returns an exact integer lattice
+point, with `p == 0`/`p == 1` always returning the bounds exactly.
+Any other case needs the `ConvolvedDistributionsOptimizationExt`
+extension loaded.
+
+See also: [`cdf`](@ref)
+"
+function quantile(d::_DiscreteProduct, p::Real)
+    boundary = p == 0 || p == 1
+    (boundary || isfinite(minimum(d))) && return _lattice_quantile(d, p)
+    return invoke(quantile, Tuple{Product, Real}, d, p)
+end

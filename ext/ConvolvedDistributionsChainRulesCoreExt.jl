@@ -1,6 +1,6 @@
 module ConvolvedDistributionsChainRulesCoreExt
 
-using ConvolvedDistributions: _window_quantile
+using ConvolvedDistributions: _window_quantile, _lattice_quantile
 using ChainRulesCore: ChainRulesCore
 
 # The quadrature-window endpoint is a non-differentiable hyperparameter
@@ -12,5 +12,10 @@ using ChainRulesCore: ChainRulesCore
 # EpiAwareADTools' ChainRulesCore extension, alongside the gamma-CDF
 # rrule/frule that used to live here.
 ChainRulesCore.@non_differentiable _window_quantile(::Any, ::Any)
+
+# `_lattice_quantile` returns an `Int` lattice point via a summation
+# scan -- a step function, like `_window_quantile`, so it carries no
+# gradient either.
+ChainRulesCore.@non_differentiable _lattice_quantile(::Any, ::Any)
 
 end

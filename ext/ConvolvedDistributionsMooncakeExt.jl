@@ -1,7 +1,7 @@
 module ConvolvedDistributionsMooncakeExt
 
-using ConvolvedDistributions: _window_quantile, AbstractSolverMethod,
-                              _resolve_closed_form
+using ConvolvedDistributions: _window_quantile, _lattice_quantile,
+                              AbstractSolverMethod, _resolve_closed_form
 using Distributions: UnivariateDistribution
 using Mooncake: Mooncake
 
@@ -29,6 +29,15 @@ using Mooncake: Mooncake
 # EpiAwareADTools' Mooncake extension.
 Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
     typeof(_window_quantile), UnivariateDistribution, Real}
+
+# `_lattice_quantile` returns an `Int` lattice point via a summation
+# scan: a step function computed on AD-stripped (primal) bounds, so it
+# needs the same shield as `_window_quantile` above, for the same
+# reason (Mooncake does not lift the ChainRulesCore mark). The first
+# argument is untyped in its declaration (`Convolved`/`Difference`/
+# `Product` share one method), so the registered tuple type is `Any`.
+Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
+    typeof(_lattice_quantile), Any, Real}
 
 # `_resolve_closed_form(components, method)` answers, once at
 # construction, which quantities resolve to a closed form for
