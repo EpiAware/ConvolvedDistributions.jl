@@ -84,6 +84,25 @@ end
     end
 end
 
+@testitem "Weibull upper_partial_expectation guard: non-positive input" begin
+    using ConvolvedDistributions: upper_partial_expectation
+    using Distributions
+
+    # `upper_partial_expectation(component::Weibull)` guards `t <= 0`
+    # and returns exactly `mean(component)` there rather than
+    # evaluating the closed form; this is unreachable from
+    # `uniform_window_ccdf` itself, so exercise the closure directly
+    # at and below the boundary.
+    for (k, lambda) in ((2.0, 1.5), (1.5, 2.0), (0.7, 3.0))
+        component = Weibull(k, lambda)
+        N = upper_partial_expectation(component)
+        m = mean(component)
+        @test N(0.0) == m
+        @test N(-1.0) == m
+        @test N(-1e-12) == m
+    end
+end
+
 @testitem "Native analytic pairs used by AnalyticalSolver by default" begin
     using ConvolvedDistributions
     using ConvolvedDistributions: evaluation_path
