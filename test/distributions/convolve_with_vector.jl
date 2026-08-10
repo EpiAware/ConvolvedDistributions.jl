@@ -876,3 +876,120 @@ end
     @test jmasked_tv[mask, :] ≈ jfull_tv[mask, :]
     @test all(iszero, jmasked_tv[.!mask, :])
 end
+
+@testitem "a mask limits mass-building to what a requested run can read" begin
+    using Distributions
+
+    # Every requested position here sits well short of the series length,
+    # so the truncated mass build is genuinely exercised — unlike a mask
+    # reaching the tail, where the reach equals the full series length
+    # anyway and a truncation bug would not show up as a wrong number.
+    n = 200
+    series = collect(1.0:n)
+    mask = falses(n)
+    mask[[3, 8, 12]] .= true
+
+    full = convolve_series(Poisson(2.0), series)
+    masked = convolve_series(Poisson(2.0), series; mask)
+    @test masked[mask] ≈ full[mask]
+    @test all(iszero, masked[.!mask])
+
+    delays = [Poisson(1.0 + 0.05i) for i in 1:n]
+    for indexed_by in (:primary, :secondary)
+        full_tv = convolve_series(delays, series; indexed_by)
+        masked_tv = convolve_series(delays, series; indexed_by, mask)
+        @test masked_tv[mask] ≈ full_tv[mask]
+        @test all(iszero, masked_tv[.!mask])
+    end
+
+    # An all-`false` mask must not error just because nothing ends up
+    # requested — the discrete-delay entry point still needs a genuine
+    # (if unused) PMF to build on the way to its all-zero early return.
+    @test convolve_series(Poisson(2.0), series; mask = falses(n)) == zeros(n)
+end
+
+@testitem "a narrow mask skips discrete-delay masses past its reach" begin
+    using Distributions
+
+    # Counts `pdf` evaluations directly rather than timing: a
+    # deterministic measure of how much of the mass-building stage
+    # actually ran, in the same spirit as the series-read counter used
+    # above for the convolution loop itself.
+    mutable struct CountingDelay <: DiscreteUnivariateDistribution
+        base::Poisson{Float64}
+        evals::Base.RefValue{Int}
+    end
+    CountingDelay(λ) = CountingDelay(Poisson(λ), Ref(0))
+    import Distributions: pdf
+    function pdf(d::CountingDelay, k::Real)
+        d.evals[] += 1
+        return pdf(d.base, k)
+    end
+
+    n = 5000
+    series = rand(n)
+    mask = falses(n)
+    mask[10] = true
+
+    masked = CountingDelay(3.0)
+    convolve_series(masked, series; mask)
+    full = CountingDelay(3.0)
+    convolve_series(full, series)
+
+    # A single requested position at lag 10 can never read a mass past
+    # lag 9; the unmasked run builds one mass per series entry.
+    @test masked.evals[] <= 10
+    @test full.evals[] == n
+    @test full.evals[] > 100 * masked.evals[]
+end
+
+@testitem "a narrow mask skips the time-varying mass-building it excludes" begin
+    using Distributions
+
+    mutable struct CountingDelay2 <: DiscreteUnivariateDistribution
+        base::Poisson{Float64}
+        evals::Base.RefValue{Int}
+    end
+    CountingDelay2(λ) = CountingDelay2(Poisson(λ), Ref(0))
+    import Distributions: pdf
+    function pdf(d::CountingDelay2, k::Real)
+        d.evals[] += 1
+        return pdf(d.base, k)
+    end
+
+    n = 2000
+    series = rand(n)
+    mask = falses(n)
+    mask[10] = true
+
+    for indexed_by in (:primary, :secondary)
+        # Distinct rates, so nothing dedups: masked_total reflects exactly
+        # the truncated per-time-point reach.
+        masked_delays = [CountingDelay2(1.0 + 0.001i) for i in 1:n]
+        convolve_series(masked_delays, series; indexed_by, mask)
+        masked_total = sum(d.evals[] for d in masked_delays)
+
+        full_delays = [CountingDelay2(1.0 + 0.001i) for i in 1:n]
+        convolve_series(full_delays, series; indexed_by)
+        full_total = sum(d.evals[] for d in full_delays)
+
+        @test full_total > 100 * masked_total
+    end
+end
+
+@testitem "the caller-supplied PMF vector has no mass-building stage" begin
+    using Distributions
+
+    # `convolve_series(pmf::AbstractVector, series)` already receives the
+    # exact masses from the caller: there is no build step for a mask to
+    # shrink. A mask here only restricts which output positions the
+    # convolution loop computes, already covered by "masked positions
+    # genuinely skip computation" above; this just pins that the read
+    # masses themselves are unaffected by the mask.
+    pmf = [0.5, 0.3, 0.2]
+    series = collect(1.0:20)
+    mask = falses(20)
+    mask[3] = true
+    @test convolve_series(pmf, series; mask)[mask] ≈
+          convolve_series(pmf, series)[mask]
+end

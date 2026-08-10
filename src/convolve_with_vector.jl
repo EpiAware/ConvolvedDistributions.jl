@@ -95,6 +95,21 @@ function _check_mask(mask::AbstractVector{Bool}, n::Int)
     return nothing
 end
 
+# How many lags are worth building for a single-PMF window: no lag past a
+# mask's last requested position can ever be read (`_convolve_series_fixed`
+# only ever reads `pmf[1:i]` for output position `i`), so the masses built
+# above that are pure waste. `nothing` keeps every position, so the answer
+# is the series length, unchanged. An all-`false` mask still asks for one
+# lag on a non-empty series — not because it is read, but so a genuinely
+# empty result still passes through as a real (if unused) PMF rather than
+# tripping the "at least one PMF mass" guard on its way to the early
+# return that actually produces the all-zero output.
+_mass_reach(::Nothing, n::Int) = n
+function _mass_reach(mask::AbstractVector{Bool}, n::Int)
+    last_i = findlast(mask)
+    return last_i === nothing ? min(n, 1) : last_i
+end
+
 # --- public API: the timeseries convolution verb ---------------------------
 
 @doc "
@@ -149,8 +164,11 @@ separate verb keeps `convolved` strictly for distribution construction.
   given, only the output positions where `mask` is `true` are computed
   and the rest hold `zero(eltype(result))`. Masked-out positions are
   genuinely skipped, not computed and discarded, so a mask selecting a
-  few positions out of a long series is cheap. Omitted (the default),
-  every position is computed.
+  few positions out of a long series is cheap — `pdf(delay, k)` is only
+  evaluated for the lags a requested position can actually read, so a
+  mask restricted to an early window also skips evaluating the delay's
+  `pdf` at the later lags. Omitted (the default), every position is
+  computed.
 
 # Returns
 - A numeric vector of expected downstream counts, the same length as
@@ -177,9 +195,15 @@ function convolve_series(
     # The lag-`k` mass of a discrete delay is `pdf(delay, k)` directly; do
     # NOT reuse the CDF-difference `_delay_pmf`, which would compute
     # `F(k + 1) - F(k) = pdf(delay, k + 1)` for integer support — an
-    # off-by-one. Lags run 0..(n - 1); negative-support mass is never read
-    # (it cannot enter a causal convolution).
-    masses = [pdf(delay, k) for k in 0:(length(series) - 1)]
+    # off-by-one. Lags run 0..(reach - 1); negative-support mass is never
+    # read (it cannot enter a causal convolution). `reach` is the series
+    # length with no mask, or the mask's last requested position with one
+    # — a `pdf` evaluated per lag is real work for some delay families, so
+    # a mask restricted to an early window must not pay for the lags past
+    # it.
+    mask === nothing || _check_mask(mask, length(series))
+    reach = _mass_reach(mask, length(series))
+    masses = [pdf(delay, k) for k in 0:(reach - 1)]
     return convolve_series(masses, series; mask)
 end
 
@@ -434,9 +458,32 @@ function _accumulate_varying!(
 end
 
 # Lags time point `j` of `n` can reach: the cohort at `j` lands at `j:n`,
-# and time `j` reads back to time 1.
-_kernel_lags(n::Int, ::Val{:primary}) = n:-1:1
-_kernel_lags(n::Int, ::Val{:secondary}) = 1:n
+# and time `j` reads back to time 1. `nothing` (no mask) keeps this
+# unchanged from before the mask existed: every position is built at full
+# reach.
+_kernel_lags(n::Int, ::Val{:primary}, ::Nothing) = n:-1:1
+_kernel_lags(n::Int, ::Val{:secondary}, ::Nothing) = 1:n
+
+# Masked scatter: source `j` only ever lands on `j:(j + kernel_length - 1)`
+# (see the masked `_accumulate_varying!` above), and that loop never reads
+# past `last_i`, so `j` needs no more than `last_i - j + 1` lags — matching
+# `_accumulate_varying!`'s own `kmax` bound exactly — and a source entirely
+# past `last_i` needs none of its kernel at all. `1`, not `0`, for that
+# unused case: the entry is genuinely never read either way, but
+# `delay_masses` and the downstream "at least one PMF mass" guard both
+# expect a real PMF, not an empty one.
+function _kernel_lags(n::Int, ::Val{:primary}, mask::AbstractVector{Bool})
+    last_i = findlast(mask)
+    last_i === nothing && return fill(1, n)
+    return [j <= last_i ? (last_i - j + 1) : 1 for j in 1:n]
+end
+
+# Masked gather: time `j`'s kernel is read only when `mask[j]` asks for it
+# (see the masked `_accumulate_varying!` above); every other time point's
+# kernel is never read, so it costs one placeholder lag rather than `j`.
+function _kernel_lags(n::Int, ::Val{:secondary}, mask::AbstractVector{Bool})
+    return [mask[j] ? j : 1 for j in 1:n]
+end
 
 function _check_kernel_count(kernels, series::AbstractVector)
     count = _kernel_count(kernels)
@@ -493,7 +540,10 @@ what that method gives specialises
 [`delay_masses`](@ref ConvolvedDistributions.delay_masses) instead.
 
 Identical delays share one set of masses, however often they recur, so a
-delay is only ever built once.
+delay is only ever built once. With a `mask`, a delay is also built no
+larger than the requested output positions can actually read — a delay
+at a time point a mask excludes entirely is never built beyond a single
+placeholder lag.
 
 `indexed_by` names which time the delay belongs to:
 
@@ -541,7 +591,8 @@ function convolve_series(
     Base.require_one_based_indexing(delays, series)
     _check_kernel_count(delays, series)
     n = length(series)
-    lags = _kernel_lags(n, Val(indexed_by))
+    mask === nothing || _check_mask(mask, n)
+    lags = _kernel_lags(n, Val(indexed_by), mask)
     return convolve_series(
         _distinct_masses(delays, lags), series; indexed_by, mask)
 end
