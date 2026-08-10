@@ -277,6 +277,13 @@ end
     return _window_quantile(d.x, p) - _window_quantile(d.y, 1 - p)
 end
 
+# Default `quantile_initial_guess`: difference of opposing component
+# quantiles, since reflecting Y flips its tail. A downstream package
+# overrides this per type.
+function quantile_initial_guess(d::Difference, p::Real)
+    return [float(quantile(d.x, p)) - float(quantile(d.y, 1 - p))]
+end
+
 # Integration window over Y. Both the density and CDF integrands carry the
 # factor f_Y(y), negligible outside Y's effective support, so an infinite
 # endpoint is clamped to an extreme quantile of Y on AD-stripped params
