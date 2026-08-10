@@ -13,9 +13,9 @@ using ChainRulesCore: ChainRulesCore
 # rrule/frule that used to live here.
 ChainRulesCore.@non_differentiable _window_quantile(::Any, ::Any)
 
-# `_lattice_quantile` (#116) returns an `Int` lattice point via a
-# summation scan -- a step function, like `_window_quantile`, so it
-# carries no gradient either.
+# `_lattice_quantile` returns an `Int` lattice point via a summation
+# scan -- a step function, like `_window_quantile`, so it carries no
+# gradient either.
 ChainRulesCore.@non_differentiable _lattice_quantile(::Any, ::Any)
 
 end

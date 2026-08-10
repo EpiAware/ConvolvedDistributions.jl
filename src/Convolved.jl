@@ -985,14 +985,14 @@ function quantile(d::Convolved, p::Real)
     return convolved_quantile(d, d.components, p, d.method)
 end
 
-# Exact lattice quantile (#116), more specific than the method above so
-# it wins for a `Discrete`-typed convolution without needing
+# Exact lattice quantile, more specific than the method above so it
+# wins for a `Discrete`-typed convolution without needing
 # Optimization.jl loaded at all. `minimum(d)` is finite for every
 # ordinary discrete component, but not for one unbounded below (e.g. a
 # `Skellam` component); an interior `p` then has no lattice point to
-# start the scan from and falls back to the method above via `invoke`,
-# unchanged from pre-#116 behaviour. `p == 0`/`p == 1` stay exact either
-# way (`_lattice_quantile` returns the bound itself).
+# start the scan from and falls back to the method above via `invoke`.
+# `p == 0`/`p == 1` stay exact either way (`_lattice_quantile` returns
+# the bound itself).
 function quantile(d::_DiscreteConvolved, p::Real)
     boundary = p == 0 || p == 1
     (boundary || isfinite(minimum(d))) && return _lattice_quantile(d, p)

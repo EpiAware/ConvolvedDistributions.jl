@@ -22,8 +22,8 @@ using Enzyme.EnzymeRules: EnzymeRules
 # EpiAwareADTools' Enzyme extension.
 EnzymeRules.inactive(::typeof(_window_quantile), args...) = nothing
 
-# `_lattice_quantile` (#116) is the same kind of non-differentiable
-# step function: an `Int` lattice point from a summation scan.
+# `_lattice_quantile` is the same kind of non-differentiable step
+# function: an `Int` lattice point from a summation scan.
 EnzymeRules.inactive(::typeof(_lattice_quantile), args...) = nothing
 
 end

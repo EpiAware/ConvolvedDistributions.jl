@@ -57,7 +57,7 @@ function _lattice_sum(f::F, t0::Int, t1::Int) where {F}
     return acc
 end
 
-# Exact lattice quantile (#116): an upward scan over the integer lattice
+# Exact lattice quantile: an upward scan over the integer lattice
 # from `ceil(minimum(d))`, summing the public `pdf` until the target
 # probability is reached. Works off `minimum`/`pdf` alone, so it applies
 # unchanged to `Convolved`, `Difference`, and `Product`. `@noinline` and
