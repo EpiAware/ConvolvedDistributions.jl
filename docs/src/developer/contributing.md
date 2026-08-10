@@ -147,6 +147,19 @@ task test-ad-backend TAG=enzyme_reverse  # a single backend
 Each scenario carries a ForwardDiff reference gradient the other backends are checked against.
 When you add functionality touching the density or quadrature paths, add a matching scenario to `test/ADFixtures/src/ADFixtures.jl` so the sweep covers it.
 
+#### Troubleshooting a stale `test/ad` environment
+
+`test/ad/Manifest.toml` is gitignored, so it is generated once on your machine and never refreshed automatically.
+If a package moves between an unregistered git pin and a registered version (or a `[compat]` lower bound changes), a manifest generated before that change can go stale and no longer satisfy the current `Project.toml`.
+Symptoms include a precompile error saying an extension's dependency "does not have `SpecialFunctions` in its dependencies", or `Pkg.resolve()` reporting a package "is fixed to version" something older than `Project.toml` now requires.
+`Pkg.instantiate()` alone will not repair this because it does not discard entries the manifest already has resolved.
+Delete the stale manifest and reinstantiate:
+
+```bash
+rm test/ad/Manifest.toml
+task test-ad
+```
+
 ## Documentation
 
 ### Literate.jl tutorials
