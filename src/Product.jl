@@ -421,7 +421,7 @@ function _product_numeric_pdf(d::Product, z::Real)
     lower, upper = _product_pdf_window(d, z)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = _panel_integrate(
+    result = _solver_integrate(d,
         y -> pdf_ad_safe(d.x, z / y) * pdf_ad_safe(d.y, y) / y,
         lower, upper, d.y)
     return max(result, zero(result))
@@ -446,7 +446,7 @@ function _product_numeric_cdf(d::Product, z::Real)
     upper <= lower && return clamp(base, zero(base), one(base))
 
     result = base -
-             _panel_integrate(
+             _solver_integrate(d,
         y -> ccdf_ad_safe(d.x, z / y) * pdf_ad_safe(d.y, y),
         lower, upper, d.y)
     return clamp(result, zero(result), one(result))

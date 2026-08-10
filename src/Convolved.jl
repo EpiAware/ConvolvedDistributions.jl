@@ -325,6 +325,15 @@ end
 # integration component when clamping an infinite quadrature window.
 const _CONVOLVED_TAIL = 1e-8
 
+# True when the numeric path keeps its native quantile-panelled
+# quadrature, i.e. the payload is the default `GaussLegendre(; n = 64)`.
+# Any other payload is honoured through the pluggable
+# `integrate(solver, …)` contract instead.
+function _native_quadrature(d)
+    d.method.solver isa GaussLegendre &&
+        d.method.solver == _default_solver_payload()
+end
+
 # Quantile used only to pick a finite quadrature endpoint. Reconstructing
 # the component from primal (AD-stripped) params via EpiAwareADTools'
 # `primal_distribution` means `quantile` — and so `gamma_inc_inv` for a
@@ -439,6 +448,34 @@ function _panel_integrate(f::F, lo, hi, comp) where {F}
     end
     acc += gl_integrate(f, last(breaks), hi, _PANEL_GL)
     return acc
+end
+
+# Quantile-panelled quadrature that honours a custom solver: the same
+# interior splits as `_panel_integrate` keep node density on the
+# integrand's mass region (even for a huge far-tail window), while each
+# panel integrates through the pluggable `integrate(solver, …)` contract.
+# A window with no interior breaks falls back to a single solve.
+function _panel_integrate_custom(solver, f::F, lo, hi, comp) where {F}
+    lop = Float64(primal(lo))
+    hip = Float64(primal(hi))
+    breaks = _panel_breaks(comp, lop, hip)
+    isempty(breaks) && return integrate(solver, f, lo, hi)
+    acc = integrate(solver, f, lo, first(breaks))
+    for i in 1:(length(breaks) - 1)
+        acc += integrate(solver, f, breaks[i], breaks[i + 1])
+    end
+    acc += integrate(solver, f, last(breaks), hi)
+    return acc
+end
+
+# Quantile-panelled integration honouring a `Convolved`-family distribution's
+# solver payload: the native `_panel_integrate` path for the default payload,
+# the custom per-panel `_panel_integrate_custom` path otherwise. Shared by
+# `Convolved`, `Difference`, `Product`, and `Ratio` numeric quadrature.
+function _solver_integrate(d, f::F, lo, hi, comp) where {F}
+    return _native_quadrature(d) ?
+           _panel_integrate(f, lo, hi, comp) :
+           _panel_integrate_custom(d.method.solver, f, lo, hi, comp)
 end
 
 # ---------------------------------------------------------------------------
@@ -716,9 +753,12 @@ function _convolved_numeric_cdf(d::Convolved, x::Real)
 
     upper <= lower && return clamp(saturated, zero(saturated), one(saturated))
 
-    result = saturated +
-             _convolved_quadrature(
-        last_comp, rest, _convolution_cdf, x, lower, upper)
+    result = _native_quadrature(d) ?
+             saturated + _convolved_quadrature(
+        last_comp, rest, _convolution_cdf, x, lower, upper) :
+             saturated + _panel_integrate_custom(d.method.solver,
+        t -> _convolution_cdf(rest, x - t) * pdf_ad_safe(last_comp, t),
+        lower, upper, last_comp)
     return clamp(result, zero(result), one(result))
 end
 
@@ -739,8 +779,12 @@ function _convolved_numeric_pdf(d::Convolved, x::Real)
 
     upper <= lower && return zero(float(typeof(x)))
 
-    result = _convolved_quadrature(
-        last_comp, rest, _convolution_pdf, x, lower, upper)
+    result = _native_quadrature(d) ?
+             _convolved_quadrature(
+        last_comp, rest, _convolution_pdf, x, lower, upper) :
+             _panel_integrate_custom(d.method.solver,
+        t -> _convolution_pdf(rest, x - t) * pdf_ad_safe(last_comp, t),
+        lower, upper, last_comp)
     return max(result, zero(result))
 end
 
@@ -1031,6 +1075,8 @@ end
 # batch (see `_convolved_quadrature_composite`).
 function _convolved_numeric_cdf_batched(d::Convolved, x::AbstractVector{<:Real})
     T = promote_type(eltype(x), float(eltype(d)))
+    _native_quadrature(d) ||
+        return map(xi -> _convolved_numeric_cdf(d, T(xi)), x)
     last_comp = d.components[end]
     rest = _rest_distribution(d.components[1:(end - 1)])
 
@@ -1067,6 +1113,8 @@ end
 # constant (f_R vanishes outside support).
 function _convolved_numeric_pdf_batched(d::Convolved, x::AbstractVector{<:Real})
     T = promote_type(eltype(x), float(eltype(d)))
+    _native_quadrature(d) ||
+        return map(xi -> _convolved_numeric_pdf(d, T(xi)), x)
     last_comp = d.components[end]
     rest = _rest_distribution(d.components[1:(end - 1)])
 

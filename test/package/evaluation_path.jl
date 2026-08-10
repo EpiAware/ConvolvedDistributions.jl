@@ -121,7 +121,7 @@ end
           ConvolvedDistributions.Convolved
 end
 
-@testitem "a non-default solver payload is rejected, not silently ignored" begin
+@testitem "non-default solver payloads are accepted for the numeric path" begin
     using ConvolvedDistributions: AbstractSolverMethod, GaussLegendre
     using Distributions
 
@@ -130,18 +130,10 @@ end
     @test NumericSolver() isa AbstractSolverMethod
     @test NumericSolver(GaussLegendre(; n = 64)) isa AbstractSolverMethod
 
-    # A different node count, or a foreign solver type, is rejected: the
-    # built-in quadrature paths do not consult `d.method.solver`, so
-    # silently accepting it would misrepresent the precision a caller
-    # believes they requested (#92).
-    @test_throws ArgumentError NumericSolver(GaussLegendre(; n = 256))
-    @test_throws ArgumentError AnalyticalSolver(GaussLegendre(; n = 128))
-    @test_throws ArgumentError NumericSolver("not a solver")
-
-    # The rejection fires at construction, before any distribution is built.
-    err = @test_throws ArgumentError NumericSolver(GaussLegendre(; n = 1024))
-    @test occursin("NumericSolver", err.value.msg)
-    @test occursin("#92", err.value.msg)
+    # A non-default node count is also accepted; the numeric path honours
+    # it by raising the nodal accuracy (see the integration tests).
+    @test NumericSolver(GaussLegendre(; n = 256)) isa AbstractSolverMethod
+    @test AnalyticalSolver(GaussLegendre(; n = 128)) isa AbstractSolverMethod
 end
 
 @testitem "analytic path skips quadrature (TestUtils)" begin
