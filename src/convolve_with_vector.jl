@@ -150,7 +150,7 @@ separate verb keeps `convolved` strictly for distribution construction.
   and the rest hold `zero(eltype(result))`. Masked-out positions are
   genuinely skipped, not computed and discarded, so a mask selecting a
   few positions out of a long series is cheap. Omitted (the default),
-  every position is computed, exactly as before this keyword existed.
+  every position is computed.
 
 # Returns
 - A numeric vector of expected downstream counts, the same length as
@@ -349,16 +349,16 @@ _kernel_eltype(ks::AbstractVector{<:AbstractVector}) = mapreduce(
 # dispatches through `Val`, so each is a loop and another one is a method
 # away. `mask` (when given) is validated once here and threaded to the
 # masked `_accumulate_varying!` method; `nothing` reaches the unmasked
-# method exactly as before this keyword existed.
+# method, which computes every position.
 function _convolve_series_varying(
         series::AbstractVector, kernels, indexed_by::Symbol,
         mask::Union{Nothing, AbstractVector{Bool}} = nothing)
     n = length(series)
+    mask === nothing || _check_mask(mask, n)
     n == 0 && return zeros(float(eltype(series)), 0)
     T = promote_type(eltype(series), _kernel_eltype(kernels))
     mask === nothing && return _accumulate_varying!(
         zeros(T, n), series, kernels, Val(indexed_by))
-    _check_mask(mask, n)
     return _accumulate_varying!(
         zeros(T, n), series, kernels, Val(indexed_by), mask)
 end

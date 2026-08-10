@@ -664,7 +664,7 @@ end
     @test gw[1] ≈ sum(convolve_series(base, series))
 end
 
-# --- output-position mask (#127) --------------------------------------------
+# --- output-position mask ---------------------------------------------------
 
 @testitem "mask restricts convolve_series to the requested positions" begin
     using Distributions
@@ -782,6 +782,12 @@ end
     @test occursin("same length", err.msg)
     @test_throws ArgumentError convolve_series(
         delays, series; mask = trues(length(series) + 1))
+
+    # An empty series must still validate the mask length in the
+    # time-varying form: nothing about an empty window excuses a
+    # wrong-length mask.
+    @test_throws ArgumentError convolve_series(
+        Vector{Float64}[], Float64[]; mask = trues(1))
 end
 
 @testitem "masked positions genuinely skip computation" begin
