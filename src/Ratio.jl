@@ -329,7 +329,7 @@ function _try_ratio(x::Normal, y::Normal)
 end
 
 # Gamma(αx, θx) / Gamma(αy, θy) ~ (θx / θy) * BetaPrime(αx, αy). Unequal
-# scales are supported (unlike `_try_convolve(::Gamma, ::Gamma)`, which
+# scales are supported (unlike `convolve_pair(::Gamma, ::Gamma)`, which
 # needs equal scales) since the scale ratio simply factors out. The
 # affine wrapper is returned even when θx == θy so the return type stays
 # value-independent.

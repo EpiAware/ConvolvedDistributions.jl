@@ -5,7 +5,7 @@
 # (`Tuple{Gamma, Uniform}`, plus its mirrored order) and nothing in the
 # public surface is restricted to exactly two components. The
 # `AnalyticalSolver` generic itself implements pairwise analytic
-# collapse for any `n`: it looks for one component pair `_try_convolve`
+# collapse for any `n`: it looks for one component pair `convolve_pair`
 # resolves analytically, collapses it into a reduced `Convolved`, and
 # recurses (`_collapse_analytic_pair`/`_convolved_analytic_arm` below);
 # when no pair collapses, it falls through to the `NumericSolver` arm,
@@ -23,72 +23,107 @@
 
 @doc "
 
-    _try_convolve(a, b)
+    convolve_pair(a, b)
 
-The analytic sum distribution for `a + b` when `Distributions.convolve`
-applies, else `nothing`. Dispatch (not `try`/`catch`) keeps the path
-differentiable under every AD backend. `Gamma` and `Exponential`
-additionally need matching scale/rate, `Binomial` and
-`NegativeBinomial` matching success probability, else the runtime
-`convolve` throws.
+The analytic sum distribution for `a + b`, or `nothing` when no closed
+form is registered for the pair. This is the extension point a
+downstream package adds a method to, to teach `convolved` a closed
+form for its own distribution type: dispatch (not `try`/`catch`) keeps
+the path differentiable under every AD backend, and returning
+`nothing` (rather than throwing) is what tells the caller to fall back
+to pairwise collapse or numeric quadrature instead.
+
+For the built-in families, `Gamma` and `Exponential` additionally need
+matching scale/rate, `Binomial` and `NegativeBinomial` matching success
+probability, else `Distributions.convolve` throws.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+struct MyPairDelay <: ContinuousUnivariateDistribution end
+function ConvolvedDistributions.convolve_pair(::MyPairDelay, ::MyPairDelay)
+    return Exponential(2.0)
+end
+```
+
+See also: [`convolve_power`](@ref)
 "
-_try_convolve(a::UnivariateDistribution, b::UnivariateDistribution) = nothing
+convolve_pair(a::UnivariateDistribution, b::UnivariateDistribution) = nothing
 
-_try_convolve(a::Normal, b::Normal) = Distributions.convolve(a, b)
+convolve_pair(a::Normal, b::Normal) = Distributions.convolve(a, b)
 
-function _try_convolve(a::Exponential, b::Exponential)
+function convolve_pair(a::Exponential, b::Exponential)
     return scale(a) ≈ scale(b) ? Distributions.convolve(a, b) : nothing
 end
 
-function _try_convolve(a::Gamma, b::Gamma)
+function convolve_pair(a::Gamma, b::Gamma)
     return scale(a) ≈ scale(b) ? Distributions.convolve(a, b) : nothing
 end
 
-_try_convolve(a::Poisson, b::Poisson) = Distributions.convolve(a, b)
+convolve_pair(a::Poisson, b::Poisson) = Distributions.convolve(a, b)
 
-function _try_convolve(a::Binomial, b::Binomial)
+function convolve_pair(a::Binomial, b::Binomial)
     return succprob(a) ≈ succprob(b) ? Distributions.convolve(a, b) : nothing
 end
 
-function _try_convolve(a::NegativeBinomial, b::NegativeBinomial)
+function convolve_pair(a::NegativeBinomial, b::NegativeBinomial)
     return succprob(a) ≈ succprob(b) ? Distributions.convolve(a, b) : nothing
 end
 
 @doc "
 
-    _try_convolve_power(d, k)
+    convolve_power(d, k)
 
 The analytic distribution of the sum of `k` iid copies of `d`, or
-`nothing` when no closed form exists for the family. Registered
-directly rather than routed through repeated `_try_convolve` pairwise
-collapse, since a family closed under addition has a direct `k`-fold
-formula (e.g. `Gamma(shape, scale)` becomes `Gamma(k * shape, scale)`)
-that needs no intermediate pairwise fold. `Exponential` is the one
-family whose repeat is not itself an `Exponential`: `k` iid
-`Exponential(θ)` sum to `Gamma(k, θ)`.
-"
-_try_convolve_power(d::UnivariateDistribution, k::Integer) = nothing
+`nothing` when no closed form is registered for the family. This is
+the extension point `convolved(d, k)` calls first, before falling back
+to `k - 1` applications of [`convolve_pair`](@ref) or numeric
+quadrature; a downstream package adds a method here to give its own
+distribution type an `O(1)` repeat instead of the built `k`-component
+fold.
 
-function _try_convolve_power(d::Normal, k::Integer)
+For the built-in families this is registered directly rather than
+routed through repeated `convolve_pair` collapse, since a family
+closed under addition has a direct `k`-fold formula (e.g.
+`Gamma(shape, scale)` becomes `Gamma(k * shape, scale)`). `Exponential`
+is the one family whose repeat is not itself an `Exponential`: `k` iid
+`Exponential(θ)` sum to `Gamma(k, θ)`.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+struct MyPowerDelay <: ContinuousUnivariateDistribution end
+function ConvolvedDistributions.convolve_power(::MyPowerDelay, k::Integer)
+    return Exponential(2.0 * k)
+end
+```
+
+See also: [`convolve_pair`](@ref)
+"
+convolve_power(d::UnivariateDistribution, k::Integer) = nothing
+
+function convolve_power(d::Normal, k::Integer)
     μ, σ = params(d)
     return Normal(k * μ, sqrt(k) * σ)
 end
 
-_try_convolve_power(d::Exponential, k::Integer) = Gamma(k, scale(d))
+convolve_power(d::Exponential, k::Integer) = Gamma(k, scale(d))
 
-function _try_convolve_power(d::Gamma, k::Integer)
+function convolve_power(d::Gamma, k::Integer)
     α, θ = params(d)
     return Gamma(k * α, θ)
 end
 
-_try_convolve_power(d::Poisson, k::Integer) = Poisson(k * params(d)[1])
+convolve_power(d::Poisson, k::Integer) = Poisson(k * params(d)[1])
 
-function _try_convolve_power(d::Binomial, k::Integer)
+function convolve_power(d::Binomial, k::Integer)
     n, p = params(d)
     return Binomial(k * n, p)
 end
 
-function _try_convolve_power(d::NegativeBinomial, k::Integer)
+function convolve_power(d::NegativeBinomial, k::Integer)
     r, p = params(d)
     return NegativeBinomial(k * r, p)
 end
@@ -103,7 +138,7 @@ end
 
 Scan every component pair (not just adjacent ones, so a non-analytic
 component sitting between two collapsible ones does not block them) for
-one where [`_try_convolve`](@ref) succeeds; replace that pair with the
+one where [`convolve_pair`](@ref) succeeds; replace that pair with the
 resulting distribution and return the reduced tuple, or `nothing` when
 no pair collapses. Written as head/tail `Tuple` recursion (dispatching
 on the empty- and single-element base cases below), rather than
@@ -131,7 +166,7 @@ end
 _collapse_with_head(head, ::Tuple{}) = nothing
 
 function _collapse_with_head(head, rest::Tuple)
-    merged = _try_convolve(head, rest[1])
+    merged = convolve_pair(head, rest[1])
     merged === nothing || return (merged, Base.tail(rest)...)
     found = _collapse_with_head(head, Base.tail(rest))
     found === nothing && return nothing
@@ -464,7 +499,7 @@ end
 # `NumericSolver` arm exactly like CensoredDistributions'
 # `primarycensored_cdf`. A `which()` comparison against the generic
 # `Tuple` fallback IS still how the family-specific pair closed forms
-# (uncollapsible via `_try_convolve`, e.g. the Gamma+Uniform
+# (uncollapsible via `convolve_pair`, e.g. the Gamma+Uniform
 # uniform-window forms) get detected for `evaluation_path`'s per-quantity
 # report, but it runs only from the *public* inner constructor (the
 # one-positional-plus-`method`-keyword form), and the six-quantity
@@ -500,7 +535,7 @@ const _CONVOLVED_QUANTITY_GENERICS = (convolved_pdf, convolved_logpdf,
 # `NumericSolver` always answers `false` for every quantity -- that
 # method explicitly requests the numeric path. Under `AnalyticalSolver`,
 # a quantity is analytic when the whole tuple collapses to one
-# distribution via pairwise `_try_convolve` (every quantity is then
+# distribution via pairwise `convolve_pair` (every quantity is then
 # analytic, since a genuine `Distributions.jl` object answers all of
 # them) OR a pair-specific method is registered for that particular
 # quantity (checked per quantity: a pair may register a closed form for

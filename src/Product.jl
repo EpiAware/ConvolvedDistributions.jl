@@ -230,7 +230,7 @@ _family_names(d::Product) = (nameof(typeof(d.x)), nameof(typeof(d.y)))
 # product of a family with no closed form nests `k - 1` `Product`
 # levels rather than a single flat structure. Only reached once
 # `product(d, k)` has ruled out an analytic closed form
-# (`_try_product_power`, above) and the `k == 1` passthrough
+# (`product_power`, below) and the `k == 1` passthrough
 # (`_repeat_combination`, interface.jl).
 function _product_repeat_build(d::UnivariateDistribution, k::Integer)
     acc = d
@@ -293,11 +293,11 @@ product(Gamma(2.0, 1.0), 4)
 - [`convolved`](@ref): The repeated sum, `convolved(d, k)`
 "
 function product(d::UnivariateDistribution, k::Integer)
-    return _repeat_combination(_try_product_power, _product_repeat_build, d, k)
+    return _repeat_combination(product_power, _product_repeat_build, d, k)
 end
 
 function product(d::UnivariateDistribution, k::Val)
-    return _repeat_combination(_try_product_power, _product_repeat_build, d, k)
+    return _repeat_combination(product_power, _product_repeat_build, d, k)
 end
 
 # ---------------------------------------------------------------------------
@@ -410,16 +410,31 @@ end
 
 @doc "
 
-    _try_product_power(d, k)
+    product_power(d, k)
 
 The analytic distribution of the product of `k` iid copies of `d`, or
-`nothing` when no closed form exists for the family. On the log scale a
-`LogNormal(μ, σ)` product is a sum of normals, so `k` copies give
-`LogNormal(k * μ, sqrt(k) * σ)`.
-"
-_try_product_power(d::UnivariateDistribution, k::Integer) = nothing
+`nothing` when no closed form is registered for the family. This is
+the extension point `product(d, k)` calls first, before falling back
+to the `k - 1`-level `Product` nesting; a downstream package adds a
+method here to give its own distribution type an `O(1)` repeat.
 
-function _try_product_power(d::LogNormal, k::Integer)
+For the built-in `LogNormal` family, on the log scale a `LogNormal(μ,
+σ)` product is a sum of normals, so `k` copies give `LogNormal(k * μ,
+sqrt(k) * σ)`.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+struct MyFactor <: ContinuousUnivariateDistribution end
+function ConvolvedDistributions.product_power(::MyFactor, k::Integer)
+    return LogNormal(0.0, sqrt(k))
+end
+```
+"
+product_power(d::UnivariateDistribution, k::Integer) = nothing
+
+function product_power(d::LogNormal, k::Integer)
     μ, σ = params(d)
     return LogNormal(k * μ, sqrt(k) * σ)
 end

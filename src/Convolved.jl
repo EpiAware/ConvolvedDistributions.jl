@@ -207,7 +207,7 @@ _family_names(d::Convolved) = nameof.(typeof.(d.components))
 
 # Build the k-fold `Convolved` from `k` copies of `d`; only reached once
 # `convolved(d, k)` has ruled out an analytic closed form
-# (`_try_convolve_power`, solver_dispatch.jl) and the `k == 1` passthrough
+# (`convolve_power`, solver_dispatch.jl) and the `k == 1` passthrough
 # (`_repeat_combination`, interface.jl).
 function _convolved_repeat_build(d::UnivariateDistribution, k::Integer)
     convolved(ntuple(_ -> d, k))
@@ -263,12 +263,12 @@ convolved(LogNormal(0.0, 0.5), Val(4))
 "
 function convolved(d::UnivariateDistribution, k::Integer)
     return _repeat_combination(
-        _try_convolve_power, _convolved_repeat_build, d, k)
+        convolve_power, _convolved_repeat_build, d, k)
 end
 
 function convolved(d::UnivariateDistribution, k::Val)
     return _repeat_combination(
-        _try_convolve_power, _convolved_repeat_build, d, k)
+        convolve_power, _convolved_repeat_build, d, k)
 end
 
 # ---------------------------------------------------------------------------
@@ -359,7 +359,7 @@ std(d::Convolved) = sqrt(var(d))
 # Analytical fast path: pairwise collapse for any number of components
 # ---------------------------------------------------------------------------
 #
-# `_try_convolve` (defined in solver_dispatch.jl, S1) returns the
+# `convolve_pair` (defined in solver_dispatch.jl, S1) returns the
 # analytically convolved distribution when a closed form exists for a
 # pair, otherwise `nothing`. Dispatch (rather than `try`/`catch`) keeps
 # the path differentiable under every AD backend — Mooncake reverse
@@ -372,7 +372,7 @@ std(d::Convolved) = sqrt(var(d))
 # the runtime `convolve` would throw — so a parameter check guards those
 # and falls through to the exact discrete lattice fold (still exact,
 # just not a closed form) rather than to quadrature. Every component
-# count routes through `_try_convolve` the SAME way, via
+# count routes through `convolve_pair` the SAME way, via
 # `_collapse_analytic_pair`/`_fully_collapse` in solver_dispatch.jl
 # (review A): a pair need not be adjacent, or even both original
 # components (a partial fold's merged result can itself collapse

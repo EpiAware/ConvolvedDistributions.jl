@@ -207,3 +207,76 @@ end
     refe = convolve(Exponential(2.0), Exponential(2.0))
     @test quantile(de, 0.5) == quantile(refe, 0.5)
 end
+
+@testitem "convolve_pair is a public downstream extension point" begin
+    # Proves the extension point is genuinely dispatched to, not merely
+    # present: a spy records whether the override ran (so the assertion
+    # does not depend on the numeric outcome matching by coincidence),
+    # and the result is checked against the override's own distribution,
+    # not the generic collapse-or-quadrature fallback. `ExtPairDelay` is
+    # a plain, non-parametric struct (unlike `Gamma`/`Uniform`) so the
+    # dispatch cannot fall prey to Julia's type-parameter invariance.
+    using ConvolvedDistributions: convolve_pair, evaluation_path
+    using Distributions
+
+    struct ExtPairDelay <: ContinuousUnivariateDistribution end
+    Base.minimum(::ExtPairDelay) = 0.0
+    Base.maximum(::ExtPairDelay) = Inf
+    Distributions.cdf(::ExtPairDelay, x::Real) = 1 - exp(-x)
+    Distributions.pdf(::ExtPairDelay, x::Real) = exp(-x)
+
+    called = Ref(false)
+    override = Exponential(5.0)
+    function ConvolvedDistributions.convolve_pair(
+            ::ExtPairDelay, ::ExtPairDelay)
+        called[] = true
+        return override
+    end
+
+    try
+        d = convolved(ExtPairDelay(), ExtPairDelay())
+        @test called[]
+        @test evaluation_path(d) === :analytic
+        @test cdf(d, 2.0) == cdf(override, 2.0)
+    finally
+        # Delete the method rather than rely on the throwaway type alone:
+        # `ExtPairDelay` is local to this testitem's module, but the
+        # method itself lives on the shared `convolve_pair` generic in
+        # `ConvolvedDistributions`, which persists for the rest of the
+        # test run unless removed.
+        Base.delete_method(only(methods(
+            ConvolvedDistributions.convolve_pair,
+            Tuple{ExtPairDelay, ExtPairDelay})))
+    end
+end
+
+@testitem "convolve_power is a public downstream extension point" begin
+    # Same proof shape as "convolve_pair is a public downstream extension
+    # point" above, for the k-fold repeat hook.
+    using ConvolvedDistributions: convolve_power
+    using Distributions
+
+    struct ExtPowerDelay <: ContinuousUnivariateDistribution end
+    Base.minimum(::ExtPowerDelay) = 0.0
+    Base.maximum(::ExtPowerDelay) = Inf
+    Distributions.cdf(::ExtPowerDelay, x::Real) = 1 - exp(-x)
+    Distributions.pdf(::ExtPowerDelay, x::Real) = exp(-x)
+
+    called = Ref(false)
+    closed = Exponential(9.0)
+    function ConvolvedDistributions.convolve_power(
+            ::ExtPowerDelay, k::Integer)
+        called[] = true
+        return closed
+    end
+
+    try
+        result = convolved(ExtPowerDelay(), 4)
+        @test called[]
+        @test result === closed
+    finally
+        Base.delete_method(only(methods(
+            ConvolvedDistributions.convolve_power,
+            Tuple{ExtPowerDelay, Integer})))
+    end
+end

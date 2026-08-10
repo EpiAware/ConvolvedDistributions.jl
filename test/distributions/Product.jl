@@ -442,6 +442,47 @@ end
     @test product(d, Val(5)) == LogNormal(0.5, sqrt(5) * 0.2)
 end
 
+@testitem "product_power is a public downstream extension point" begin
+    # Proves the extension point is genuinely dispatched to, not merely
+    # present: a spy records whether the override ran, and the result is
+    # checked against the override's own distribution (`===`), not a
+    # value that could coincidentally match a fallback path.
+    # `ExtProductFactor` is a plain, non-parametric struct so dispatch
+    # cannot fall prey to Julia's type-parameter invariance (unlike, say,
+    # `LogNormal`, whose concrete type carries an element-type parameter).
+    using ConvolvedDistributions: product_power
+    using Distributions
+
+    struct ExtProductFactor <: ContinuousUnivariateDistribution end
+    Base.minimum(::ExtProductFactor) = 0.0
+    Base.maximum(::ExtProductFactor) = Inf
+    Distributions.cdf(::ExtProductFactor, x::Real) = 1 - exp(-x)
+    Distributions.pdf(::ExtProductFactor, x::Real) = exp(-x)
+
+    called = Ref(false)
+    closed = LogNormal(0.0, 3.0)
+    function ConvolvedDistributions.product_power(
+            ::ExtProductFactor, k::Integer)
+        called[] = true
+        return closed
+    end
+
+    try
+        result = product(ExtProductFactor(), 4)
+        @test called[]
+        @test result === closed
+    finally
+        # Delete the method rather than rely on the throwaway type alone:
+        # `ExtProductFactor` is local to this testitem's module, but the
+        # method itself lives on the shared `product_power` generic in
+        # `ConvolvedDistributions`, which persists for the rest of the
+        # test run unless removed.
+        Base.delete_method(only(methods(
+            ConvolvedDistributions.product_power,
+            Tuple{ExtProductFactor, Integer})))
+    end
+end
+
 @testitem "product(d, k) edge cases" begin
     using Distributions
 
