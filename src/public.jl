@@ -38,7 +38,8 @@ public GaussLegendre, integrate, gl_integrate
 # distribution family plugs its `partial_expectation` into.
 public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
        convolved_pdf, convolved_logpdf, convolved_quantile,
-       convolved_minimum, uniform_window_cdf, partial_expectation
+       convolved_minimum, uniform_window_cdf, uniform_window_ccdf,
+       partial_expectation, upper_partial_expectation
 
 # The probability generating function primitive (#90), mirroring
 # Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with

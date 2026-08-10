@@ -161,12 +161,10 @@ end
     # elsewhere in the suite, so the `logcdf`/`ccdf`/`logccdf`/`logpdf`
     # entries go untouched without this.
     #
-    # The uniform-window pair (Gamma + Uniform) only registers a
-    # pair-specific closed form for `cdf`/`pdf`/`logpdf` (S1); `logcdf`/
-    # `ccdf`/`logccdf` fall back to `NumericSolver` quadrature even for
-    # this pair (they are derived from `cdf` only on the `NumericSolver`
-    # arm, not the analytic one), so `:numeric` is the correct answer for
-    # those three, not a gap in the route check.
+    # The uniform-window pair (Gamma + Uniform) registers a pair-specific
+    # closed form for every quantity -- `pdf`/`logpdf`/`cdf` and also
+    # `logcdf`/`ccdf`/`logccdf` -- so `:analytic` is the correct answer
+    # across the board for this pair.
     using ConvolvedDistributions: evaluation_path
     using Distributions
 
@@ -178,7 +176,7 @@ end
         @test evaluation_path(numeric, f) === :numeric
     end
     for f in (logcdf, ccdf, logccdf)
-        @test evaluation_path(analytic, f) === :numeric
+        @test evaluation_path(analytic, f) === :analytic
     end
 end
 
