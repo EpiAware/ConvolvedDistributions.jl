@@ -68,6 +68,22 @@ end
     end
 end
 
+@testitem "Weibull partial_expectation guard: non-positive input" begin
+    using ConvolvedDistributions: partial_expectation
+    using Distributions
+
+    # `partial_expectation(component::Weibull)` guards `t <= 0` and
+    # returns exactly zero there rather than evaluating the closed
+    # form; this is unreachable from `uniform_window_cdf` itself, so
+    # exercise the closure directly at and below the boundary.
+    for (k, lambda) in ((2.0, 1.5), (1.5, 2.0), (0.7, 3.0))
+        M = partial_expectation(Weibull(k, lambda))
+        @test M(0.0) == 0.0
+        @test M(-1.0) == 0.0
+        @test M(-1e-12) == 0.0
+    end
+end
+
 @testitem "Native analytic pairs used by AnalyticalSolver by default" begin
     using ConvolvedDistributions
     using ConvolvedDistributions: evaluation_path
