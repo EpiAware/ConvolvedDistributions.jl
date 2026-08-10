@@ -1,7 +1,7 @@
 # [Frequently asked questions](@id faq)
 
 This page answers common questions about ConvolvedDistributions.jl.
-If your question is not answered here, open a discussion on the [GitHub repository](https://github.com/EpiAware/ConvolvedDistributions.jl).
+If your question is not answered here, ask on the [Julia Discourse](https://discourse.julialang.org) or the [epinowcast community forum](https://community.epinowcast.org).
 
 ## How do I build a convolved, difference, product, or ratio distribution?
 
