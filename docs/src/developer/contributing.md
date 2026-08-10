@@ -274,7 +274,8 @@ Before submitting a pull request:
 
 ## Getting help
 
-- **Questions**: Open a GitHub discussion
+- **Questions**: Ask on the [Julia Discourse](https://discourse.julialang.org/)
+  or the [epinowcast community forum](https://community.epinowcast.org)
 - **Bugs**: File a GitHub issue with a minimal reproducible example
 - **Feature requests**: Open a GitHub issue with rationale and use case
 - **General Julia help**: See [Julia Discourse](https://discourse.julialang.org/) or [Julia Slack](https://julialang.org/slack/)
