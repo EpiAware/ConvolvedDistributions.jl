@@ -41,6 +41,14 @@ public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
        convolved_minimum, uniform_window_cdf, uniform_window_ccdf,
        partial_expectation, upper_partial_expectation
 
+# The same per-quantity dispatch extension points as above, for
+# `Difference`: a downstream package adds its own analytic X/Y pair by
+# defining a method on a two-element tuple TYPE more specific than
+# `(Difference, Tuple, Real, AnalyticalSolver)`.
+public difference_cdf, difference_logcdf, difference_ccdf,
+       difference_logccdf, difference_pdf, difference_logpdf,
+       difference_quantile
+
 # The probability generating function primitive (#90), mirroring
 # Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with
 # closed forms, a truncated-series fallback, and the structural Convolved

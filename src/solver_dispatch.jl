@@ -489,3 +489,209 @@ function _is_analytic(d::Convolved, f::F) where {F}
     i === nothing && return _maybe_analytic(d) !== nothing
     return d._closed_form[i]
 end
+
+# ---------------------------------------------------------------------------
+# `Difference`: the same per-quantity dispatch shape as `Convolved`
+# above, simplified for a fixed X/Y pair. There is no n-ary fold to
+# collapse -- the `AnalyticalSolver` arm just asks whether the one
+# `(x, y)` pair resolves via `_try_difference`, and falls through to the
+# `NumericSolver` arm when it does not.
+# ---------------------------------------------------------------------------
+
+@doc "
+
+    _try_difference(x, y)
+
+The analytic distribution for `x - y` when one exists, else `nothing`.
+Dispatch (not `try`/`catch`) keeps the path differentiable under every
+AD backend.
+"
+_try_difference(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
+
+function _try_difference(x::Normal, y::Normal)
+    return Normal(mean(x) - mean(y), sqrt(var(x) + var(y)))
+end
+
+@doc "
+
+Shared `AnalyticalSolver` arm for a `difference_*` quantity generic: when
+`(x, y)` resolves via [`_try_difference`](@ref), evaluate `direct` on the
+result; otherwise fall through to `generic`'s `NumericSolver` arm.
+"
+function _difference_analytic_arm(generic::F, direct::G,
+        d::Difference, components::Tuple, x, method::AnalyticalSolver) where {
+        F, G}
+    resolved = _try_difference(components[1], components[2])
+    resolved === nothing &&
+        return generic(d, components, x, NumericSolver(method.solver))
+    return direct(resolved, x)
+end
+
+@doc "
+    difference_cdf(d, components, z, method)
+
+The CDF of `components[1] - components[2]` at `z`, dispatched on the
+solver method `method`. Mirrors [`convolved_cdf`](@ref): a downstream
+package adds its own analytic pair by defining a method on a
+two-element tuple TYPE more specific than
+`(Difference, Tuple, Real, AnalyticalSolver)`.
+
+See also: [`Difference`](@ref)
+"
+function difference_cdf(d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod)
+    error("difference_cdf not implemented for method type $(typeof(method))")
+end
+
+function difference_cdf(d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver)
+    return _difference_analytic_arm(difference_cdf, cdf, d, components, z,
+        method)
+end
+
+function difference_cdf(d::Difference, components::Tuple,
+        z::Real, method::NumericSolver)
+    return _difference_cdf_route(d, z)
+end
+
+@doc "
+    difference_logcdf(d, components, z, method)
+
+The log CDF of `components[1] - components[2]` at `z`. See
+[`difference_cdf`](@ref).
+"
+function difference_logcdf(d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod)
+    error(
+        "difference_logcdf not implemented for method type $(typeof(method))")
+end
+
+function difference_logcdf(d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver)
+    return _difference_analytic_arm(difference_logcdf, logcdf, d, components,
+        z, method)
+end
+
+function difference_logcdf(d::Difference, components::Tuple,
+        z::Real, method::NumericSolver)
+    c = difference_cdf(d, components, z, method)
+    return c <= 0 ? oftype(float(c), -Inf) : log(c)
+end
+
+@doc "
+    difference_ccdf(d, components, z, method)
+
+The complementary CDF of `components[1] - components[2]` at `z`. See
+[`difference_cdf`](@ref).
+"
+function difference_ccdf(d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod)
+    error("difference_ccdf not implemented for method type $(typeof(method))")
+end
+
+function difference_ccdf(d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver)
+    return _difference_analytic_arm(difference_ccdf, ccdf, d, components, z,
+        method)
+end
+
+function difference_ccdf(d::Difference, components::Tuple,
+        z::Real, method::NumericSolver)
+    return 1 - difference_cdf(d, components, z, method)
+end
+
+@doc "
+    difference_logccdf(d, components, z, method)
+
+The log complementary CDF of `components[1] - components[2]` at `z`. See
+[`difference_cdf`](@ref).
+"
+function difference_logccdf(d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod)
+    error(
+        "difference_logccdf not implemented for method type $(typeof(method))")
+end
+
+function difference_logccdf(d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver)
+    return _difference_analytic_arm(difference_logccdf, logccdf, d,
+        components, z, method)
+end
+
+function difference_logccdf(d::Difference, components::Tuple,
+        z::Real, method::NumericSolver)
+    l = difference_logcdf(d, components, z, method)
+    l == -Inf && return zero(l)
+    l >= 0 && return oftype(l, -Inf)
+    return log1mexp(l)
+end
+
+@doc "
+    difference_pdf(d, components, z, method)
+
+The density of `components[1] - components[2]` at `z`. See
+[`difference_cdf`](@ref).
+"
+function difference_pdf(d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod)
+    error("difference_pdf not implemented for method type $(typeof(method))")
+end
+
+function difference_pdf(d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver)
+    return _difference_analytic_arm(difference_pdf, pdf, d, components, z,
+        method)
+end
+
+function difference_pdf(d::Difference, components::Tuple,
+        z::Real, method::NumericSolver)
+    return _difference_pdf_route(d, z)
+end
+
+@doc "
+    difference_logpdf(d, components, z, method)
+
+The log density of `components[1] - components[2]` at `z`. See
+[`difference_cdf`](@ref).
+"
+function difference_logpdf(d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod)
+    error(
+        "difference_logpdf not implemented for method type $(typeof(method))")
+end
+
+function difference_logpdf(d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver)
+    return _difference_analytic_arm(difference_logpdf, logpdf, d, components,
+        z, method)
+end
+
+function difference_logpdf(d::Difference, components::Tuple,
+        z::Real, method::NumericSolver)
+    insupport(d, z) || return oftype(float(z), -Inf)
+    p = _difference_pdf_route(d, z)
+    return p <= 0 ? oftype(float(z), -Inf) : log(p)
+end
+
+@doc "
+    difference_quantile(d, components, p, method)
+
+The quantile of `components[1] - components[2]` at probability `p`.
+Skeleton and `AnalyticalSolver` arm only, mirroring
+[`convolved_quantile`](@ref): the `NumericSolver` arm needs a nonlinear
+solve and lives in the `ConvolvedDistributionsOptimizationExt`
+extension.
+
+See also: [`difference_cdf`](@ref)
+"
+function difference_quantile(d::AbstractConvolvedDistribution,
+        components::Tuple, p::Real, method::AbstractSolverMethod)
+    error(
+        "difference_quantile not implemented for method type $(typeof(method))")
+end
+
+function difference_quantile(d::Difference, components::Tuple,
+        p::Real, method::AnalyticalSolver)
+    return _difference_analytic_arm(difference_quantile, quantile, d,
+        components, p, method)
+end
