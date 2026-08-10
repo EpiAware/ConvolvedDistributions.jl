@@ -368,9 +368,9 @@ end
     return sum(c -> _window_quantile(c, p), d.components)
 end
 
-# Default `quantile_initial_guess` (#150): sum of the component
-# quantiles, exact when the components are degenerate and a good guess
-# otherwise. A downstream package overrides this per type.
+# Default `quantile_initial_guess`: sum of the component quantiles,
+# exact when the components are degenerate and a good guess otherwise.
+# A downstream package overrides this per type.
 function quantile_initial_guess(d::Convolved, p::Real)
     return [sum(c -> float(quantile(c, p)), d.components)]
 end

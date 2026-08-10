@@ -277,9 +277,9 @@ end
     return _window_quantile(d.x, p) - _window_quantile(d.y, 1 - p)
 end
 
-# Default `quantile_initial_guess` (#150): difference of opposing
-# component quantiles, since reflecting Y flips its tail. A downstream
-# package overrides this per type.
+# Default `quantile_initial_guess`: difference of opposing component
+# quantiles, since reflecting Y flips its tail. A downstream package
+# overrides this per type.
 function quantile_initial_guess(d::Difference, p::Real)
     return [float(quantile(d.x, p)) - float(quantile(d.y, 1 - p))]
 end

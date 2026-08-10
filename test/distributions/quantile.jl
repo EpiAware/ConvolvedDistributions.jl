@@ -322,8 +322,8 @@ end
           [float(quantile(drt.x, p)) / float(quantile(drt.y, 1 - p))]
 
     # A downstream override is load-bearing: `quantile(d, p)` picks up a
-    # specialised guess method instead of the default (#150). The
-    # override must use the concrete parametrised component type and
+    # specialised guess method instead of the default. The override
+    # must use the concrete parametrised component type and
     # annotate `p::Real`: a bare `Convolved{Tuple{Gamma, Uniform}}`
     # does not match a real `Convolved{Tuple{Gamma{Float64},
     # Uniform{Float64}}}` (struct type parameters are invariant), and

@@ -347,8 +347,8 @@ end
     return _window_quantile(d.x, p) * _window_quantile(d.y, p)
 end
 
-# Default `quantile_initial_guess` (#150): product of the component
-# quantiles at `p`, exact on the log scale for degenerate components. A
+# Default `quantile_initial_guess`: product of the component quantiles
+# at `p`, exact on the log scale for degenerate components. A
 # downstream package overrides this per type.
 function quantile_initial_guess(d::Product, p::Real)
     return [float(quantile(d.x, p)) * float(quantile(d.y, p))]

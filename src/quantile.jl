@@ -62,8 +62,8 @@ See also: [`cdf`](@ref)
 function quantile_by_optimization end
 
 # Declared here so the name is public and documented from the core
-# package (#150); default methods for Convolved/Difference/Product/Ratio
-# sit with each type, since none needs the solver dependency.
+# package; default methods for Convolved/Difference/Product/Ratio sit
+# with each type, since none needs the solver dependency.
 
 @doc "
 
@@ -74,10 +74,9 @@ vector.
 Each of `Convolved`, `Difference`, `Product`, and `Ratio` ships a default
 method. A downstream package overrides it for a more specific type to
 supply a domain-specific starting guess without forking the quantile
-machinery (#150). The override needs the concrete parametrised
-component type and an explicit `p::Real`: `Convolved`'s type
-parameters are invariant, and an untyped `p` is ambiguous with the
-generic fallback.
+machinery. The override needs the concrete parametrised component type
+and an explicit `p::Real`: `Convolved`'s type parameters are invariant,
+and an untyped `p` is ambiguous with the generic fallback.
 
 # Examples
 ```@example

@@ -52,7 +52,7 @@ public pgf
 # but the method itself is added by the ConvolvedDistributionsOptimizationExt
 # extension. Other EpiAware packages needing the same numeric inversion
 # (e.g. CensoredDistributions) reuse this instead of their own copy.
-# `quantile_initial_guess` (#150) is the paired hook for the Nelder-Mead
+# `quantile_initial_guess` is the paired hook for the Nelder-Mead
 # starting point: default methods live with each type in the core
 # package, so a downstream package can override the guess without
 # forking the solve itself.
