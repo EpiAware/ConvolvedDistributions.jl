@@ -142,8 +142,7 @@ function upper_partial_expectation(component::LogNormal)
 end
 
 # The `Gamma`/`Weibull` deep-tail survival floor here is inherited from
-# `ccdf_ad_safe(::Gamma)`, a 1e-16 absolute floor (EpiAwareADTools
-# issue tracking a sibling to #47 covers closing it).
+# `ccdf_ad_safe(::Gamma)`, a 1e-16 absolute floor.
 function upper_partial_expectation(component::Weibull)
     k, λ = shape(component), scale(component)
     s = 1 + inv(k)
