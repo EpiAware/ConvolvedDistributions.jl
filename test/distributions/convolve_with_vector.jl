@@ -467,6 +467,134 @@ end
     end
 end
 
+@testsnippet BinnedDelayFixture begin
+    using Distributions
+    import ConvolvedDistributions: convolve_series, delay_masses
+
+    # Stands in for a continuous delay owned elsewhere (e.g.
+    # CensoredDistributions.jl's interval-censored delays): its own
+    # single-delay `convolve_series` method takes an `interval` keyword
+    # and bins the wrapped distribution's CDF over that width, so a
+    # non-default `interval` genuinely changes the masses.
+    struct BinnedDelay{D <: ContinuousUnivariateDistribution} <:
+           ContinuousUnivariateDistribution
+        dist::D
+    end
+
+    function binned_masses(d::BinnedDelay, n::Int, interval::Real)
+        [cdf(d.dist, interval * k) - cdf(d.dist, interval * (k - 1))
+         for k in 1:n]
+    end
+
+    function convolve_series(
+            d::BinnedDelay, series::AbstractVector{<:Real};
+            interval::Real = 1, kwargs...)
+        return convolve_series(binned_masses(d, length(series), interval),
+            series)
+    end
+end
+
+@testitem "vector convolve_series forwards discretisation keywords" setup=[
+    BinnedDelayFixture] begin
+    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+    delay = BinnedDelay(LogNormal(1.5, 0.5))
+
+    # The headline equivalence: the same delay, the same non-default
+    # `interval`, read one at a time vs. as a time-varying vector, must
+    # discretise identically and so convolve identically.
+    scalar = convolve_series(delay, series; interval = 7)
+    vector = convolve_series(fill(delay, length(series)), series;
+        interval = 7)
+    @test vector ≈ scalar
+    @test !(vector ≈ convolve_series(delay, series))   # interval matters
+
+    # `delay_masses` itself reads the same masses the scalar path's
+    # `convolve_series` method builds internally, for any delay type with
+    # no method of its own here: it is the extension point the vector
+    # form calls through.
+    @test ConvolvedDistributions.delay_masses(delay, length(series);
+        interval = 7) ≈ binned_masses(delay, length(series), 7)
+end
+
+@testitem "no-keyword discretisation is unchanged" setup=[
+    BinnedDelayFixture] begin
+    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+    delay = BinnedDelay(LogNormal(1.5, 0.5))
+
+    # No keywords given: the default `interval = 1` scalar behaviour, and
+    # the vector form still agrees with it exactly, matching every other
+    # convolve_series(delays::AbstractVector, ...) call in this file.
+    scalar = convolve_series(delay, series)
+    vector = convolve_series(fill(delay, length(series)), series)
+    @test vector ≈ scalar
+
+    # Discrete delays, which take no discretisation keyword at all, are
+    # completely unaffected by `delay_masses` now accepting keywords.
+    discrete = [Poisson(λ) for λ in range(0.5, 3.0; length = length(series))]
+    @test convolve_series(discrete, series) ≈
+          convolve_series([pdf.(d, 0:(length(series) - 1)) for d in discrete],
+        series)
+end
+
+@testitem "a keyword-less delay_masses override is bypassed for keywords" setup=[
+    BinnedDelayFixture] begin
+    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+    delay = BinnedDelay(LogNormal(1.5, 0.5))
+
+    # Mirrors CensoredDistributions.jl's existing two-argument-only
+    # `delay_masses` specialisation for a bare continuous delay: it takes
+    # no keywords and hard-codes its own discretisation choice
+    # (`interval = 1` here), written before this package could forward
+    # keywords at all.
+    delay_masses(d::BinnedDelay, n::Int) = binned_masses(d, n, 1)
+
+    # No keywords requested: the override is more specific than the
+    # generic keyword-carrying default and takes no keywords itself, so a
+    # plain call still dispatches to it, unmodified and unaware that
+    # keyword forwarding now exists.
+    @test convolve_series(fill(delay, length(series)), series) ≈
+          convolve_series(delay, series; interval = 1)
+
+    # A non-default `interval` requested: the override cannot accept it
+    # (dispatch only considers keyword-accepting methods once keywords are
+    # given), so the generic default is used instead, which forwards
+    # `interval` to the delay's own `convolve_series` method — restoring
+    # agreement with the scalar path even though the override was never
+    # touched.
+    @test convolve_series(fill(delay, length(series)), series;
+        interval = 7) ≈ convolve_series(delay, series; interval = 7)
+end
+
+@testitem "keywords a delay can't honour raise a clear delay_masses error" begin
+    using Distributions
+
+    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+
+    # A discrete delay's `convolve_series` method takes no keywords at
+    # all (there is no discretisation choice to make), so asking the
+    # vector form for one must fail loudly and name the extension point
+    # to fix, not surface the raw keyword-sorter MethodError.
+    delays = fill(Poisson(2.0), length(series))
+    err = try
+        convolve_series(delays, series; interval = 7)
+    catch e
+        e
+    end
+    @test err isa ArgumentError
+    @test occursin("delay_masses", err.msg)
+    @test occursin("interval", err.msg)
+    @test occursin("Poisson", err.msg)
+
+    # The same probe applies one delay at a time, through `delay_masses`
+    # directly.
+    err1 = try
+        ConvolvedDistributions.delay_masses(Poisson(2.0), 3; interval = 7)
+    catch e
+        e
+    end
+    @test err1 isa ArgumentError
+end
+
 @testitem "repeated delays build their masses once" begin
     using Distributions, ForwardDiff
 
