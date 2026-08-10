@@ -663,3 +663,210 @@ end
     gw = ForwardDiff.gradient(weighted, [1.0])
     @test gw[1] ≈ sum(convolve_series(base, series))
 end
+
+# --- output-position mask (#127) --------------------------------------------
+
+@testitem "mask restricts convolve_series to the requested positions" begin
+    using Distributions
+
+    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+    n = length(series)
+    pmf = [0.5, 0.3, 0.2]
+    delay = Poisson(2.0)
+    dnp = DiscreteNonParametric([0.0, 1.0, 2.0], pmf)
+
+    mask = falses(n)
+    mask[[2, 5, 7]] .= true
+
+    # Every entry point that reads a single PMF for the whole window
+    # (caller vector, discrete delay, DiscreteNonParametric) agrees with
+    # its own unmasked result at the requested positions, and holds zero
+    # everywhere else.
+    for (full, masked) in ((convolve_series(pmf, series),
+        convolve_series(pmf, series; mask)),
+        (convolve_series(delay, series),
+        convolve_series(delay, series; mask)),
+        (convolve_series(dnp, series), convolve_series(dnp, series; mask)))
+        @test masked[mask] ≈ full[mask]
+        @test all(iszero, masked[.!mask])
+        @test length(masked) == n
+    end
+end
+
+@testitem "mask restricts the time-varying convolve_series forms" begin
+    using Distributions
+
+    series = [1.0, 2.0, 4.0, 3.0, 5.0]
+    n = length(series)
+    delays = [Poisson(λ) for λ in range(0.5, 3.0; length = n)]
+    pmfs = [pdf.(d, 0:(n - 1)) for d in delays]
+    matrix = hcat(pmfs...)
+    runs = [Poisson(3.0) => 2, Poisson(1.0) => 3]
+
+    mask = falses(n)
+    mask[[1, 4]] .= true
+
+    for indexed_by in (:primary, :secondary)
+        full = convolve_series(delays, series; indexed_by)
+        for masked in (
+            convolve_series(delays, series; indexed_by, mask),
+            convolve_series(pmfs, series; indexed_by, mask),
+            convolve_series(matrix, series; indexed_by, mask)
+        )
+            @test masked[mask] ≈ full[mask]
+            @test all(iszero, masked[.!mask])
+        end
+
+        run_full = convolve_series(runs, series; indexed_by)
+        run_masked = convolve_series(runs, series; indexed_by, mask)
+        @test run_masked[mask] ≈ run_full[mask]
+        @test all(iszero, run_masked[.!mask])
+    end
+end
+
+@testitem "an all-true mask reproduces the unmasked result exactly" begin
+    using Distributions
+
+    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+    n = length(series)
+    pmf = [0.5, 0.3, 0.2]
+    delays = [Poisson(1.0 + 0.2i) for i in 1:n]
+    all_true = trues(n)
+
+    @test convolve_series(pmf, series; mask = all_true) ==
+          convolve_series(pmf, series)
+    for indexed_by in (:primary, :secondary)
+        @test convolve_series(delays, series; indexed_by, mask = all_true) ==
+              convolve_series(delays, series; indexed_by)
+    end
+end
+
+@testitem "an empty mask, or an all-false mask, is handled sensibly" begin
+    using Distributions
+
+    pmf = [0.5, 0.3, 0.2]
+
+    # A mask the same length as an empty series is trivially empty.
+    @test convolve_series(pmf, Float64[]; mask = Bool[]) == Float64[]
+
+    # An all-false mask (a valid-length mask requesting no positions)
+    # returns a full-length all-zero vector, not an error or a shorter
+    # vector.
+    series = [0.0, 1.0, 3.0, 6.0, 8.0]
+    n = length(series)
+    none = falses(n)
+    out = convolve_series(pmf, series; mask = none)
+    @test out == zeros(n)
+    @test length(out) == n
+
+    delays = [Poisson(1.5) for _ in 1:n]
+    for indexed_by in (:primary, :secondary)
+        out_tv = convolve_series(delays, series; indexed_by, mask = none)
+        @test out_tv == zeros(n)
+    end
+end
+
+@testitem "mask validates its length" begin
+    using Distributions
+
+    series = [0.0, 1.0, 3.0, 6.0, 8.0]
+    pmf = [0.5, 0.3, 0.2]
+    delays = fill(Poisson(1.0), length(series))
+
+    err = try
+        convolve_series(pmf, series; mask = falses(length(series) - 1))
+    catch e
+        e
+    end
+    @test err isa ArgumentError
+    @test occursin("same length", err.msg)
+    @test_throws ArgumentError convolve_series(
+        delays, series; mask = trues(length(series) + 1))
+end
+
+@testitem "masked positions genuinely skip computation" begin
+    using Distributions
+
+    # A counting `series` wrapper: `getindex` increments a shared
+    # counter, so the number of series reads is a direct, deterministic
+    # measure of how much of the convolution actually ran. A timing
+    # comparison is noisy on a shared box; a read count is not.
+    mutable struct CountingVector <: AbstractVector{Float64}
+        data::Vector{Float64}
+        reads::Base.RefValue{Int}
+    end
+    CountingVector(v) = CountingVector(v, Ref(0))
+    Base.size(c::CountingVector) = size(c.data)
+    function Base.getindex(c::CountingVector, i::Int)
+        c.reads[] += 1
+        return c.data[i]
+    end
+
+    n = 2000
+    pmf = fill(1 / 50, 50)
+    data = rand(n)
+
+    # A window of 5 requested positions at the tail of a long series.
+    mask = falses(n)
+    mask[(n - 4):n] .= true
+
+    full = CountingVector(data)
+    convolve_series(pmf, full)
+    windowed = CountingVector(data)
+    convolve_series(pmf, windowed; mask)
+
+    # A genuine skip reads `series` only near the requested window: at
+    # most one read per (requested position, PMF lag) pair, nowhere near
+    # the O(n) count an unmasked run makes.
+    @test windowed.reads[] <= 5 * length(pmf)
+    @test full.reads[] > 10 * windowed.reads[]
+
+    # The same holds for the time-varying forms under both conventions:
+    # :secondary gathers per output position like the fixed form above,
+    # :primary scatters, and each surviving (source, lag) pair touches
+    # `series` once.
+    pmfs = [fill(1 / 50, 50) for _ in 1:n]
+    for indexed_by in (:primary, :secondary)
+        full_tv = CountingVector(data)
+        convolve_series(pmfs, full_tv; indexed_by)
+        windowed_tv = CountingVector(data)
+        convolve_series(pmfs, windowed_tv; indexed_by, mask)
+        @test windowed_tv.reads[] <= 5 * length(pmf)
+        @test full_tv.reads[] > 10 * windowed_tv.reads[]
+    end
+end
+
+@testitem "gradients at unmasked positions match the unmasked run" begin
+    using Distributions, ForwardDiff
+
+    series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
+    n = length(series)
+    mask = falses(n)
+    mask[[2, 4, 6]] .= true
+
+    # A caller-supplied PMF, parameterised so ForwardDiff differentiates
+    # through the convolution: gradients at the requested positions must
+    # match the unmasked run exactly, and the masked-out positions carry
+    # no gradient at all.
+    build(θ) = [0.5, 0.3, 0.2] .* θ[1]
+    full(θ) = convolve_series(build(θ), series)
+    masked(θ) = convolve_series(build(θ), series; mask)
+
+    θ = [1.3]
+    jfull = ForwardDiff.jacobian(full, θ)
+    jmasked = ForwardDiff.jacobian(masked, θ)
+    @test jmasked[mask, :] ≈ jfull[mask, :]
+    @test all(iszero, jmasked[.!mask, :])
+    @test !all(iszero, jmasked[mask, :])
+
+    # The time-varying form, differentiated w.r.t. per-time delay rates.
+    rates(θ) = [θ[1] + θ[2] * (t - 1) for t in 1:n]
+    full_tv(θ) = convolve_series([Poisson(λ) for λ in rates(θ)], series)
+    masked_tv(θ) = convolve_series(
+        [Poisson(λ) for λ in rates(θ)], series; mask)
+    θtv = [2.0, 0.25]
+    jfull_tv = ForwardDiff.jacobian(full_tv, θtv)
+    jmasked_tv = ForwardDiff.jacobian(masked_tv, θtv)
+    @test jmasked_tv[mask, :] ≈ jfull_tv[mask, :]
+    @test all(iszero, jmasked_tv[.!mask, :])
+end
