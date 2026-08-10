@@ -54,6 +54,45 @@ function _try_convolve(a::NegativeBinomial, b::NegativeBinomial)
     return succprob(a) ≈ succprob(b) ? Distributions.convolve(a, b) : nothing
 end
 
+@doc "
+
+    _try_convolve_power(d, k)
+
+The analytic distribution of the sum of `k` iid copies of `d`, or
+`nothing` when no closed form exists for the family. Registered
+directly rather than routed through repeated `_try_convolve` pairwise
+collapse, since a family closed under addition has a direct `k`-fold
+formula (e.g. `Gamma(shape, scale)` becomes `Gamma(k * shape, scale)`)
+that needs no intermediate pairwise fold. `Exponential` is the one
+family whose repeat is not itself an `Exponential`: `k` iid
+`Exponential(θ)` sum to `Gamma(k, θ)`.
+"
+_try_convolve_power(d::UnivariateDistribution, k::Integer) = nothing
+
+function _try_convolve_power(d::Normal, k::Integer)
+    μ, σ = params(d)
+    return Normal(k * μ, sqrt(k) * σ)
+end
+
+_try_convolve_power(d::Exponential, k::Integer) = Gamma(k, scale(d))
+
+function _try_convolve_power(d::Gamma, k::Integer)
+    α, θ = params(d)
+    return Gamma(k * α, θ)
+end
+
+_try_convolve_power(d::Poisson, k::Integer) = Poisson(k * params(d)[1])
+
+function _try_convolve_power(d::Binomial, k::Integer)
+    n, p = params(d)
+    return Binomial(k * n, p)
+end
+
+function _try_convolve_power(d::NegativeBinomial, k::Integer)
+    r, p = params(d)
+    return NegativeBinomial(k * r, p)
+end
+
 # ---------------------------------------------------------------------------
 # Pairwise analytic collapse (review A): the n-component fold
 # ---------------------------------------------------------------------------

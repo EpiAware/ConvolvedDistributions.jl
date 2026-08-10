@@ -348,3 +348,42 @@ function _check_strict(d::AbstractConvolvedDistribution, strict::Bool)
         "route exists for components $(_family_names(d)); pass strict " *
         "= false to allow quadrature"))
 end
+
+# ---------------------------------------------------------------------------
+# Shared repeat mechanism: `convolved(d, k)` / `product(d, k)`
+# ---------------------------------------------------------------------------
+
+# The repeat count itself, as a plain `Int`-like value, whether it
+# arrived as a runtime `Integer` or as a compile-time `Val{K}`.
+_repeat_count(k::Integer) = k
+_repeat_count(::Val{K}) where {K} = K
+
+@doc "
+
+Validate a repeat count for `convolved(d, k)` / `product(d, k)`: must be
+a positive integer, else throw an `ArgumentError`.
+"
+function _validate_repeat_count(k::Integer)
+    k > 0 || throw(ArgumentError(
+        "repeat count must be a positive integer, got $k"))
+    return nothing
+end
+
+@doc "
+
+Shared mechanism behind `convolved(d, k)` and `product(d, k)`: validate
+`k`, return `d` unchanged for `k == 1`, try the closed form for `k` iid
+copies of `d` via `analytic(d, k)`, and only when that returns `nothing`
+build the k-fold combination via `build(d, k)`. `k` is either a plain
+`Integer` or a `Val{K}`; `build` receives it unchanged so it can offer
+an inference-stable path for the `Val` case.
+"
+function _repeat_combination(
+        analytic::A, build::B, d::UnivariateDistribution, k) where {A, B}
+    kk = _repeat_count(k)
+    _validate_repeat_count(kk)
+    kk == 1 && return d
+    closed = analytic(d, kk)
+    closed !== nothing && return closed
+    return build(d, k)
+end
