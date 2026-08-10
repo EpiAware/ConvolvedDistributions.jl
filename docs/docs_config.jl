@@ -51,11 +51,8 @@ const FORCE_STUB_TUTORIALS = String[]
 # published by a separate workflow that is not yet live.
 # - The stable docs URL 404s until the first tagged release deploys; drop
 #   the ignore after that.
-# - The Discussions link 404s until Discussions is enabled on the repo
-#   (owner-only toggle, tracked in #21); drop the ignore once enabled.
 const LINKCHECK_IGNORE = [
-    r"convolveddistributions\.epiaware\.org/stable",
-    r"github\.com/EpiAware/ConvolvedDistributions\.jl/discussions"
+    r"convolveddistributions\.epiaware\.org/stable"
 ]
 
 # README -> index.md link rewrites: `from => to` pairs applied line by line,
