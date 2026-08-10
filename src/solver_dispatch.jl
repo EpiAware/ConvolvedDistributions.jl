@@ -503,8 +503,8 @@ const _CONVOLVED_QUANTITY_GENERICS = (convolved_pdf, convolved_logpdf,
 # distribution via pairwise `_try_convolve` (every quantity is then
 # analytic, since a genuine `Distributions.jl` object answers all of
 # them) OR a pair-specific method is registered for that particular
-# quantity (checked per quantity: a pair like Gamma+Uniform only
-# registers `pdf`/`cdf`/`logpdf`, not `logcdf`/`ccdf`/`logccdf`).
+# quantity (checked per quantity: a pair may register a closed form for
+# some quantities and not others).
 function _resolve_closed_form(::Tuple, ::AbstractSolverMethod)
     return NamedTuple{_CONVOLVED_QUANTITY_KEYS}(ntuple(_ -> false, 6))
 end
