@@ -449,9 +449,9 @@ end
 # seeding from it side-steps the hazard while still carrying a live
 # `Dual`/tracked type on the rare window whose bound is itself a
 # differentiated parameter (e.g. a `Uniform` denominator's own bound).
-function _ratio_branch(f::F, lower, upper, comp) where {F}
+function _ratio_branch(d, f::F, lower, upper, comp) where {F}
     upper <= lower && return zero(lower)
-    return _panel_integrate(f, lower, upper, comp)
+    return _solver_integrate(d, f, lower, upper, comp)
 end
 
 # Numeric ratio density:
@@ -467,8 +467,8 @@ function _ratio_numeric_pdf(d::Ratio, z::Real)
                      pdf_ad_safe(d.y, y)
     nl, nu = _ratio_pdf_window(neg[1], neg[2], z, xlo, xhi)
     pl, pu = _ratio_pdf_window(pos[1], pos[2], z, xlo, xhi)
-    result = _ratio_branch(integrand, nl, nu, d.y) +
-             _ratio_branch(integrand, pl, pu, d.y)
+    result = _ratio_branch(d, integrand, nl, nu, d.y) +
+             _ratio_branch(d, integrand, pl, pu, d.y)
     return max(result, zero(result))
 end
 
@@ -497,7 +497,7 @@ function _ratio_branch_cdf(d::Ratio, is_pos::Bool, a, b, z::Real, xlo, xhi)
     y_near = abs(lower) <= abs(upper) ? lower : upper
     c = kernel(y_near)
     base = c * (cdf_ad_safe(d.y, upper) - cdf_ad_safe(d.y, lower))
-    cv = _ratio_branch(
+    cv = _ratio_branch(d,
         y -> (kernel(y) - c) * pdf_ad_safe(d.y, y), lower, upper, d.y)
     return sat + base + cv
 end
@@ -567,6 +567,19 @@ function _throw_ratio_window(d::Ratio)
         "component of another combination's numeric quadrature; use a " *
         "non-negative numerator with a non-negative denominator, or " *
         "place the ratio outermost"))
+end
+
+# Default `quantile_initial_guess`: numerator quantile at `p` over
+# denominator quantile at `1 - p` (opposing tails, as the Difference
+# guess does for subtraction), falling back to the median ratio when
+# that is not finite (sign-crossing denominator), and to zero as a
+# last resort (symmetric numerator and denominator both about zero). A
+# downstream package overrides this per type.
+function quantile_initial_guess(d::Ratio, p::Real)
+    g = float(quantile(d.x, p)) / float(quantile(d.y, 1 - p))
+    isfinite(g) && return [g]
+    m = float(quantile(d.x, 0.5)) / float(quantile(d.y, 0.5))
+    return [isfinite(m) ? m : zero(m)]
 end
 
 # ---------------------------------------------------------------------------

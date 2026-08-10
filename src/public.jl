@@ -38,7 +38,8 @@ public GaussLegendre, integrate, gl_integrate
 # distribution family plugs its `partial_expectation` into.
 public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
        convolved_pdf, convolved_logpdf, convolved_quantile,
-       convolved_minimum, uniform_window_cdf, partial_expectation
+       convolved_minimum, uniform_window_cdf, uniform_window_ccdf,
+       partial_expectation, upper_partial_expectation
 
 # The probability generating function primitive (#90), mirroring
 # Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with
@@ -52,7 +53,11 @@ public pgf
 # but the method itself is added by the ConvolvedDistributionsOptimizationExt
 # extension. Other EpiAware packages needing the same numeric inversion
 # (e.g. CensoredDistributions) reuse this instead of their own copy.
-public quantile_by_optimization
+# `quantile_initial_guess` is the paired hook for the Nelder-Mead
+# starting point: default methods live with each type in the core
+# package, so a downstream package can override the guess without
+# forking the solve itself.
+public quantile_by_optimization, quantile_initial_guess
 
 # The time-varying `convolve_series` extension point: how one delay's lag
 # masses are read. Defaults to the delay's own single-delay method, so a

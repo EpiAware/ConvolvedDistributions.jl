@@ -347,6 +347,13 @@ end
     return _window_quantile(d.x, p) * _window_quantile(d.y, p)
 end
 
+# Default `quantile_initial_guess`: product of the component quantiles
+# at `p`, exact on the log scale for degenerate components. A
+# downstream package overrides this per type.
+function quantile_initial_guess(d::Product, p::Real)
+    return [float(quantile(d.x, p)) * float(quantile(d.y, p))]
+end
+
 # The effective mass window of Y for the multiplicative quadrature. Both
 # integrands carry the factor f_Y(y), negligible outside Y's effective
 # support, so an infinite upper endpoint is clamped to an extreme
@@ -421,7 +428,7 @@ function _product_numeric_pdf(d::Product, z::Real)
     lower, upper = _product_pdf_window(d, z)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = _panel_integrate(
+    result = _solver_integrate(d,
         y -> pdf_ad_safe(d.x, z / y) * pdf_ad_safe(d.y, y) / y,
         lower, upper, d.y)
     return max(result, zero(result))
@@ -446,7 +453,7 @@ function _product_numeric_cdf(d::Product, z::Real)
     upper <= lower && return clamp(base, zero(base), one(base))
 
     result = base -
-             _panel_integrate(
+             _solver_integrate(d,
         y -> ccdf_ad_safe(d.x, z / y) * pdf_ad_safe(d.y, y),
         lower, upper, d.y)
     return clamp(result, zero(result), one(result))
@@ -694,4 +701,21 @@ function logpdf(d::Product, z::Real)
     end
     p = _product_pdf_route(d, z)
     return p <= 0 ? oftype(float(z), -Inf) : log(p)
+end
+
+@doc "
+
+Compute the quantile (inverse CDF) of the product.
+
+For a `Discrete`-typed product, returns an exact integer lattice
+point, with `p == 0`/`p == 1` always returning the bounds exactly.
+Any other case needs the `ConvolvedDistributionsOptimizationExt`
+extension loaded.
+
+See also: [`cdf`](@ref)
+"
+function quantile(d::_DiscreteProduct, p::Real)
+    boundary = p == 0 || p == 1
+    (boundary || isfinite(minimum(d))) && return _lattice_quantile(d, p)
+    return invoke(quantile, Tuple{Product, Real}, d, p)
 end

@@ -50,6 +50,7 @@ function uniform_window_cdf(component::UnivariateDistribution,
     # though the values agree (commit 640c2c2).
     T = promote_type(float(typeof(x)), partype(component), partype(window))
     h <= dmin && return zero(T)
+    isinf(h) && return one(T)
     l = max(h - w, dmin)
     F_h = cdf_ad_safe(component, h)
     M_h = partial_expectation(h)
@@ -59,7 +60,7 @@ function uniform_window_cdf(component::UnivariateDistribution,
     else
         (h * F_h - M_h) / w
     end
-    return convert(T, val)::T
+    return convert(T, clamp(val, zero(val), one(val)))::T
 end
 
 @doc "
@@ -71,7 +72,9 @@ for `component`, as a closure over its parameters. The extension point
 [`uniform_window_cdf`](@ref) needs: a downstream family adds its own
 Uniform-window closed form by defining a method here and calling
 `uniform_window_cdf(component, window, x, partial_expectation(component))`
-from a [`convolved_cdf`](@ref) method.
+from a [`convolved_cdf`](@ref) method. A family that also wants
+[`convolved_ccdf`](@ref)/`convolved_logccdf` closed forms adds the
+survival-side companion, [`upper_partial_expectation`](@ref), too.
 "
 function partial_expectation end
 
@@ -105,6 +108,49 @@ function partial_expectation(component::Weibull)
                 λ * Γs * _gamma_cdf(s, one(s), (t / λ)^k)
 end
 
+@doc "
+
+    upper_partial_expectation(component)
+
+The upper partial first moment ``t \\mapsto \\int_t^\\infty u f(u)
+\\, \\mathrm{d}u`` for `component`, as a closure over its parameters.
+The survival-side companion to [`partial_expectation`](@ref) that
+[`uniform_window_ccdf`](@ref) needs: computing it as `mean(component) -
+partial_expectation(component)(t)` would cancel to nothing in the upper
+tail, where both terms approach the mean.
+"
+function upper_partial_expectation end
+
+# Q(k + 1, y) = Q(k, y) + y^k e^{-y}/Γ(k+1), the survival mirror of the
+# recursion `partial_expectation(::Gamma)` uses. A sum of non-negative
+# terms, so the thinning tail never cancels against the mean.
+function upper_partial_expectation(component::Gamma)
+    k, θ = shape(component), scale(component)
+    inv_g = inv(SpecialFunctions.gamma(k + 1))
+    return function (t)
+        t <= 0 && return k * θ * one(float(t))
+        y = t / θ
+        return k * θ * (ccdf_ad_safe(component, t) + y^k * exp(-y) * inv_g)
+    end
+end
+
+function upper_partial_expectation(component::LogNormal)
+    μ, σ = meanlogx(component), stdlogx(component)
+    shifted = LogNormal(μ + σ^2, σ)
+    m = exp(μ + σ^2 / 2)
+    return t -> m * ccdf_ad_safe(shifted, t)
+end
+
+# The `Gamma`/`Weibull` deep-tail survival floor here is inherited from
+# `ccdf_ad_safe(::Gamma)`, a 1e-16 absolute floor.
+function upper_partial_expectation(component::Weibull)
+    k, λ = shape(component), scale(component)
+    s = 1 + inv(k)
+    Γs = SpecialFunctions.gamma(s)
+    return t -> t <= 0 ? λ * Γs :
+                λ * Γs * (1 - _gamma_cdf(s, one(s), (t / λ)^k))
+end
+
 const _WINDOW_FAMILIES = Union{Gamma, LogNormal, Weibull}
 
 function convolved_cdf(d::Convolved, components::Tuple{_WINDOW_FAMILIES, Uniform},
@@ -133,6 +179,122 @@ end
 function convolved_cdf(d::Convolved, components::Tuple{Uniform, _WINDOW_FAMILIES},
         x::AbstractVector{<:Real}, m::AnalyticalSolver)
     return convolved_cdf(d, reverse(components), x, m)
+end
+
+@doc "
+
+    uniform_window_ccdf(component, window, x, partial_expectation,
+        upper_partial_expectation)
+
+Complementary CDF of `component + window` at `x` for a `Uniform`
+`window`: the survival mirror of [`uniform_window_cdf`](@ref),
+``\\bar F_S(x) = (h \\bar F(h) - l \\bar F(l) + N(l) - N(h)) / w``
+with ``h = x - a``, ``l = h - w``, `w` the window width, and ``N`` the
+[`upper_partial_expectation`](@ref). Adding the two forms telescopes to
+``(h - l)/w = 1``, so they are exactly complementary.
+
+Below the component's median the complement of
+[`uniform_window_cdf`](@ref) is returned instead: exact there, and it
+avoids dividing a mean-sized rounding error by a narrow `w`. Above it,
+the survival form is what keeps an upper tail meaningful — `1 - cdf`
+cancels to zero once the survival drops below `eps`.
+
+Public for the same reason [`uniform_window_cdf`](@ref) is: a
+downstream family supplies the two expectation closures and calls this
+from a [`convolved_ccdf`](@ref) method.
+
+# Arguments
+- `component`: The non-`Uniform` distribution.
+- `window`: The `Uniform` window distribution.
+- `x`: Evaluation point.
+- `partial_expectation`: `t -> ∫₀ᵗ u f(u) du` for `component`.
+- `upper_partial_expectation`: `t -> ∫ₜ^∞ u f(u) du` for `component`.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+component = Gamma(2.0, 1.5)
+ConvolvedDistributions.uniform_window_ccdf(
+    component, Uniform(0.0, 2.0), 30.0,
+    ConvolvedDistributions.partial_expectation(component),
+    ConvolvedDistributions.upper_partial_expectation(component))
+```
+"
+function uniform_window_ccdf(component::UnivariateDistribution,
+        window::Uniform, x::Real, partial_expectation::F,
+        upper_partial_expectation::G) where {F, G}
+    a = minimum(window)
+    w = maximum(window) - a
+    dmin = minimum(component)
+    h = x - a
+    T = promote_type(float(typeof(x)), partype(component), partype(window))
+    h <= dmin && return one(T)
+    isinf(h) && return zero(T)
+    l = h - w
+    F_h = cdf_ad_safe(component, h)
+    if l <= dmin || F_h < oftype(F_h, 0.5)
+        p = uniform_window_cdf(component, window, x, partial_expectation)
+        return convert(T, one(p) - p)::T
+    end
+    val = (h * ccdf_ad_safe(component, h) - l * ccdf_ad_safe(component, l) +
+           (upper_partial_expectation(l) - upper_partial_expectation(h))) / w
+    return convert(T, clamp(val, zero(val), one(val)))::T
+end
+
+# Log CDF: the log of the same closed form `convolved_cdf` returns, so
+# `logcdf` and `log(cdf)` are the same number rather than two
+# algorithms' answers. Without this method the generic
+# `AnalyticalSolver` arm falls through to `log` of the numeric
+# quadrature (solver_dispatch.jl), which is accurate only to the
+# quadrature's own error and diverges from the closed-form `cdf` the
+# same distribution reports.
+function convolved_logcdf(d::Convolved,
+        components::Tuple{_WINDOW_FAMILIES, Uniform}, x::Real,
+        ::AnalyticalSolver)
+    component, window = components
+    p = uniform_window_cdf(component, window, x,
+        partial_expectation(component))
+    return p <= 0 ? oftype(float(p), -Inf) : log(p)
+end
+
+function convolved_logcdf(d::Convolved,
+        components::Tuple{Uniform, _WINDOW_FAMILIES}, x::Real,
+        m::AnalyticalSolver)
+    return convolved_logcdf(d, reverse(components), x, m)
+end
+
+# Survival: the dedicated closed form, not `1 - cdf`, which cancels to
+# exactly zero once the survival drops below `eps`.
+function convolved_ccdf(d::Convolved,
+        components::Tuple{_WINDOW_FAMILIES, Uniform}, x::Real,
+        ::AnalyticalSolver)
+    component, window = components
+    return uniform_window_ccdf(component, window, x,
+        partial_expectation(component),
+        upper_partial_expectation(component))
+end
+
+function convolved_ccdf(d::Convolved,
+        components::Tuple{Uniform, _WINDOW_FAMILIES}, x::Real,
+        m::AnalyticalSolver)
+    return convolved_ccdf(d, reverse(components), x, m)
+end
+
+# Log survival: the log of the survival closed form above, never
+# `log1mexp` of a log CDF -- that route inherits the CDF's rounding
+# exactly where the survival is smallest.
+function convolved_logccdf(d::Convolved,
+        components::Tuple{_WINDOW_FAMILIES, Uniform}, x::Real,
+        m::AnalyticalSolver)
+    q = convolved_ccdf(d, components, x, m)
+    return q <= 0 ? oftype(float(q), -Inf) : log(q)
+end
+
+function convolved_logccdf(d::Convolved,
+        components::Tuple{Uniform, _WINDOW_FAMILIES}, x::Real,
+        m::AnalyticalSolver)
+    return convolved_logccdf(d, reverse(components), x, m)
 end
 
 # f_S(x) = (F(x-a) - F(x-b)) / w, exact for any `component`. Computed

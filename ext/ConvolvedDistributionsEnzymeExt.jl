@@ -1,6 +1,6 @@
 module ConvolvedDistributionsEnzymeExt
 
-using ConvolvedDistributions: _window_quantile
+using ConvolvedDistributions: _window_quantile, _lattice_quantile
 using Enzyme: Enzyme
 using Enzyme.EnzymeRules: EnzymeRules
 
@@ -21,5 +21,9 @@ using Enzyme.EnzymeRules: EnzymeRules
 # gamma-CDF Enzyme rules that used to live here now ship in
 # EpiAwareADTools' Enzyme extension.
 EnzymeRules.inactive(::typeof(_window_quantile), args...) = nothing
+
+# `_lattice_quantile` is the same kind of non-differentiable step
+# function: an `Int` lattice point from a summation scan.
+EnzymeRules.inactive(::typeof(_lattice_quantile), args...) = nothing
 
 end

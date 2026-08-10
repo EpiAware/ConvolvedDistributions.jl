@@ -277,6 +277,13 @@ end
     return _window_quantile(d.x, p) - _window_quantile(d.y, 1 - p)
 end
 
+# Default `quantile_initial_guess`: difference of opposing component
+# quantiles, since reflecting Y flips its tail. A downstream package
+# overrides this per type.
+function quantile_initial_guess(d::Difference, p::Real)
+    return [float(quantile(d.x, p)) - float(quantile(d.y, 1 - p))]
+end
+
 # Integration window over Y. Both the density and CDF integrands carry the
 # factor f_Y(y), negligible outside Y's effective support, so an infinite
 # endpoint is clamped to an extreme quantile of Y on AD-stripped params
@@ -309,7 +316,7 @@ function _difference_numeric_pdf(d::Difference, z::Real)
     lower, upper = _difference_window(d)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = _panel_integrate(
+    result = _solver_integrate(d,
         y -> pdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y),
         lower, upper, d.y)
     return max(result, zero(result))
@@ -326,7 +333,7 @@ function _difference_numeric_cdf(d::Difference, z::Real)
     lower, upper = _difference_window(d)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = _panel_integrate(
+    result = _solver_integrate(d,
         y -> cdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y),
         lower, upper, d.y)
     return clamp(result, zero(result), one(result))
@@ -548,4 +555,21 @@ function logpdf(d::Difference, z::Real)
     end
     p = _difference_pdf_route(d, z)
     return p <= 0 ? oftype(float(z), -Inf) : log(p)
+end
+
+@doc "
+
+Compute the quantile (inverse CDF) of the difference.
+
+For a `Discrete`-typed difference, returns an exact integer lattice
+point, with `p == 0`/`p == 1` always returning the bounds exactly.
+Any other case needs the `ConvolvedDistributionsOptimizationExt`
+extension loaded.
+
+See also: [`cdf`](@ref)
+"
+function quantile(d::_DiscreteDifference, p::Real)
+    boundary = p == 0 || p == 1
+    (boundary || isfinite(minimum(d))) && return _lattice_quantile(d, p)
+    return invoke(quantile, Tuple{Difference, Real}, d, p)
 end

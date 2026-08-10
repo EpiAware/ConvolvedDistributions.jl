@@ -122,6 +122,28 @@ draw(
 
 maximum(abs, residual_df.residual)
 
+# ## Custom solver payloads
+#
+# Beyond the binary `AnalyticalSolver`/`NumericSolver` choice, a solver can carry a custom payload that the numeric path honours.
+# [`NumericSolver`](@ref) (or [`AnalyticalSolver`](@ref)) takes an optional quadrature solver; a non-default [`GaussLegendre`](@ref) raises the nodal accuracy.
+# With the optional [`Integrals.jl`](https://github.com/SciML/Integrals.jl) extension loaded, an Integrals.jl algorithm such as `NumericSolver(Integrals.QuadGKJL())` routes the integration window through `IntegralProblem`/`solve`.
+
+using ConvolvedDistributions: GaussLegendre
+using Integrals: QuadGKJL
+
+# A higher-node GaussLegendre payload raises accuracy; here a 256-node
+# rule agrees with the default to machine precision.
+
+pair = (Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+d_default = convolved(pair...)
+d_custom = convolved(pair...; method = NumericSolver(GaussLegendre(; n = 256)))
+d_quadgk = convolved(pair...; method = NumericSolver(QuadGKJL()))
+
+cdf_default = cdf(d_default, 5.0)
+cdf_custom = cdf(d_custom, 5.0)
+cdf_quadgk = cdf(d_quadgk, 5.0)
+(cdf_default, cdf_custom, cdf_quadgk, cdf_quadgk - cdf_default)
+
 # ## Truncation composes
 #
 # A `Convolved` distribution is a `UnivariateDistribution`, so `Distributions.truncated` applies directly.
