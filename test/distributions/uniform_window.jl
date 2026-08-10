@@ -52,14 +52,17 @@ end
         d_numeric = convolved(delay, primary; method = NumericSolver())
         for x in (0.1, 0.5, 1.0, 2.0, 3.0, 6.0, 15.0)
             @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol=1e-6
-            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol=1e-6
             # `k = 0.7`'s density is near-singular at 0, so `NumericSolver`'s
             # own fixed-panel pdf quadrature (not the closed form, which
             # matches a finite difference of the cdf above to ~1e-9) is
             # only accurate to ~0.5% there -- rtol reflects that reference
-            # limit, not the closed form's own accuracy.
+            # limit, not the closed form's own accuracy. Since `logcdf`
+            # now routes through the same closed form as `cdf` rather
+            # than a fresh quadrature, its agreement with the numeric
+            # arm's `logcdf` inherits the same ~0.5% ceiling.
             @test pdf(d_analytic, x)≈pdf(d_numeric, x) atol=1e-6 rtol=1e-2
             @test logpdf(d_analytic, x)≈logpdf(d_numeric, x) atol=1e-2
+            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol=1e-4
         end
         @test cdf(d_analytic, pmin - 1.0) == 0.0
     end
@@ -157,6 +160,132 @@ end
         θm[i] -= h
         @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol=1e-6
         @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol=1e-6
+    end
+end
+
+@testitem "Uniform-window logcdf/ccdf/logccdf are analytic, both orders" begin
+    using ConvolvedDistributions: evaluation_path
+    using Distributions
+
+    pairs = ((Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
+        (LogNormal(1.5, 0.5), Uniform(0.0, 3.0)),
+        (Weibull(1.5, 2.0), Uniform(0.0, 1.5)))
+    for (component, window) in pairs
+        for d in (convolved(component, window), convolved(window, component))
+            @test evaluation_path(d, logcdf) === :analytic
+            @test evaluation_path(d, ccdf) === :analytic
+            @test evaluation_path(d, logccdf) === :analytic
+
+            lo = minimum(d)
+            hi = isfinite(lo) ? lo + 20.0 : 20.0
+            grid = range(lo - 1.0, hi; length = 40)
+            for x in grid
+                cdf_val = cdf(d, x)
+                logcdf_val = logcdf(d, x)
+                if cdf_val > 0
+                    @test logcdf_val == log(cdf_val)
+                else
+                    @test logcdf_val == -Inf
+                end
+
+                ccdf_val = ccdf(d, x)
+                logccdf_val = logccdf(d, x)
+                if ccdf_val > 0
+                    @test logccdf_val == log(ccdf_val)
+                else
+                    @test logccdf_val == -Inf
+                end
+
+                @test cdf_val + ccdf_val≈1.0 atol=1e-12
+                @test 0.0 <= ccdf_val <= 1.0
+            end
+            @test issorted(-[ccdf(d, x) for x in grid])
+        end
+    end
+end
+
+@testitem "Uniform-window ccdf stays accurate where 1 - cdf cancels" begin
+    using ConvolvedDistributions: integrate, GaussLegendre
+    using Distributions
+
+    reference(component, window, x) = integrate(
+        GaussLegendre(; n = 256), t -> ccdf(component, t),
+        x - maximum(window), x - minimum(window)) /
+                                      (maximum(window) - minimum(window))
+
+    d = convolved(LogNormal(1.0, 0.5), Uniform(0.5, 1.5))
+    component, window = LogNormal(1.0, 0.5), Uniform(0.5, 1.5)
+    for x in (50.0, 100.0, 200.0)
+        @test ccdf(d, x) ≈ reference(component, window, x) rtol=1e-10
+    end
+    @test 1 - cdf(d, 200.0) == 0.0
+    @test ccdf(d, 200.0) > 0.0
+
+    dg = convolved(Gamma(2.0, 1.5), Uniform(0.0, 1.0))
+    cg, wg = Gamma(2.0, 1.5), Uniform(0.0, 1.0)
+    @test ccdf(dg, 20.0) ≈ reference(cg, wg, 20.0) rtol=1e-10
+    @test ccdf(dg, 30.0) ≈ reference(cg, wg, 30.0) rtol=1e-6
+
+    dw = convolved(Weibull(1.5, 2.0), Uniform(0.0, 0.5))
+    cw, ww = Weibull(1.5, 2.0), Uniform(0.0, 0.5)
+    @test ccdf(dw, 20.0) ≈ reference(cw, ww, 20.0) rtol=1e-2
+end
+
+@testitem "Uniform-window cdf/ccdf are probabilities at the extremes" begin
+    using Distributions
+
+    pairs = ((Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
+        (LogNormal(1.5, 0.5), Uniform(0.0, 3.0)),
+        (Weibull(1.5, 2.0), Uniform(0.0, 1.5)))
+    for (component, window) in pairs
+        d = convolved(component, window)
+        @test cdf(d, Inf) == 1.0
+        @test logcdf(d, Inf) == 0.0
+        @test ccdf(d, Inf) == 0.0
+        @test logccdf(d, Inf) == -Inf
+
+        @test cdf(d, -Inf) == 0.0
+        @test ccdf(d, -Inf) == 1.0
+
+        @test isnan(cdf(d, NaN))
+        @test isnan(logcdf(d, NaN))
+        @test isnan(ccdf(d, NaN))
+        @test isnan(logccdf(d, NaN))
+    end
+
+    narrow = convolved(Gamma(2.0, 1.0), Uniform(0.0, 1e-6))
+    @test cdf(narrow, 25.0) <= 1.0
+    @test logcdf(narrow, 25.0) <= 0.0
+end
+
+@testitem "Uniform-window ccdf/logccdf ForwardDiff gradient" begin
+    using Distributions, ForwardDiff
+
+    cases = (
+        (θ -> convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), [2.0, 1.5],
+            3.0),
+        (θ -> convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), [1.5, 0.5],
+            4.0),
+        (θ -> convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), [1.5, 2.0],
+            2.5))
+    for (build, θ, x) in cases
+        fq = θ -> ccdf(build(θ), x)
+        flq = θ -> logccdf(build(θ), x)
+
+        gq = ForwardDiff.gradient(fq, θ)
+        glq = ForwardDiff.gradient(flq, θ)
+        @test all(isfinite, gq)
+        @test all(isfinite, glq)
+
+        h = 1e-6
+        for i in eachindex(θ)
+            θp = copy(θ)
+            θm = copy(θ)
+            θp[i] += h
+            θm[i] -= h
+            @test gq[i] ≈ (fq(θp) - fq(θm)) / (2h) atol=1e-6
+            @test glq[i] ≈ (flq(θp) - flq(θm)) / (2h) atol=1e-6
+        end
     end
 end
 
