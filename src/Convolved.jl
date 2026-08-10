@@ -443,6 +443,13 @@ end
     return sum(c -> _window_quantile(c, p), d.components)
 end
 
+# Default `quantile_initial_guess`: sum of the component quantiles,
+# exact when the components are degenerate and a good guess otherwise.
+# A downstream package overrides this per type.
+function quantile_initial_guess(d::Convolved, p::Real)
+    return [sum(c -> float(quantile(c, p)), d.components)]
+end
+
 # Clamp an integration window to a finite range. Both the integrand's
 # `f_C(t)` factor and (for the CDF) the transition of `F_R(x - t)` are
 # negligible outside the integration component's effective support, so an
@@ -1086,11 +1093,27 @@ where the components collapse to a named distribution (e.g.
 no dependency on Optimization.jl. A fold that gets stuck falls back to
 the numeric quantile in the `ConvolvedDistributionsOptimizationExt`
 extension, for any number of components.
+A `Discrete`-typed convolution instead returns an exact lattice point
+from an upward summation scan, also with no Optimization.jl dependency.
 
 See also: [`cdf`](@ref)
 "
 function quantile(d::Convolved, p::Real)
     return convolved_quantile(d, d.components, p, d.method)
+end
+
+# Exact lattice quantile, more specific than the method above so it
+# wins for a `Discrete`-typed convolution without needing
+# Optimization.jl loaded at all. `minimum(d)` is finite for every
+# ordinary discrete component, but not for one unbounded below (e.g. a
+# `Skellam` component); an interior `p` then has no lattice point to
+# start the scan from and falls back to the method above via `invoke`.
+# `p == 0`/`p == 1` stay exact either way (`_lattice_quantile` returns
+# the bound itself).
+function quantile(d::_DiscreteConvolved, p::Real)
+    boundary = p == 0 || p == 1
+    (boundary || isfinite(minimum(d))) && return _lattice_quantile(d, p)
+    return invoke(quantile, Tuple{Convolved, Real}, d, p)
 end
 
 # ---------------------------------------------------------------------------

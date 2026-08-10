@@ -56,3 +56,44 @@ function _lattice_sum(f::F, t0::Int, t1::Int) where {F}
     end
     return acc
 end
+
+# Exact lattice quantile: an upward scan over the integer lattice
+# from `ceil(minimum(d))`, summing the public `pdf` until the target
+# probability is reached. Works off `minimum`/`pdf` alone, so it applies
+# unchanged to `Convolved`, `Difference`, and `Product`. `@noinline` and
+# AD-shielded in the three extensions (ChainRulesCore, Enzyme, Mooncake),
+# matching `_window_quantile`: an integer-lattice quantile is a step
+# function, so it carries no gradient.
+#
+# The boundary cases (`p == 0`/`p == 1`) are checked before either bound
+# is rounded to an `Int`, so they return exactly `minimum(d)`/`maximum(d)`
+# even when that bound is not finite (e.g. a `Difference` whose
+# subtrahend is unbounded above). An interior `p` needs a finite lattice
+# point to start the scan from; callers guard that case (see
+# `quantile(d::_DiscreteDifference, p)` and its `Convolved`/`Product`
+# counterparts) and fall back to the numeric route instead of calling
+# this function.
+@noinline function _lattice_quantile(d, p::Real)
+    if isnan(p) || p < 0 || p > 1
+        throw(ArgumentError("p must be in [0, 1], got $p"))
+    end
+
+    dmin = Float64(primal(minimum(d)))
+    if p == 0
+        return isfinite(dmin) ? ceil(Int, dmin) : dmin
+    end
+
+    if p == 1
+        dmax = Float64(primal(maximum(d)))
+        return isfinite(dmax) ? floor(Int, dmax) : dmax
+    end
+
+    t0 = ceil(Int, dmin)
+    acc = pdf(d, t0)
+    t = t0
+    while acc < p
+        t += 1
+        acc += pdf(d, t)
+    end
+    return t
+end

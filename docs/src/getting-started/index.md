@@ -214,4 +214,6 @@ Gradients with respect to the component parameters are tested on ForwardDiff, Re
 - Want the packages ConvolvedDistributions works alongside? See
   [Related packages](../index.md) on the home page.
 - Contributing, or adding a new member of the combination family? Start from the [developer documentation](@ref developer), the [Contributing guide](@ref contributing), and [Adding a new combination](@ref extending).
-- Want to report a problem or ask a question? Open an issue or start a discussion on the [GitHub repository](https://github.com/EpiAware/ConvolvedDistributions.jl).
+- Found a bug? Open a [GitHub issue](https://github.com/EpiAware/ConvolvedDistributions.jl/issues).
+- Have a usage question? Ask on the [Julia Discourse](https://discourse.julialang.org)
+  or the [epinowcast community forum](https://community.epinowcast.org).
