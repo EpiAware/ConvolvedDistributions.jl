@@ -416,6 +416,57 @@ end
     @test_throws ArgumentError product(Poisson(2.0), LogNormal(0.5, 0.4))
 end
 
+@testitem "product(d, k) matches the explicit n-ary form" begin
+    using Distributions
+
+    d = Gamma(2.0, 1.0)
+    dk = product(d, 3)
+    explicit = product(product(d, d), d)
+    for z in (0.5, 1.0, 2.0, 4.0)
+        @test pdf(dk, z) ≈ pdf(explicit, z)
+        @test cdf(dk, z) ≈ cdf(explicit, z)
+    end
+
+    dkv = product(d, Val(3))
+    for z in (0.5, 1.0, 2.0, 4.0)
+        @test pdf(dkv, z) ≈ pdf(explicit, z)
+        @test cdf(dkv, z) ≈ cdf(explicit, z)
+    end
+end
+
+@testitem "product(d, k) analytic LogNormal collapses exactly" begin
+    using Distributions
+
+    d = LogNormal(0.1, 0.2)
+    @test product(d, 5) == LogNormal(0.5, sqrt(5) * 0.2)
+    @test product(d, Val(5)) == LogNormal(0.5, sqrt(5) * 0.2)
+end
+
+@testitem "product(d, k) edge cases" begin
+    using Distributions
+
+    d = Gamma(2.0, 1.0)
+    @test product(d, 1) === d
+    @test product(d, Val(1)) === d
+
+    @test_throws ArgumentError product(d, 0)
+    @test_throws ArgumentError product(d, -3)
+    @test_throws ArgumentError product(d, Val(0))
+end
+
+@testitem "product(d, k) inference" begin
+    using Distributions, Test
+
+    # A closed-form family: stable even for a runtime Integer k.
+    @inferred product(LogNormal(0.1, 0.2), 5)
+
+    # A family with no closed form: the Val path is the inferable one;
+    # a runtime Integer k is not (the nesting depth is part of the
+    # `Product` type), verified explicitly rather than merely noted.
+    @inferred product(Gamma(2.0, 1.0), Val(3))
+    @test_throws ErrorException @inferred product(Gamma(2.0, 1.0), 3)
+end
+
 # The AD-safety of Product (gradients flowing through both components'
 # parameters, on the numeric Mellin quadrature path) is covered by the
 # multi-backend AD suite in `test/ADFixtures`, which has the AD backends

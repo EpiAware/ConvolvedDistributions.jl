@@ -225,6 +225,81 @@ end
 # (see `_check_strict` in interface.jl).
 _family_names(d::Product) = (nameof(typeof(d.x)), nameof(typeof(d.y)))
 
+# Build the k-fold `Product` from `k` copies of `d` by iterative binary
+# folding: `Product` always holds exactly two components, so a `k`-fold
+# product of a family with no closed form nests `k - 1` `Product`
+# levels rather than a single flat structure. Only reached once
+# `product(d, k)` has ruled out an analytic closed form
+# (`_try_product_power`, above) and the `k == 1` passthrough
+# (`_repeat_combination`, interface.jl).
+function _product_repeat_build(d::UnivariateDistribution, k::Integer)
+    acc = d
+    for _ in 2:k
+        acc = product(acc, d)
+    end
+    return acc
+end
+
+# The `Val`-typed fold: recursion on the type parameter, resolved at
+# compile time, so the nested `Product` type stays inference-stable (a
+# `for` loop cannot do this, since the accumulator's type changes every
+# iteration).
+_product_repeat_build(d::UnivariateDistribution, ::Val{1}) = d
+function _product_repeat_build(d::UnivariateDistribution, ::Val{K}) where {K}
+    return product(_product_repeat_build(d, Val(K - 1)), d)
+end
+
+@doc "
+
+    product(d::UnivariateDistribution, k::Integer)
+    product(d::UnivariateDistribution, k::Val)
+
+Create the distribution of the product of `k` independent copies of `d`.
+
+Returns `d` itself for `k == 1`. For a family closed under
+multiplication (`LogNormal`) the closed form is returned directly, in
+`O(1)` time regardless of `k`. Otherwise a [`Product`](@ref) nesting is
+built and returned, equivalent to folding [`product`](@ref) over `k`
+copies of `d` left to right.
+
+# Inference
+
+`Product` always holds exactly two components, so a `k`-fold product
+with no closed form nests `k - 1` `Product` levels, and the nesting
+depth is part of the returned type: with a runtime `k::Integer`,
+`product(d, k)` is not type-inferable for such a family (it is for a
+closed-form family, since the result type there depends only on `d`'s
+type). Pass a literal `k` or `product(d, Val(k))` for an inferable
+result on any family; the `Val` path compiles a distinct method per
+`k`, so reserve it for small, compile-time-known counts.
+
+# Arguments
+- `d`: The component distribution repeated `k` times.
+- `k`: The repeat count, a positive `Integer` or `Val`.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+# Closed form: exact, O(1).
+product(LogNormal(0.0, 0.3), 4)
+
+# No closed form: nests three `Product` levels.
+product(Gamma(2.0, 1.0), 4)
+```
+
+# See also
+- [`Product`](@ref): The distribution type
+- [`convolved`](@ref): The repeated sum, `convolved(d, k)`
+"
+function product(d::UnivariateDistribution, k::Integer)
+    return _repeat_combination(_try_product_power, _product_repeat_build, d, k)
+end
+
+function product(d::UnivariateDistribution, k::Val)
+    return _repeat_combination(_try_product_power, _product_repeat_build, d, k)
+end
+
 # ---------------------------------------------------------------------------
 # Interface: params / support / sampling
 # ---------------------------------------------------------------------------
@@ -331,6 +406,22 @@ end
 function _maybe_analytic(d::Product)
     d.method isa NumericSolver && return nothing
     return _try_product(d.x, d.y)
+end
+
+@doc "
+
+    _try_product_power(d, k)
+
+The analytic distribution of the product of `k` iid copies of `d`, or
+`nothing` when no closed form exists for the family. On the log scale a
+`LogNormal(μ, σ)` product is a sum of normals, so `k` copies give
+`LogNormal(k * μ, sqrt(k) * σ)`.
+"
+_try_product_power(d::UnivariateDistribution, k::Integer) = nothing
+
+function _try_product_power(d::LogNormal, k::Integer)
+    μ, σ = params(d)
+    return LogNormal(k * μ, sqrt(k) * σ)
 end
 
 # ---------------------------------------------------------------------------
