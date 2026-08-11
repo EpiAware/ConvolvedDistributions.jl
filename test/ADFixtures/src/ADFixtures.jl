@@ -5,8 +5,9 @@ Shared AD gradient scenarios and backend metadata for ConvolvedDistributions.
 Used by `test/ad/runtests.jl`. Covers the `Convolved`, `Difference`,
 `Product`, and `Ratio` densities and moments on the analytic, numeric
 (Gauss-Legendre quadrature), and exact discrete lattice/divisor fold
-(#85, #89) paths, across the ForwardDiff / ReverseDiff / Enzyme /
-Mooncake backend matrix.
+(#85, #89) paths, plus custom solver payloads (a non-default
+`GaussLegendre` node count and an Integrals.jl-backed solver), across the
+ForwardDiff / ReverseDiff / Enzyme / Mooncake backend matrix.
 
 The reference gradient is computed with `ForwardDiff`. It propagates its
 Dual numbers through the package's own densities and matches the reverse
@@ -20,7 +21,7 @@ module ADFixtures
 __precompile__(false)
 
 using ConvolvedDistributions
-using ConvolvedDistributions: pgf
+using ConvolvedDistributions: pgf, GaussLegendre, NumericSolver
 using Distributions: Distributions, Gamma, Geometric, LogNormal,
                      NegativeBinomial, Normal, Poisson, Uniform, Weibull,
                      mean, var, pdf, logpdf, cdf, logcdf
@@ -29,6 +30,7 @@ using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
 using DifferentiationInterface: DifferentiationInterface, Constant
 import DifferentiationInterfaceTest as DIT
 import ForwardDiff, ReverseDiff, Mooncake, Enzyme
+using Integrals: QuadGKJL
 
 export scenarios, backends, broken_scenario_names,
        backend_broken_scenarios, backend_skip_scenarios
@@ -66,8 +68,22 @@ end
 "Scenario names broken on every backend."
 broken_scenario_names() = String[]
 
+# Name of the Integrals.jl-backed solver scenario (shared with
+# `backend_broken_scenarios` below). Measured: Mooncake's reverse mode and
+# Enzyme (both modes) cannot build a derivative rule through QuadGK's
+# adaptive control flow and raise a clear error rather than a silently
+# wrong gradient; ForwardDiff, ReverseDiff, and Mooncake's forward mode
+# differentiate it correctly.
+const _QUADGKJL_SCENARIO = "Convolved Gamma+LogNormal QuadGKJL numerical"
+
 "Per-backend broken scenario names (`Dict{String, Set{String}}`)."
-backend_broken_scenarios() = Dict{String, Set{String}}()
+function backend_broken_scenarios()
+    return Dict(
+        "Mooncake reverse" => Set([_QUADGKJL_SCENARIO]),
+        "Enzyme reverse" => Set([_QUADGKJL_SCENARIO]),
+        "Enzyme forward" => Set([_QUADGKJL_SCENARIO])
+    )
+end
 
 "Per-backend scenario names too unstable to run at all."
 backend_skip_scenarios() = Dict{String, Set{String}}()
@@ -110,6 +126,32 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
         (θ, obs) -> sum(
             x -> logpdf(convolved(
                     Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4)), x), obs),
+        [2.0, 1.0], (Constant(obs),))
+    # A non-default GaussLegendre payload routes through the pluggable
+    # `integrate(solver, …)` contract instead of the native quadrature's
+    # fast path, but reduces through the same AD-safe weighted-sum
+    # reduction, so every backend should differentiate it exactly like the
+    # scenario above.
+    _push!("Convolved Gamma+LogNormal custom GaussLegendre payload numerical",
+        (θ, obs) -> sum(
+            x -> logpdf(
+                convolved(
+                    Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4);
+                    method = NumericSolver(GaussLegendre(; n = 128))),
+                x),
+            obs),
+        [2.0, 1.0], (Constant(obs),))
+    # An Integrals.jl-backed solver routes the integration window through
+    # `IntegralProblem`/`solve` instead. See `_QUADGKJL_SCENARIO` and
+    # `backend_broken_scenarios` for which backends differentiate it.
+    _push!(_QUADGKJL_SCENARIO,
+        (θ, obs) -> sum(
+            x -> logpdf(
+                convolved(
+                    Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4);
+                    method = NumericSolver(QuadGKJL())),
+                x),
+            obs),
         [2.0, 1.0], (Constant(obs),))
     # Gamma as the INTEGRATION (last) component. The numeric quadrature clamps
     # the infinite window with a quantile of the last component; a trailing
