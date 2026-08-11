@@ -94,8 +94,9 @@ const _CONVOLVED_GL = _GL(_CONVOLVED_NODES)
 # panels of roughly equal mass. A full-support window yields 12 panels
 # x 16 nodes = 192 evaluations, the cost of the old single window.
 const _PANEL_PROBS = (
-    1e-6, 1e-4, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99,
-    1 - 1e-4, 1 - 1e-6)
+    1.0e-6, 1.0e-4, 0.01, 0.1, 0.25, 0.5, 0.75, 0.9, 0.99,
+    1 - 1.0e-4, 1 - 1.0e-6,
+)
 
 # Per-panel (and per-correction) rule shared by the quantile-panelled
 # scalar path and the batched composite path. Measured against adaptive

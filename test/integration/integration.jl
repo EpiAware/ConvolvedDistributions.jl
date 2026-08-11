@@ -7,12 +7,14 @@
 
     solver = GaussLegendre(; n = 64)
     # ∫ x^2 dx over [0, 1] = 1/3
-    @test integrate(solver, x -> x^2, 0.0, 1.0) ≈ 1 / 3 atol=1e-13
+    @test integrate(solver, x -> x^2, 0.0, 1.0) ≈ 1 / 3 atol = 1.0e-13
     # ∫ exp(x) dx over [0, 2] = e^2 - 1
-    @test integrate(solver, x -> exp(x), 0.0, 2.0) ≈ exp(2) - 1 atol=1e-12
+    @test integrate(solver, x -> exp(x), 0.0, 2.0) ≈ exp(2) - 1 atol = 1.0e-12
     # gl_integrate matches integrate through the default solver.
-    @test gl_integrate(x -> x^2, 0.0, 1.0,
-        ConvolvedDistributions._gl_rule(64)) ≈ integrate(solver, x -> x^2, 0.0, 1.0)
+    @test gl_integrate(
+        x -> x^2, 0.0, 1.0,
+        ConvolvedDistributions._gl_rule(64)
+    ) ≈ integrate(solver, x -> x^2, 0.0, 1.0)
     # Degenerate window returns a typed zero.
     @test integrate(solver, x -> x^2, 1.0, 1.0) == 0.0
 end
@@ -40,7 +42,7 @@ end
     c2 = LogNormal(0.5, 0.4)
     dc = convolved(c1, c2)
     for x in (1.0, 2.0, 3.0, 5.0)
-        @test cdf(dc, x) ≈ reference_conv_cdf(c1, c2, x) atol=1e-13
+        @test cdf(dc, x) ≈ reference_conv_cdf(c1, c2, x) atol = 1.0e-13
     end
 end
 
@@ -51,8 +53,8 @@ end
     default = GaussLegendre(; n = 64)
     for f in (x -> x^2, x -> exp(x), x -> sin(x) + 1)
         ref = integrate(default, f, 0.0, 1.5)
-        @test integrate(QuadGKJL(), f, 0.0, 1.5) ≈ ref atol=1e-10
-        @test integrate(HCubatureJL(), f, 0.0, 1.5) ≈ ref atol=1e-10
+        @test integrate(QuadGKJL(), f, 0.0, 1.5) ≈ ref atol = 1.0e-10
+        @test integrate(HCubatureJL(), f, 0.0, 1.5) ≈ ref atol = 1.0e-10
     end
 end
 
@@ -72,12 +74,14 @@ end
         upper <= lower && return cdf(c2, x - maximum(c1)) > 0 ? 1.0 : 0.0
         cut = x - maximum(c1)
         saturated = cut > minimum(c2) ? cdf(c2, cut) : 0.0
-        prob = IntegralProblem((t, xx) -> cdf(c1, xx - t) * pdf(c2, t),
-            (lower, upper), x)
+        prob = IntegralProblem(
+            (t, xx) -> cdf(c1, xx - t) * pdf(c2, t),
+            (lower, upper), x
+        )
         clamp(saturated + solve(prob, QuadGKJL())[1], 0.0, 1.0)
     end
     for x in (1.0, 2.0, 3.0, 5.0)
-        @test cdf(d, x) ≈ quadgk_conv_cdf(c1, c2, x) atol=1e-6
+        @test cdf(d, x) ≈ quadgk_conv_cdf(c1, c2, x) atol = 1.0e-6
     end
 end
 
@@ -91,22 +95,24 @@ end
     c1 = Gamma(2.0, 1.0)
     c2 = LogNormal(0.5, 0.4)
     d_default = convolved(c1, c2)
-    d_custom = convolved(c1, c2;
-        method = NumericSolver(GaussLegendre(; n = 256)))
+    d_custom = convolved(
+        c1, c2;
+        method = NumericSolver(GaussLegendre(; n = 256))
+    )
 
     # The custom 256-node path agrees with the default native quadrature.
     for x in (1.0, 2.0, 3.0, 5.0, 8.0)
-        @test cdf(d_custom, x) ≈ cdf(d_default, x) atol=1e-8
+        @test cdf(d_custom, x) ≈ cdf(d_default, x) atol = 1.0e-8
     end
 
     # And the custom payload also drives the vector route correctly.
     xs = [1.0, 2.0, 3.0, 5.0, 8.0]
-    @test cdf(d_custom, xs) ≈ cdf(d_default, xs) atol=1e-8
-    @test pdf(d_custom, xs) ≈ pdf(d_default, xs) atol=1e-8
+    @test cdf(d_custom, xs) ≈ cdf(d_default, xs) atol = 1.0e-8
+    @test pdf(d_custom, xs) ≈ pdf(d_default, xs) atol = 1.0e-8
 
     # Far-tail guard: the custom path must stay mass-correct on a huge
     # window (a single fixed rule would collapse to ~0).
-    @test cdf(d_custom, 1e6) > 0.999
+    @test cdf(d_custom, 1.0e6) > 0.999
 end
 
 @testitem "Integrals.jl algorithm payloads are honoured via the extension" begin
@@ -126,18 +132,18 @@ end
     d_hc = convolved(c1, c2; method = AnalyticalSolver(HCubatureJL()))
 
     for x in (1.0, 2.0, 3.0, 5.0)
-        @test cdf(d_quad, x) ≈ cdf(d_default, x) atol=1e-6
-        @test cdf(d_hc, x) ≈ cdf(d_default, x) atol=1e-6
+        @test cdf(d_quad, x) ≈ cdf(d_default, x) atol = 1.0e-6
+        @test cdf(d_hc, x) ≈ cdf(d_default, x) atol = 1.0e-6
     end
 
     # Vector routes fall back to per-point scalar solves for custom payloads.
     xs = [1.0, 2.0, 3.0, 5.0]
-    @test cdf(d_quad, xs) ≈ cdf(d_default, xs) atol=1e-6
-    @test pdf(d_quad, xs) ≈ pdf(d_default, xs) atol=1e-6
+    @test cdf(d_quad, xs) ≈ cdf(d_default, xs) atol = 1.0e-6
+    @test pdf(d_quad, xs) ≈ pdf(d_default, xs) atol = 1.0e-6
 
     # Far-tail guard: the custom path must not collapse at large x.
-    @test cdf(d_quad, 1e6) > 0.999
-    @test cdf(d_hc, 1e6) > 0.999
+    @test cdf(d_quad, 1.0e6) > 0.999
+    @test cdf(d_hc, 1.0e6) > 0.999
 end
 
 @testitem "Custom solver payloads honoured by Difference/Product/Ratio" begin
@@ -153,7 +159,7 @@ end
     makers = (
         s -> difference(Gamma(2.0, 1.0), Gamma(3.0, 1.0); method = s),
         s -> product(Gamma(2.0, 1.0), LogNormal(0.5, 0.4); method = s),
-        s -> ratio(Gamma(2.0, 1.0), LogNormal(0.5, 0.4); method = s)
+        s -> ratio(Gamma(2.0, 1.0), LogNormal(0.5, 0.4); method = s),
     )
     xs = [1.0, 2.0, 4.0, 8.0]
     for mk in makers
@@ -161,11 +167,11 @@ end
         d_gl = mk(NumericSolver(GaussLegendre(; n = 256)))
         d_q = mk(NumericSolver(QuadGKJL()))
         for x in xs
-            @test cdf(d_gl, x) ≈ cdf(d_default, x) atol=1e-8
-            @test cdf(d_q, x) ≈ cdf(d_default, x) atol=1e-6
+            @test cdf(d_gl, x) ≈ cdf(d_default, x) atol = 1.0e-8
+            @test cdf(d_q, x) ≈ cdf(d_default, x) atol = 1.0e-6
         end
         # Far-tail guard: custom path must not collapse.
-        @test cdf(d_gl, 1e6) > 0.99
-        @test cdf(d_q, 1e6) > 0.99
+        @test cdf(d_gl, 1.0e6) > 0.99
+        @test cdf(d_q, 1.0e6) > 0.99
     end
 end

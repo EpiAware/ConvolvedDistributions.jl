@@ -13,6 +13,12 @@ const QA_CONFIG = (
     # Path to the isolated JET environment (see test/jet/Project.toml).
     jet_env = joinpath(@__DIR__, "..", "jet"),
 
+    # Path to the isolated formatter environment (see
+    # test/formatter/Project.toml). Runs the formatting check in a subprocess
+    # pinned to the exact Runic version, rather than whatever version the
+    # shared test environment resolves on the CI Julia in use.
+    formatter_env = joinpath(@__DIR__, "..", "formatter"),
+
     # Per-check Aqua relaxations, e.g. (; ambiguities = false). Empty = all on.
     aqua = (;),
 
@@ -57,11 +63,15 @@ const QA_CONFIG = (
     # Enzyme/Mooncake/ReverseDiff extensions are exercised by the dedicated
     # AD harness (test/ad), which proves gradient correctness directly.
     extensions = (
-        (; name = :ConvolvedDistributionsIntegralsExt,
+        (;
+            name = :ConvolvedDistributionsIntegralsExt,
             triggers = ("Integrals",),
-            prefixes = ("ConvolvedDistributions", "Integrals")),
-        (; name = :ConvolvedDistributionsOptimizationExt,
+            prefixes = ("ConvolvedDistributions", "Integrals"),
+        ),
+        (;
+            name = :ConvolvedDistributionsOptimizationExt,
             triggers = ("Optimization", "OptimizationOptimJL"),
-            prefixes = ("ConvolvedDistributions",))
-    )
+            prefixes = ("ConvolvedDistributions",),
+        ),
+    ),
 )

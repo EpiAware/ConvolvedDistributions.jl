@@ -13,7 +13,7 @@
     d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     for p in (0.1, 0.25, 0.5, 0.75, 0.9)
         q = quantile(d, p)
-        @test cdf(d, q) ≈ p atol=1e-3
+        @test cdf(d, q) ≈ p atol = 1.0e-3
     end
     @test quantile(d, 0.0) == minimum(d)
     @test quantile(d, 1.0) == maximum(d)
@@ -29,14 +29,14 @@
     da = convolved(a, b)
     ref = convolve(a, b)
     for p in (0.05, 0.2, 0.5, 0.8, 0.95)
-        @test quantile(da, p) ≈ quantile(ref, p) atol=1e-2
+        @test quantile(da, p) ≈ quantile(ref, p) atol = 1.0e-2
     end
 
     # NumericSolver forced on an analytic pair still inverts to the same
     # quantile as the closed form.
     dn = convolved(a, b; method = NumericSolver())
     for p in (0.2, 0.5, 0.8)
-        @test quantile(dn, p) ≈ quantile(ref, p) atol=1e-2
+        @test quantile(dn, p) ≈ quantile(ref, p) atol = 1.0e-2
     end
 end
 
@@ -103,7 +103,7 @@ end
     d = difference(x, y)
     ref = Normal(3.0, sqrt(1.5^2 + 2.0^2))
     for p in (0.05, 0.2, 0.5, 0.8, 0.95)
-        @test quantile(d, p) ≈ quantile(ref, p) atol=1e-2
+        @test quantile(d, p) ≈ quantile(ref, p) atol = 1.0e-2
     end
 
     # Median of a symmetric difference is 0. The analytic path inverts a
@@ -111,15 +111,15 @@ end
     # numeric path stacks quadrature error on the inversion, hence the
     # looser 1e-3.
     dsym = difference(Normal(1.0, 1.0), Normal(1.0, 1.0))
-    @test quantile(dsym, 0.5) ≈ 0.0 atol=1e-6
+    @test quantile(dsym, 0.5) ≈ 0.0 atol = 1.0e-6
     dsymn = difference(Gamma(2.0, 1.5), Gamma(2.0, 1.5))
-    @test quantile(dsymn, 0.5) ≈ 0.0 atol=1e-3
+    @test quantile(dsymn, 0.5) ≈ 0.0 atol = 1.0e-3
 
     # Numeric path: quantile round-trips through the quadrature cdf.
     dn = difference(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
     for p in (0.1, 0.25, 0.5, 0.75, 0.9)
         q = quantile(dn, p)
-        @test cdf(dn, q) ≈ p atol=1e-3
+        @test cdf(dn, q) ≈ p atol = 1.0e-3
     end
 end
 
@@ -190,14 +190,14 @@ end
     d = product(x, y)
     ref = LogNormal(1.5, sqrt(0.4^2 + 0.3^2))
     for p in (0.05, 0.2, 0.5, 0.8, 0.95)
-        @test quantile(d, p) ≈ quantile(ref, p) atol=1e-2
+        @test quantile(d, p) ≈ quantile(ref, p) atol = 1.0e-2
     end
 
     # Numeric path: quantile round-trips through the quadrature cdf.
     dn = product(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
     for p in (0.1, 0.25, 0.5, 0.75, 0.9)
         q = quantile(dn, p)
-        @test cdf(dn, q) ≈ p atol=1e-3
+        @test cdf(dn, q) ≈ p atol = 1.0e-3
     end
 
     # Singular multiplier density (Gamma shape < 1): a biased cdf would
@@ -210,9 +210,9 @@ end
     ys = Gamma(0.5, 1.0)
     ds = product(xs, ys)
     samples = [rand(rng, xs) * rand(rng, ys) for _ in 1:400_000]
-    @test quantile(ds, 0.5) ≈ Statistics.quantile(samples, 0.5) atol=8e-3
+    @test quantile(ds, 0.5) ≈ Statistics.quantile(samples, 0.5) atol = 8.0e-3
     for p in (0.25, 0.5, 0.75)
-        @test cdf(ds, quantile(ds, p)) ≈ p atol=1e-3
+        @test cdf(ds, quantile(ds, p)) ≈ p atol = 1.0e-3
     end
 
     # Bounded supports: p = 0 / 1 return the support ends exactly.
@@ -220,7 +220,7 @@ end
     @test quantile(dp, 0.0) == 3.0
     @test quantile(dp, 1.0) == 8.0
     for p in (0.25, 0.5, 0.75)
-        @test cdf(dp, quantile(dp, p)) ≈ p atol=1e-3
+        @test cdf(dp, quantile(dp, p)) ≈ p atol = 1.0e-3
     end
     @test_throws ArgumentError quantile(dp, -0.1)
     @test_throws ArgumentError quantile(dp, 1.1)
@@ -277,14 +277,14 @@ end
     d = ratio(x, y)
     ref = 3.0 * BetaPrime(2.0, 3.0)
     for p in (0.1, 0.5, 0.9)
-        @test quantile(d, p) ≈ quantile(ref, p) atol=1e-2
+        @test quantile(d, p) ≈ quantile(ref, p) atol = 1.0e-2
     end
 
     # Numeric path: quantile round-trips through the quadrature cdf.
     dn = ratio(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
     for p in (0.1, 0.25, 0.5, 0.75, 0.9)
         q = quantile(dn, p)
-        @test cdf(dn, q) ≈ p atol=1e-3
+        @test cdf(dn, q) ≈ p atol = 1.0e-3
     end
 
     # Sign-crossing denominator: the opposing-tail guess is not finite
@@ -293,13 +293,13 @@ end
     dc = ratio(Normal(0.0, 2.0), Normal(0.0, 0.5))
     refc = Cauchy(0.0, 4.0)
     for p in (0.1, 0.5, 0.9)
-        @test quantile(dc, p) ≈ quantile(refc, p) atol=1e-2
+        @test quantile(dc, p) ≈ quantile(refc, p) atol = 1.0e-2
     end
 
     # rand on a truncated Ratio routes through the base quantile.
     td = truncated(dn, 1.0, 8.0)
     q = quantile(td, 0.5)
-    @test cdf(td, q) ≈ 0.5 atol=1e-3
+    @test cdf(td, q) ≈ 0.5 atol = 1.0e-3
     @test rand(td) isa Real
 end
 
@@ -317,7 +317,7 @@ end
     dp = product(x, y)
     refp = LogNormal(1.5, sqrt(0.4^2 + 0.3^2))
     for p in (0.001, 0.01, 0.99, 0.999)
-        @test quantile(dp, p) ≈ quantile(refp, p) rtol=1e-3
+        @test quantile(dp, p) ≈ quantile(refp, p) rtol = 1.0e-3
     end
 
     # Numeric path: an analytic Normal pair forced through NumericSolver
@@ -328,7 +328,7 @@ end
     dn = convolved(a, b; method = NumericSolver())
     refn = convolve(a, b)
     for p in (0.001, 0.01, 0.99, 0.999)
-        @test quantile(dn, p) ≈ quantile(refn, p) rtol=1e-3
+        @test quantile(dn, p) ≈ quantile(refn, p) rtol = 1.0e-3
     end
 
     # Difference support is all of R, so the lower tail sits at negative
@@ -337,7 +337,7 @@ end
     dd = difference(Normal(5.0, 1.5), Normal(2.0, 2.0))
     refd = Normal(3.0, sqrt(1.5^2 + 2.0^2))
     for p in (0.001, 0.01, 0.99, 0.999)
-        @test quantile(dd, p) ≈ quantile(refd, p) rtol=1e-3
+        @test quantile(dd, p) ≈ quantile(refd, p) rtol = 1.0e-3
     end
 end
 
@@ -355,8 +355,8 @@ end
 
     # Interior quantiles of the bounded cases round-trip too.
     for p in (0.25, 0.5, 0.75)
-        @test cdf(du, quantile(du, p)) ≈ p atol=1e-3
-        @test cdf(dd, quantile(dd, p)) ≈ p atol=1e-3
+        @test cdf(du, quantile(du, p)) ≈ p atol = 1.0e-3
+        @test cdf(dd, quantile(dd, p)) ≈ p atol = 1.0e-3
     end
 
     # Out-of-range probabilities throw for both distributions.
@@ -379,7 +379,7 @@ end
     tn = truncated(dn, 1.0, 8.0)
     for p in (0.25, 0.5, 0.75)
         q = quantile(tn, p)
-        @test cdf(tn, q) ≈ p atol=1e-3
+        @test cdf(tn, q) ≈ p atol = 1.0e-3
     end
 
     # MC tolerances: at n = 50_000 the empirical-cdf standard error is
@@ -388,16 +388,16 @@ end
     samples = rand(rng, tn, 50_000)
     @test all(1.0 .<= samples .<= 8.0)
     for x in (2.0, 4.0, 6.0)
-        @test mean(samples .<= x) ≈ cdf(tn, x) atol=1e-2
+        @test mean(samples .<= x) ≈ cdf(tn, x) atol = 1.0e-2
     end
-    @test median(samples) ≈ quantile(tn, 0.5) atol=0.05
+    @test median(samples) ≈ quantile(tn, 0.5) atol = 0.05
 
     # Same for a truncated Difference on the numeric path.
     dz = difference(Gamma(3.0, 1.0), Gamma(2.0, 1.0))
     tz = truncated(dz, -2.0, 5.0)
     zs = rand(rng, tz, 50_000)
     @test all(-2.0 .<= zs .<= 5.0)
-    @test median(zs) ≈ quantile(tz, 0.5) atol=0.05
+    @test median(zs) ≈ quantile(tz, 0.5) atol = 0.05
 end
 
 @testitem "quantile_by_optimization public API" begin
@@ -411,7 +411,7 @@ end
     d = Normal(2.0, 1.5)
     for p in (0.1, 0.5, 0.9)
         q = quantile_by_optimization(d, p, [2.0])
-        @test q ≈ quantile(d, p) atol=1e-4
+        @test q ≈ quantile(d, p) atol = 1.0e-4
     end
 
     # Boundary shortcuts return the support ends exactly.
@@ -423,7 +423,8 @@ end
     # returned, e.g. to snap it onto a discrete grid.
     q_raw = quantile_by_optimization(d, 0.5, [2.0])
     q_rounded = quantile_by_optimization(
-        d, 0.5, [2.0]; postprocess = x -> round(x; digits = 1))
+        d, 0.5, [2.0]; postprocess = x -> round(x; digits = 1)
+    )
     @test q_rounded == round(q_raw; digits = 1)
 
     # Out-of-range p throws, naming the offending value.
@@ -442,18 +443,19 @@ end
     # check_nan = false leaves ordinary p values unaffected; it only
     # widens what the NaN-specific check above rejects.
     @test quantile_by_optimization(d, 0.5, [2.0]; check_nan = false) ≈
-          quantile(d, 0.5) atol=1e-4
+        quantile(d, 0.5) atol = 1.0e-4
 
     # check_nan = false with an actual NaN p skips validation, but the
     # solve has no meaningful objective and must error at the
     # convergence check rather than return a value.
     @test_throws ErrorException quantile_by_optimization(
-        d, NaN, [2.0]; check_nan = false)
+        d, NaN, [2.0]; check_nan = false
+    )
 end
 
 @testitem "quantile_initial_guess public hook" begin
     using ConvolvedDistributions: ConvolvedDistributions, Convolved,
-                                  quantile_initial_guess
+        quantile_initial_guess
     using Distributions, Optimization, OptimizationOptimJL
 
     p = 0.3
@@ -461,19 +463,19 @@ end
     # Matches the historical formula for each type.
     dcv = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     @test quantile_initial_guess(dcv, p) ==
-          [sum(c -> float(quantile(c, p)), dcv.components)]
+        [sum(c -> float(quantile(c, p)), dcv.components)]
 
     ddf = difference(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
     @test quantile_initial_guess(ddf, p) ==
-          [float(quantile(ddf.x, p)) - float(quantile(ddf.y, 1 - p))]
+        [float(quantile(ddf.x, p)) - float(quantile(ddf.y, 1 - p))]
 
     dpr = product(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
     @test quantile_initial_guess(dpr, p) ==
-          [float(quantile(dpr.x, p)) * float(quantile(dpr.y, p))]
+        [float(quantile(dpr.x, p)) * float(quantile(dpr.y, p))]
 
     drt = ratio(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
     @test quantile_initial_guess(drt, p) ==
-          [float(quantile(drt.x, p)) / float(quantile(drt.y, 1 - p))]
+        [float(quantile(drt.x, p)) / float(quantile(drt.y, 1 - p))]
 
     # A downstream override is load-bearing: `quantile(d, p)` picks up a
     # specialised guess method instead of the default. The override
@@ -501,13 +503,16 @@ end
     called = Ref(false)
     ConvolvedDistributions.quantile_initial_guess(
         d::Convolved{Tuple{Gamma{Float64}, Uniform{Float64}}},
-        p::Real) = (called[] = true; [3.0])
-    override = which(ConvolvedDistributions.quantile_initial_guess,
-        Tuple{typeof(d42), Float64})
+        p::Real
+    ) = (called[] = true; [3.0])
+    override = which(
+        ConvolvedDistributions.quantile_initial_guess,
+        Tuple{typeof(d42), Float64}
+    )
     try
         q = quantile(d42, 0.5)
         @test called[]
-        @test cdf(d42, q) ≈ 0.5 atol=1e-3
+        @test cdf(d42, q) ≈ 0.5 atol = 1.0e-3
     finally
         Base.delete_method(override)
     end
@@ -524,12 +529,13 @@ end
     # `solve_kwargs` pass through to `solve`, merged over the defaults so
     # an explicit value overrides only the matching default.
     q = quantile_by_optimization(
-        d, p, [2.0]; maxiters = 500, reltol = 1e-6, abstol = 1e-6)
-    @test q ≈ quantile(d, p) atol=1e-4
+        d, p, [2.0]; maxiters = 500, reltol = 1.0e-6, abstol = 1.0e-6
+    )
+    @test q ≈ quantile(d, p) atol = 1.0e-4
 
     # A non-default `solver` is used for the solve: NelderMead with fixed
     # (rather than adaptive) step parameters still converges.
     fixed_nm = NelderMead(parameters = Optim.FixedParameters())
     q_solver = quantile_by_optimization(d, p, [2.0]; solver = fixed_nm)
-    @test q_solver ≈ quantile(d, p) atol=1e-4
+    @test q_solver ≈ quantile(d, p) atol = 1.0e-4
 end

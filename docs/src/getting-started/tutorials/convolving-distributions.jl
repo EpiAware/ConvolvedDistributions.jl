@@ -36,17 +36,23 @@ d = convolved(incubation, reporting)
 
 x = 0.0:0.05:15.0
 components_df = vcat(
-    DataFrame(x = x, density = pdf.(incubation, x),
-        Distribution = "Incubation (Gamma)"),
-    DataFrame(x = x, density = pdf.(reporting, x),
-        Distribution = "Reporting (LogNormal)"),
-    DataFrame(x = x, density = pdf(d, collect(x)),
-        Distribution = "Convolved sum")
+    DataFrame(
+        x = x, density = pdf.(incubation, x),
+        Distribution = "Incubation (Gamma)"
+    ),
+    DataFrame(
+        x = x, density = pdf.(reporting, x),
+        Distribution = "Reporting (LogNormal)"
+    ),
+    DataFrame(
+        x = x, density = pdf(d, collect(x)),
+        Distribution = "Convolved sum"
+    )
 )
 draw(
     data(components_df) *
-    mapping(:x, :density, color = :Distribution) *
-    visual(Lines, linewidth = 2);
+        mapping(:x, :density, color = :Distribution) *
+        visual(Lines, linewidth = 2);
     axis = (xlabel = "Delay (days)", ylabel = "Density")
 )
 
@@ -63,18 +69,26 @@ total_flat = convolved(incubation, reporting, processing)
 
 xn = 0.0:0.25:20.0
 nested_df = vcat(
-    DataFrame(x = xn, density = pdf(d, collect(xn)),
-        Distribution = "Two-stage delay"),
-    DataFrame(x = xn, density = pdf(total_nested, collect(xn)),
-        Distribution = "Nested three-stage"),
-    DataFrame(x = xn, density = pdf(total_flat, collect(xn)),
-        Distribution = "Flat three-stage")
+    DataFrame(
+        x = xn, density = pdf(d, collect(xn)),
+        Distribution = "Two-stage delay"
+    ),
+    DataFrame(
+        x = xn, density = pdf(total_nested, collect(xn)),
+        Distribution = "Nested three-stage"
+    ),
+    DataFrame(
+        x = xn, density = pdf(total_flat, collect(xn)),
+        Distribution = "Flat three-stage"
+    )
 )
 draw(
     data(nested_df) *
-    mapping(:x, :density,
-        color = :Distribution, linestyle = :Distribution) *
-    visual(Lines, linewidth = 2);
+        mapping(
+        :x, :density,
+        color = :Distribution, linestyle = :Distribution
+    ) *
+        visual(Lines, linewidth = 2);
     axis = (xlabel = "Delay (days)", ylabel = "Density")
 )
 
@@ -94,28 +108,36 @@ d_numeric = convolved(pair...; method = NumericSolver())
 
 xs = 0.0:0.1:20.0
 solver_df = vcat(
-    DataFrame(x = xs, cdf = cdf(d_analytic, collect(xs)),
-        Solver = "Analytic (closed form)"),
-    DataFrame(x = xs, cdf = cdf(d_numeric, collect(xs)),
-        Solver = "Numeric (quadrature)")
+    DataFrame(
+        x = xs, cdf = cdf(d_analytic, collect(xs)),
+        Solver = "Analytic (closed form)"
+    ),
+    DataFrame(
+        x = xs, cdf = cdf(d_numeric, collect(xs)),
+        Solver = "Numeric (quadrature)"
+    )
 )
 draw(
     data(solver_df) *
-    mapping(:x, :cdf, color = :Solver, linestyle = :Solver) *
-    visual(Lines, linewidth = 2);
+        mapping(:x, :cdf, color = :Solver, linestyle = :Solver) *
+        visual(Lines, linewidth = 2);
     axis = (xlabel = "Delay (days)", ylabel = "CDF")
 )
 
 # The two curves lie on top of each other, so we plot the residual to see the actual size of the quadrature error.
 
-residual_df = DataFrame(x = xs,
-    residual = cdf(d_numeric, collect(xs)) .- cdf(d_analytic, collect(xs)))
+residual_df = DataFrame(
+    x = xs,
+    residual = cdf(d_numeric, collect(xs)) .- cdf(d_analytic, collect(xs))
+)
 draw(
     data(residual_df) *
-    mapping(:x, :residual) *
-    visual(Lines, linewidth = 2);
-    axis = (xlabel = "Delay (days)",
-        ylabel = "Numeric CDF - analytic CDF")
+        mapping(:x, :residual) *
+        visual(Lines, linewidth = 2);
+    axis = (
+        xlabel = "Delay (days)",
+        ylabel = "Numeric CDF - analytic CDF",
+    )
 )
 
 # The largest absolute residual across the grid is a few parts in a million, the size of the fixed-node quadrature error and its tail clamp.
@@ -151,15 +173,19 @@ cdf_quadgk = cdf(d_quadgk, 5.0)
 
 d_trunc = truncated(d; upper = 10.0)
 truncation_df = vcat(
-    DataFrame(x = x, density = pdf(d, collect(x)),
-        Distribution = "Convolved"),
-    DataFrame(x = x, density = pdf.(d_trunc, x),
-        Distribution = "Truncated at 10")
+    DataFrame(
+        x = x, density = pdf(d, collect(x)),
+        Distribution = "Convolved"
+    ),
+    DataFrame(
+        x = x, density = pdf.(d_trunc, x),
+        Distribution = "Truncated at 10"
+    )
 )
 draw(
     data(truncation_df) *
-    mapping(:x, :density, color = :Distribution) *
-    visual(Lines, linewidth = 2);
+        mapping(:x, :density, color = :Distribution) *
+        visual(Lines, linewidth = 2);
     axis = (xlabel = "Delay (days)", ylabel = "Density")
 )
 

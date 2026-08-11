@@ -2,8 +2,10 @@
     using ConvolvedDistributions: pgf
     using Distributions
 
-    for d in (Poisson(2.0), Bernoulli(0.3), Binomial(5, 0.3),
-        Geometric(0.4), NegativeBinomial(3, 0.2))
+    for d in (
+            Poisson(2.0), Bernoulli(0.3), Binomial(5, 0.3),
+            Geometric(0.4), NegativeBinomial(3, 0.2),
+        )
         @test pgf(d, 1) ≈ 1
         @test pgf(d, 0) ≈ pdf(d, 0)
     end
@@ -70,8 +72,9 @@ end
     d = Poisson(2.0)
     s = 0.5
     fallback_value = invoke(
-        pgf, Tuple{DiscreteUnivariateDistribution, Real}, d, s)
-    @test fallback_value ≈ pgf(d, s) atol=1.0e-10
+        pgf, Tuple{DiscreteUnivariateDistribution, Real}, d, s
+    )
+    @test fallback_value ≈ pgf(d, s) atol = 1.0e-10
 end
 
 @testitem "pgf fallback errors" begin
@@ -84,14 +87,16 @@ end
     # Unbounded above, |s| > 1, no closed form registered: the tail
     # cannot be bounded.
     @test_throws DomainError invoke(
-        pgf, Tuple{DiscreteUnivariateDistribution, Real}, Poisson(2.0), 1.5)
+        pgf, Tuple{DiscreteUnivariateDistribution, Real}, Poisson(2.0), 1.5
+    )
 
     # Pathologically slow mass convergence: the truncation cannot bound
     # the tail within the term budget, so it raises rather than
     # returning a partial sum.
     @test_throws ErrorException invoke(
         pgf, Tuple{DiscreteUnivariateDistribution, Real},
-        Geometric(1.0e-8), 1.0)
+        Geometric(1.0e-8), 1.0
+    )
 end
 
 @testitem "pgf on a continuous distribution has no method" begin
@@ -137,17 +142,19 @@ end
     # Closed form: d/dλ exp(λ(s-1)) = (s-1) exp(λ(s-1))
     s = 0.4
     g_closed = ForwardDiff.derivative(λ -> pgf(Poisson(λ), s), 2.0)
-    @test g_closed ≈ (s - 1) * exp(2.0 * (s - 1)) atol=1.0e-10
+    @test g_closed ≈ (s - 1) * exp(2.0 * (s - 1)) atol = 1.0e-10
 
     # Fallback: force NegativeBinomial through the generic series method
     # (bypassing its own closed form) via `invoke`, differentiate wrt
     # `p`, and compare against the closed-form derivative.
     r, sN = 4.0, 0.3
-    fallback(p) = invoke(pgf,
+    fallback(p) = invoke(
+        pgf,
         Tuple{DiscreteUnivariateDistribution, Real},
-        NegativeBinomial(r, p), sN)
+        NegativeBinomial(r, p), sN
+    )
     closed(p) = (p / (1 - (1 - p) * sN))^r
     g_fallback = ForwardDiff.derivative(fallback, 0.6)
     g_analytic = ForwardDiff.derivative(closed, 0.6)
-    @test g_fallback ≈ g_analytic rtol=1.0e-8
+    @test g_fallback ≈ g_analytic rtol = 1.0e-8
 end

@@ -7,8 +7,10 @@
     @test d.y == LogNormal(1.0, 0.3)
     @test d.method isa AnalyticalSolver
 
-    dn = product(Gamma(2.0, 1.0), LogNormal(0.5, 0.4);
-        method = NumericSolver())
+    dn = product(
+        Gamma(2.0, 1.0), LogNormal(0.5, 0.4);
+        method = NumericSolver()
+    )
     @test dn.method isa NumericSolver
 end
 
@@ -19,7 +21,8 @@ end
     @test_throws ArgumentError product(Normal(0.0, 1.0), Gamma(2.0, 1.0))
     @test_throws ArgumentError product(Gamma(2.0, 1.0), Normal(0.0, 1.0))
     @test_throws ArgumentError product(
-        Uniform(-1.0, 1.0), LogNormal(0.5, 0.4))
+        Uniform(-1.0, 1.0), LogNormal(0.5, 0.4)
+    )
     err = try
         product(Normal(0.0, 1.0), Normal(0.0, 1.0))
     catch e
@@ -76,11 +79,11 @@ end
     @test std(d) ≈ std(ref)
 
     for z in 0.5:0.5:12.0
-        @test cdf(d, z) ≈ cdf(ref, z) atol=1e-10
-        @test pdf(d, z) ≈ pdf(ref, z) atol=1e-10
-        @test logpdf(d, z) ≈ logpdf(ref, z) atol=1e-8
-        @test logcdf(d, z) ≈ logcdf(ref, z) atol=1e-8
-        @test ccdf(d, z) ≈ ccdf(ref, z) atol=1e-10
+        @test cdf(d, z) ≈ cdf(ref, z) atol = 1.0e-10
+        @test pdf(d, z) ≈ pdf(ref, z) atol = 1.0e-10
+        @test logpdf(d, z) ≈ logpdf(ref, z) atol = 1.0e-8
+        @test logcdf(d, z) ≈ logcdf(ref, z) atol = 1.0e-8
+        @test ccdf(d, z) ≈ ccdf(ref, z) atol = 1.0e-10
     end
 end
 
@@ -96,8 +99,8 @@ end
     @test ConvolvedDistributions._maybe_analytic(product(x, y)) !== nothing
 
     for z in range(0.5, 15.0; length = 12)
-        @test cdf(dn, z) ≈ cdf(ref, z) atol=1e-6
-        @test pdf(dn, z) ≈ pdf(ref, z) atol=1e-6
+        @test cdf(dn, z) ≈ cdf(ref, z) atol = 1.0e-6
+        @test pdf(dn, z) ≈ pdf(ref, z) atol = 1.0e-6
     end
 end
 
@@ -114,22 +117,22 @@ end
     samples = [rand(rng, x) * rand(rng, y) for _ in 1:n]
 
     for z in (1.0, 3.0, 5.0, 10.0)
-        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+        @test cdf(d, z) ≈ mean(samples .<= z) atol = 5.0e-3
     end
 
     @test pdf(d, 4.0) > 0
-    @test logpdf(d, 4.0) ≈ log(pdf(d, 4.0)) atol=1e-8
+    @test logpdf(d, 4.0) ≈ log(pdf(d, 4.0)) atol = 1.0e-8
 
     # Exact independent-product moments against the samples. Seeded-run
     # MC standard errors at n = 400_000 are ~6e-3 for the mean and ~8e-2
     # for the variance (fourth-moment driven; the product is heavy
     # tailed), so 5e-2 / 5e-1 sit at ~8 and ~6 standard errors.
-    @test mean(samples) ≈ mean(x) * mean(y) atol=5e-2
+    @test mean(samples) ≈ mean(x) * mean(y) atol = 5.0e-2
     ex2 = var(x) + mean(x)^2
     ey2 = var(y) + mean(y)^2
-    @test var(samples) ≈ ex2 * ey2 - (mean(x) * mean(y))^2 atol=5e-1
-    @test mean(d) ≈ mean(samples) atol=5e-2
-    @test var(d) ≈ var(samples) atol=5e-1
+    @test var(samples) ≈ ex2 * ey2 - (mean(x) * mean(y))^2 atol = 5.0e-1
+    @test mean(d) ≈ mean(samples) atol = 5.0e-2
+    @test var(d) ≈ var(samples) atol = 5.0e-1
 end
 
 @testitem "Product with Convolved multiplier matches Monte Carlo" begin
@@ -148,7 +151,7 @@ end
     n = 400_000
     samples = [rand(rng, x) * rand(rng, y) for _ in 1:n]
     for z in (1.0, 4.0, 10.0, 20.0)
-        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+        @test cdf(d, z) ≈ mean(samples .<= z) atol = 5.0e-3
     end
     @test pdf(d, 4.0) > 0
 end
@@ -171,11 +174,11 @@ end
     # midpoint grid keeps the Riemann sum honest near the edge.
     du = product(Uniform(0.0, 2.0), Uniform(0.0, 3.0))
     grid = collect(0.005:0.01:5.995)
-    @test sum(pdf(du, z) for z in grid) * 0.01 ≈ 1.0 atol=5e-3
+    @test sum(pdf(du, z) for z in grid) * 0.01 ≈ 1.0 atol = 5.0e-3
 
     dn = product(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
     g = collect(0.01:0.02:80.0)
-    @test sum(pdf(dn, z) for z in g) * 0.02 ≈ 1.0 atol=3e-3
+    @test sum(pdf(dn, z) for z in g) * 0.02 ≈ 1.0 atol = 3.0e-3
 end
 
 @testitem "Product cdf is monotone and in [0, 1]" begin
@@ -185,11 +188,11 @@ end
     zs = collect(0.0:0.5:30.0)
     cs = [cdf(dn, z) for z in zs]
     @test all(0.0 .<= cs .<= 1.0)
-    @test all(diff(cs) .>= -1e-10)        # non-decreasing
+    @test all(diff(cs) .>= -1.0e-10)        # non-decreasing
 
     @test cdf(dn, 0.0) == 0.0
     @test cdf(dn, -1.0) == 0.0
-    @test cdf(dn, 1e4) ≈ 1.0 atol=1e-6
+    @test cdf(dn, 1.0e4) ≈ 1.0 atol = 1.0e-6
 end
 
 @testitem "Product cdf handles singular multiplier densities" begin
@@ -209,7 +212,7 @@ end
         d = product(x, y)
         samples = [rand(rng, x) * rand(rng, y) for _ in 1:400_000]
         for z in (0.5, 2.0, 5.0)
-            @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+            @test cdf(d, z) ≈ mean(samples .<= z) atol = 5.0e-3
         end
     end
 end
@@ -227,7 +230,7 @@ end
     dxy = product(x, y)
     dyx = product(y, x)
     for z in (0.5, 2.0, 5.0)
-        @test cdf(dxy, z) ≈ cdf(dyx, z) atol=1e-7
+        @test cdf(dxy, z) ≈ cdf(dyx, z) atol = 1.0e-7
     end
 end
 
@@ -241,8 +244,8 @@ end
     dyx = product(y, x)
 
     for z in (0.5, 2.0, 5.0, 10.0)
-        @test cdf(dxy, z) ≈ cdf(dyx, z) atol=1e-6
-        @test pdf(dxy, z) ≈ pdf(dyx, z) atol=1e-6
+        @test cdf(dxy, z) ≈ cdf(dyx, z) atol = 1.0e-6
+        @test pdf(dxy, z) ≈ pdf(dyx, z) atol = 1.0e-6
     end
 
     @test minimum(dxy) == minimum(dyx)
@@ -255,8 +258,8 @@ end
     rng = MersenneTwister(1)
     d = product(Gamma(3.0, 1.0), LogNormal(0.0, 0.3))
     s = [rand(rng, d) for _ in 1:200_000]
-    @test mean(s) ≈ mean(d) atol=5e-2
-    @test var(s) ≈ var(d) atol=2e-1
+    @test mean(s) ≈ mean(d) atol = 5.0e-2
+    @test var(s) ≈ var(d) atol = 2.0e-1
 end
 
 @testitem "Product logcdf/ccdf/logccdf branches" begin
@@ -265,15 +268,15 @@ end
     # Analytic path agrees with the reference log-normal product.
     da = product(LogNormal(0.5, 0.4), LogNormal(0.0, 0.3))
     refa = LogNormal(0.5, 0.5)
-    @test logcdf(da, 2.0) ≈ logcdf(refa, 2.0) atol=1e-10
-    @test ccdf(da, 2.0) ≈ ccdf(refa, 2.0) atol=1e-10
-    @test logccdf(da, 2.0) ≈ logccdf(refa, 2.0) atol=1e-8
+    @test logcdf(da, 2.0) ≈ logcdf(refa, 2.0) atol = 1.0e-10
+    @test ccdf(da, 2.0) ≈ ccdf(refa, 2.0) atol = 1.0e-10
+    @test logccdf(da, 2.0) ≈ logccdf(refa, 2.0) atol = 1.0e-8
 
     # Numeric path: logcdf matches log(cdf) and ccdf = 1 - cdf.
     dn = product(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
-    @test logcdf(dn, 3.0) ≈ log(cdf(dn, 3.0)) atol=1e-10
-    @test ccdf(dn, 3.0) ≈ 1 - cdf(dn, 3.0) atol=1e-10
-    @test logccdf(dn, 3.0) ≈ log1p(-cdf(dn, 3.0)) atol=1e-6
+    @test logcdf(dn, 3.0) ≈ log(cdf(dn, 3.0)) atol = 1.0e-10
+    @test ccdf(dn, 3.0) ≈ 1 - cdf(dn, 3.0) atol = 1.0e-10
+    @test logccdf(dn, 3.0) ≈ log1p(-cdf(dn, 3.0)) atol = 1.0e-6
 
     db = product(Uniform(0.0, 2.0), Uniform(0.0, 3.0))
     @test logccdf(db, -1.0) == 0.0   # CDF = 0 -> logccdf = 0
@@ -366,10 +369,10 @@ end
     # for X = Gamma(2, 1), Y = LogNormal(0, 1.5), and hard-coded.
     d = product(Gamma(2.0, 1.0), LogNormal(0.0, 1.5))
 
-    @test cdf(d, 1.0) ≈ 0.39674977955541 atol=1e-9
-    @test cdf(d, 5.0) ≈ 0.756121355787196 atol=1e-9
-    @test pdf(d, 1.0) ≈ 0.226346442279101 atol=1e-9
-    @test pdf(d, 5.0) ≈ 0.0376154454208233 atol=1e-9
+    @test cdf(d, 1.0) ≈ 0.39674977955541 atol = 1.0e-9
+    @test cdf(d, 5.0) ≈ 0.756121355787196 atol = 1.0e-9
+    @test pdf(d, 1.0) ≈ 0.226346442279101 atol = 1.0e-9
+    @test pdf(d, 5.0) ≈ 0.0376154454208233 atol = 1.0e-9
 end
 
 @testitem "Product of two discrete components is Discrete and exact (#85, #89)" begin
@@ -384,18 +387,20 @@ end
     @test pdf(d, 0) ≈ px0 + py0 - px0 * py0
 
     for z in 1:24
-        bf = sum(pdf(Poisson(2.0), x) * pdf(Poisson(3.0), y)
-        for x in 1:60, y in 1:60 if x * y == z)
-        @test pdf(d, z) ≈ bf atol=1e-10
+        bf = sum(
+            pdf(Poisson(2.0), x) * pdf(Poisson(3.0), y)
+                for x in 1:60, y in 1:60 if x * y == z
+        )
+        @test pdf(d, z) ≈ bf atol = 1.0e-10
     end
 
     masses = [pdf(d, k) for k in 0:200]
     @test all(m -> m >= 0, masses)
-    @test isapprox(sum(masses), 1; atol = 1e-6)
+    @test isapprox(sum(masses), 1; atol = 1.0e-6)
 
     running_sums = cumsum(masses)
     for (k, running) in zip(0:200, running_sums)
-        @test cdf(d, k) ≈ running atol=1e-6
+        @test cdf(d, k) ≈ running atol = 1.0e-6
     end
 
     # A bounded pair matches exhaustive enumeration exactly.
@@ -403,9 +408,11 @@ end
     y = DiscreteUniform(0, 3)
     db = product(x, y)
     for z in 0:9
-        bf = sum((pdf(x, a) * pdf(y, b) for a in 0:3, b in 0:3 if a * b == z);
-            init = 0.0)
-        @test pdf(db, z) ≈ bf atol=1e-12
+        bf = sum(
+            (pdf(x, a) * pdf(y, b) for a in 0:3, b in 0:3 if a * b == z);
+            init = 0.0
+        )
+        @test pdf(db, z) ≈ bf atol = 1.0e-12
     end
 
     # A mixed pair stays Continuous. `Poisson(2.0)` has mass at 0, which
@@ -462,7 +469,8 @@ end
     called = Ref(false)
     closed = LogNormal(0.0, 3.0)
     function ConvolvedDistributions.product_power(
-            ::ExtProductFactor, k::Integer)
+            ::ExtProductFactor, k::Integer
+        )
         called[] = true
         return closed
     end
@@ -477,9 +485,14 @@ end
         # method itself lives on the shared `product_power` generic in
         # `ConvolvedDistributions`, which persists for the rest of the
         # test run unless removed.
-        Base.delete_method(only(methods(
-            ConvolvedDistributions.product_power,
-            Tuple{ExtProductFactor, Integer})))
+        Base.delete_method(
+            only(
+                methods(
+                    ConvolvedDistributions.product_power,
+                    Tuple{ExtProductFactor, Integer}
+                )
+            )
+        )
     end
 end
 

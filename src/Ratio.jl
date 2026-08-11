@@ -92,9 +92,11 @@ distribution, a `Ratio` has no such restriction.
 - [`Difference`](@ref): The signed gap ``X - Y``
 - [`Product`](@ref): The product ``X Y``
 "
-struct Ratio{X <: UnivariateDistribution, Y <: UnivariateDistribution,
-    M <: AbstractSolverMethod} <:
-       AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
+struct Ratio{
+        X <: UnivariateDistribution, Y <: UnivariateDistribution,
+        M <: AbstractSolverMethod,
+    } <:
+    AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
     "The numerator component (the `X` in `Z = X / Y`)."
     x::X
     "The denominator component (the `Y` in `Z = X / Y`)."
@@ -102,11 +104,14 @@ struct Ratio{X <: UnivariateDistribution, Y <: UnivariateDistribution,
     "Solver method choosing the analytic vs numeric quadrature backend."
     method::M
 
-    function Ratio(x::X, y::Y;
-            method::AbstractSolverMethod = AnalyticalSolver()) where {
-            X <: UnivariateDistribution, Y <: UnivariateDistribution}
+    function Ratio(
+            x::X, y::Y;
+            method::AbstractSolverMethod = AnalyticalSolver()
+        ) where {
+            X <: UnivariateDistribution, Y <: UnivariateDistribution,
+        }
         _check_denominator(y)
-        new{X, Y, typeof(method)}(x, y, method)
+        return new{X, Y, typeof(method)}(x, y, method)
     end
 end
 
@@ -118,12 +123,15 @@ end
 # construction-time rejection of sign-crossing supports.
 function _check_denominator(y::UnivariateDistribution)
     atom = y isa DiscreteUnivariateDistribution && insupport(y, 0) &&
-           pdf(y, 0) > 0
+        pdf(y, 0) > 0
     degenerate = iszero(minimum(y)) && iszero(maximum(y))
-    (atom || degenerate) && throw(ArgumentError(
-        "ratio requires a denominator with no probability mass at " *
-        "zero, but $(nameof(typeof(y))) puts mass there; Z = X / Y " *
-        "is undefined on that event"))
+    (atom || degenerate) && throw(
+        ArgumentError(
+            "ratio requires a denominator with no probability mass at " *
+                "zero, but $(nameof(typeof(y))) puts mass there; Z = X / Y " *
+                "is undefined on that event"
+        )
+    )
     return nothing
 end
 
@@ -174,8 +182,10 @@ mean(d)
 - [`product`](@ref): The product ``X Y``
 - [`evaluation_path`](@ref): Check the route without asserting it.
 "
-function ratio(x::UnivariateDistribution, y::UnivariateDistribution;
-        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
+function ratio(
+        x::UnivariateDistribution, y::UnivariateDistribution;
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
+    )
     return _check_strict(Ratio(x, y; method = method), strict)
 end
 
@@ -226,7 +236,7 @@ function _ratio_corners(d::Ratio)
     xmin, xmax = minimum(d.x), maximum(d.x)
     rlo, rhi = _ratio_reciprocal_interval(minimum(d.y), maximum(d.y))
     return _ratio_bound(xmin, rlo), _ratio_bound(xmin, rhi),
-    _ratio_bound(xmax, rlo), _ratio_bound(xmax, rhi)
+        _ratio_bound(xmax, rlo), _ratio_bound(xmax, rhi)
 end
 
 function minimum(d::Ratio)
@@ -264,13 +274,16 @@ sampler(d::Ratio) = d
 # error naming the component families when none exists.
 function _ratio_moment_source(d::Ratio)
     analytic = _try_ratio(d.x, d.y)
-    analytic === nothing && throw(ArgumentError(
-        "mean(Ratio) has no closed form for components " *
-        "$(_family_names(d)): E[X / Y] = E[X] E[1/Y] needs an inverse " *
-        "moment of the denominator, which this package does not " *
-        "compute and which need not exist; the analytic pairs " *
-        "(zero-mean Normal/Normal, Gamma/Gamma, Chisq/Chisq) delegate " *
-        "to their closed form instead"))
+    analytic === nothing && throw(
+        ArgumentError(
+            "mean(Ratio) has no closed form for components " *
+                "$(_family_names(d)): E[X / Y] = E[X] E[1/Y] needs an inverse " *
+                "moment of the denominator, which this package does not " *
+                "compute and which need not exist; the analytic pairs " *
+                "(zero-mean Normal/Normal, Gamma/Gamma, Chisq/Chisq) delegate " *
+                "to their closed form instead"
+        )
+    )
     return analytic
 end
 
@@ -464,11 +477,11 @@ function _ratio_numeric_pdf(d::Ratio, z::Real)
     xlo, xhi = _ratio_x_window(d)
     neg, pos = _ratio_y_branches(d)
     integrand = y -> abs(y) * pdf_ad_safe(d.x, z * y) *
-                     pdf_ad_safe(d.y, y)
+        pdf_ad_safe(d.y, y)
     nl, nu = _ratio_pdf_window(neg[1], neg[2], z, xlo, xhi)
     pl, pu = _ratio_pdf_window(pos[1], pos[2], z, xlo, xhi)
     result = _ratio_branch(d, integrand, nl, nu, d.y) +
-             _ratio_branch(d, integrand, pl, pu, d.y)
+        _ratio_branch(d, integrand, pl, pu, d.y)
     return max(result, zero(result))
 end
 
@@ -488,17 +501,19 @@ function _ratio_branch_cdf(d::Ratio, is_pos::Bool, a, b, z::Real, xlo, xhi)
 
     lower, upper, sat_lo, sat_hi = _ratio_cdf_window(is_pos, a, b, z, xlo, xhi)
     sat = sat_hi > sat_lo ?
-          cdf_ad_safe(d.y, sat_hi) - cdf_ad_safe(d.y, sat_lo) : zero(T)
+        cdf_ad_safe(d.y, sat_hi) - cdf_ad_safe(d.y, sat_lo) : zero(T)
 
     upper <= lower && return sat
 
     kernel = is_pos ? (y -> cdf_ad_safe(d.x, z * y)) :
-             (y -> ccdf_ad_safe(d.x, z * y))
+        (y -> ccdf_ad_safe(d.x, z * y))
     y_near = abs(lower) <= abs(upper) ? lower : upper
     c = kernel(y_near)
     base = c * (cdf_ad_safe(d.y, upper) - cdf_ad_safe(d.y, lower))
-    cv = _ratio_branch(d,
-        y -> (kernel(y) - c) * pdf_ad_safe(d.y, y), lower, upper, d.y)
+    cv = _ratio_branch(
+        d,
+        y -> (kernel(y) - c) * pdf_ad_safe(d.y, y), lower, upper, d.y
+    )
     return sat + base + cv
 end
 
@@ -518,18 +533,18 @@ function _ratio_numeric_cdf(d::Ratio, z::Real)
         fx0 = cdf_ad_safe(d.x, zero(z))
         gx0 = ccdf_ad_safe(d.x, zero(z))
         pos_mass = pos[2] > pos[1] ?
-                   cdf_ad_safe(d.y, pos[2]) - cdf_ad_safe(d.y, pos[1]) :
-                   zero(fx0)
+            cdf_ad_safe(d.y, pos[2]) - cdf_ad_safe(d.y, pos[1]) :
+            zero(fx0)
         neg_mass = neg[2] > neg[1] ?
-                   cdf_ad_safe(d.y, neg[2]) - cdf_ad_safe(d.y, neg[1]) :
-                   zero(fx0)
+            cdf_ad_safe(d.y, neg[2]) - cdf_ad_safe(d.y, neg[1]) :
+            zero(fx0)
         result = fx0 * pos_mass + gx0 * neg_mass
         return clamp(result, zero(result), one(result))
     end
 
     xlo, xhi = _ratio_x_window(d)
     result = _ratio_branch_cdf(d, true, pos[1], pos[2], z, xlo, xhi) +
-             _ratio_branch_cdf(d, false, neg[1], neg[2], z, xlo, xhi)
+        _ratio_branch_cdf(d, false, neg[1], neg[2], z, xlo, xhi)
     return clamp(result, zero(result), one(result))
 end
 
@@ -560,13 +575,16 @@ end
 end
 
 function _throw_ratio_window(d::Ratio)
-    throw(ArgumentError(
-        "a Ratio with numerator $(nameof(typeof(d.x))) reaching below " *
-        "zero, or denominator $(nameof(typeof(d.y))) reaching below " *
-        "zero, has no cheap effective-support bound, so it cannot be a " *
-        "component of another combination's numeric quadrature; use a " *
-        "non-negative numerator with a non-negative denominator, or " *
-        "place the ratio outermost"))
+    throw(
+        ArgumentError(
+            "a Ratio with numerator $(nameof(typeof(d.x))) reaching below " *
+                "zero, or denominator $(nameof(typeof(d.y))) reaching below " *
+                "zero, has no cheap effective-support bound, so it cannot be a " *
+                "component of another combination's numeric quadrature; use a " *
+                "non-negative numerator with a non-negative denominator, or " *
+                "place the ratio outermost"
+        )
+    )
 end
 
 # Default `quantile_initial_guess`: numerator quantile at `p` over

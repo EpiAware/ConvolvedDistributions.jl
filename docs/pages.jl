@@ -16,13 +16,13 @@ pages = [
             "The difference of two delays" => "getting-started/tutorials/difference-distributions.md",
             "The product of two delays" => "getting-started/tutorials/product-distributions.md",
             "Convolving a timeseries" => "getting-started/tutorials/timeseries-convolution.md",
-            "AD backends" => "getting-started/tutorials/ad-backends.md"
+            "AD backends" => "getting-started/tutorials/ad-backends.md",
         ],
-        "FAQ" => "getting-started/faq.md"
+        "FAQ" => "getting-started/faq.md",
     ],
     "API reference" => [
         "Public API" => "lib/public.md",
-        "Internal API" => "lib/internals.md"
+        "Internal API" => "lib/internals.md",
     ],
     "Benchmarks" => "benchmarks.md",
     "Development" => [
@@ -30,7 +30,7 @@ pages = [
         "Contributing" => "developer/contributing.md",
         "Adding a new combination" => "developer/extending.md",
         "Release process" => "developer/release-process.md",
-        "Developer FAQ" => "developer/faq.md"
+        "Developer FAQ" => "developer/faq.md",
     ],
-    "Release notes" => "release-notes.md"
+    "Release notes" => "release-notes.md",
 ]

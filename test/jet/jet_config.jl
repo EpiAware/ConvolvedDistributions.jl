@@ -26,7 +26,7 @@
 # `quantile` itself required the extension for every case before this
 # rewrite. Drop only that report; everything else stays strict.
 function _no_quantile_extension_filter(report)
-    !occursin("convolved_quantile", sprint(show, report))
+    return !occursin("convolved_quantile", sprint(show, report))
 end
 
 const JET_REPORT_FILTER = _no_quantile_extension_filter
