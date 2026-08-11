@@ -924,3 +924,547 @@ function difference_quantile(
         components, p, method
     )
 end
+
+# ---------------------------------------------------------------------------
+# `Product`: the same per-quantity dispatch shape as `Difference` above,
+# for the multiplicative pair `Z = X * Y`. The `NumericSolver` arms call
+# `_product_cdf_route`/`_product_pdf_route` (Product.jl), which already
+# dispatch on `d`'s discrete/mixed/continuous type parameter (#85, #115)
+# -- this generic layer adds nothing to that routing, it only decides
+# whether the `AnalyticalSolver` arm short-circuits to a closed form
+# first.
+# ---------------------------------------------------------------------------
+
+@doc "
+
+    _try_product(x, y)
+
+The analytic distribution for `x * y` when one exists, else `nothing`.
+Dispatch (not `try`/`catch`) keeps the path differentiable under every
+AD backend.
+"
+_try_product(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
+
+function _try_product(x::LogNormal, y::LogNormal)
+    μx, σx = params(x)
+    μy, σy = params(y)
+    return LogNormal(μx + μy, sqrt(σx^2 + σy^2))
+end
+
+@doc "
+
+Shared `AnalyticalSolver` arm for a `product_*` quantity generic: when
+`(x, y)` resolves via [`_try_product`](@ref), evaluate `direct` on the
+result; otherwise fall through to `generic`'s `NumericSolver` arm.
+"
+function _product_analytic_arm(
+        generic::F, direct::G,
+        d::Product, components::Tuple, x, method::AnalyticalSolver
+    ) where {
+        F, G,
+    }
+    resolved = _try_product(components[1], components[2])
+    resolved === nothing &&
+        return generic(d, components, x, NumericSolver(method.solver))
+    return direct(resolved, x)
+end
+
+@doc "
+    product_cdf(d, components, z, method)
+
+The CDF of `components[1] * components[2]` at `z`, dispatched on the
+solver method `method`. Mirrors [`difference_cdf`](@ref): a downstream
+package adds its own analytic pair by defining a method on a
+two-element tuple TYPE more specific than
+`(Product, Tuple, Real, AnalyticalSolver)`.
+
+See also: [`Product`](@ref)
+"
+function product_cdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("product_cdf not implemented for method type $(typeof(method))")
+end
+
+function product_cdf(
+        d::Product, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _product_analytic_arm(product_cdf, cdf, d, components, z, method)
+end
+
+function product_cdf(
+        d::Product, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    return _product_cdf_route(d, z)
+end
+
+@doc "
+    product_logcdf(d, components, z, method)
+
+The log CDF of `components[1] * components[2]` at `z`. See
+[`product_cdf`](@ref).
+"
+function product_logcdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("product_logcdf not implemented for method type $(typeof(method))")
+end
+
+function product_logcdf(
+        d::Product, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _product_analytic_arm(
+        product_logcdf, logcdf, d, components, z,
+        method
+    )
+end
+
+function product_logcdf(
+        d::Product, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    c = product_cdf(d, components, z, method)
+    return c <= 0 ? oftype(float(c), -Inf) : log(c)
+end
+
+@doc "
+    product_ccdf(d, components, z, method)
+
+The complementary CDF of `components[1] * components[2]` at `z`. See
+[`product_cdf`](@ref).
+"
+function product_ccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("product_ccdf not implemented for method type $(typeof(method))")
+end
+
+function product_ccdf(
+        d::Product, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _product_analytic_arm(
+        product_ccdf, ccdf, d, components, z,
+        method
+    )
+end
+
+function product_ccdf(
+        d::Product, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    return 1 - product_cdf(d, components, z, method)
+end
+
+@doc "
+    product_logccdf(d, components, z, method)
+
+The log complementary CDF of `components[1] * components[2]` at `z`. See
+[`product_cdf`](@ref).
+"
+function product_logccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error(
+        "product_logccdf not implemented for method type $(typeof(method))"
+    )
+end
+
+function product_logccdf(
+        d::Product, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _product_analytic_arm(
+        product_logccdf, logccdf, d, components, z,
+        method
+    )
+end
+
+function product_logccdf(
+        d::Product, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    l = product_logcdf(d, components, z, method)
+    l == -Inf && return zero(l)
+    l >= 0 && return oftype(l, -Inf)
+    return log1mexp(l)
+end
+
+@doc "
+    product_pdf(d, components, z, method)
+
+The density of `components[1] * components[2]` at `z`. See
+[`product_cdf`](@ref).
+"
+function product_pdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("product_pdf not implemented for method type $(typeof(method))")
+end
+
+function product_pdf(
+        d::Product, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _product_analytic_arm(product_pdf, pdf, d, components, z, method)
+end
+
+function product_pdf(
+        d::Product, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    return _product_pdf_route(d, z)
+end
+
+@doc "
+    product_logpdf(d, components, z, method)
+
+The log density of `components[1] * components[2]` at `z`. See
+[`product_cdf`](@ref).
+"
+function product_logpdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("product_logpdf not implemented for method type $(typeof(method))")
+end
+
+function product_logpdf(
+        d::Product, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _product_analytic_arm(
+        product_logpdf, logpdf, d, components, z,
+        method
+    )
+end
+
+function product_logpdf(
+        d::Product, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    insupport(d, z) || return oftype(float(z), -Inf)
+    p = _product_pdf_route(d, z)
+    return p <= 0 ? oftype(float(z), -Inf) : log(p)
+end
+
+@doc "
+    product_quantile(d, components, p, method)
+
+The quantile of `components[1] * components[2]` at probability `p`.
+Skeleton and `AnalyticalSolver` arm only, mirroring
+[`difference_quantile`](@ref): the `NumericSolver` arm needs a
+nonlinear solve and lives in the `ConvolvedDistributionsOptimizationExt`
+extension.
+
+See also: [`product_cdf`](@ref)
+"
+function product_quantile(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, p::Real, method::AbstractSolverMethod
+    )
+    error(
+        "product_quantile not implemented for method type $(typeof(method))"
+    )
+end
+
+function product_quantile(
+        d::Product, components::Tuple,
+        p::Real, method::AnalyticalSolver
+    )
+    return _product_analytic_arm(
+        product_quantile, quantile, d,
+        components, p, method
+    )
+end
+
+# ---------------------------------------------------------------------------
+# `Ratio`: the same per-quantity dispatch shape as `Difference`/`Product`
+# above, for the quotient pair `Z = X / Y`. Unlike `Product`, `Ratio` has
+# no discrete lattice or mixed fold (its value support is `Continuous`
+# unconditionally -- see the `Ratio` docstring), so the `NumericSolver`
+# arms call `_ratio_numeric_cdf`/`_ratio_numeric_pdf` (Ratio.jl) directly
+# rather than through a route wrapper.
+# ---------------------------------------------------------------------------
+
+@doc "
+
+    _try_ratio(x, y)
+
+The analytic distribution for `x / y` when one exists, else `nothing`.
+Dispatch (not `try`/`catch`) keeps the path differentiable under every
+AD backend.
+"
+_try_ratio(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
+
+# Normal(0, σx) / Normal(0, σy) ~ Cauchy(0, σx / σy). Only the zero-mean
+# case is analytic: the general Marsaglia-Hinkley density has no
+# elementary closed form and no `Distributions.jl` type, so non-zero
+# means stay on the numeric path. Branching on `iszero(μ)` is
+# parameter-value dependent; see the `Ratio` docstring for the resulting
+# AD hazard exactly at zero means.
+function _try_ratio(x::Normal, y::Normal)
+    μx, σx = params(x)
+    μy, σy = params(y)
+    (iszero(μx) && iszero(μy)) || return nothing
+    return Cauchy(zero(σx / σy), σx / σy)
+end
+
+# Gamma(αx, θx) / Gamma(αy, θy) ~ (θx / θy) * BetaPrime(αx, αy). Unequal
+# scales are supported (unlike `convolve_pair(::Gamma, ::Gamma)`, which
+# needs equal scales) since the scale ratio simply factors out. The
+# affine wrapper is returned even when θx == θy so the return type stays
+# value-independent.
+function _try_ratio(x::Gamma, y::Gamma)
+    αx, θx = params(x)
+    αy, θy = params(y)
+    return (θx / θy) * BetaPrime(αx, αy)
+end
+
+# Chisq(ν1) / Chisq(ν2) ~ (ν1 / ν2) * FDist(ν1, ν2). Registered
+# separately from the Gamma rule because Chisq is its own Distributions.jl
+# type; equivalent to it since Chisq(ν) == Gamma(ν / 2, 2) and the scales
+# cancel in the Gamma rule above.
+function _try_ratio(x::Chisq, y::Chisq)
+    νx, = params(x)
+    νy, = params(y)
+    return (νx / νy) * FDist(νx, νy)
+end
+
+@doc "
+
+Shared `AnalyticalSolver` arm for a `ratio_*` quantity generic: when
+`(x, y)` resolves via [`_try_ratio`](@ref), evaluate `direct` on the
+result; otherwise fall through to `generic`'s `NumericSolver` arm.
+"
+function _ratio_analytic_arm(
+        generic::F, direct::G,
+        d::Ratio, components::Tuple, x, method::AnalyticalSolver
+    ) where {
+        F, G,
+    }
+    resolved = _try_ratio(components[1], components[2])
+    resolved === nothing &&
+        return generic(d, components, x, NumericSolver(method.solver))
+    return direct(resolved, x)
+end
+
+@doc "
+    ratio_cdf(d, components, z, method)
+
+The CDF of `components[1] / components[2]` at `z`, dispatched on the
+solver method `method`. Mirrors [`difference_cdf`](@ref): a downstream
+package adds its own analytic pair by defining a method on a
+two-element tuple TYPE more specific than
+`(Ratio, Tuple, Real, AnalyticalSolver)`.
+
+See also: [`Ratio`](@ref)
+"
+function ratio_cdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("ratio_cdf not implemented for method type $(typeof(method))")
+end
+
+function ratio_cdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _ratio_analytic_arm(ratio_cdf, cdf, d, components, z, method)
+end
+
+function ratio_cdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    return _ratio_numeric_cdf(d, z)
+end
+
+@doc "
+    ratio_logcdf(d, components, z, method)
+
+The log CDF of `components[1] / components[2]` at `z`. See
+[`ratio_cdf`](@ref).
+"
+function ratio_logcdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("ratio_logcdf not implemented for method type $(typeof(method))")
+end
+
+function ratio_logcdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _ratio_analytic_arm(
+        ratio_logcdf, logcdf, d, components, z,
+        method
+    )
+end
+
+function ratio_logcdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    c = ratio_cdf(d, components, z, method)
+    return c <= 0 ? oftype(float(c), -Inf) : log(c)
+end
+
+@doc "
+    ratio_ccdf(d, components, z, method)
+
+The complementary CDF of `components[1] / components[2]` at `z`. See
+[`ratio_cdf`](@ref).
+"
+function ratio_ccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("ratio_ccdf not implemented for method type $(typeof(method))")
+end
+
+function ratio_ccdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _ratio_analytic_arm(ratio_ccdf, ccdf, d, components, z, method)
+end
+
+function ratio_ccdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    return 1 - ratio_cdf(d, components, z, method)
+end
+
+@doc "
+    ratio_logccdf(d, components, z, method)
+
+The log complementary CDF of `components[1] / components[2]` at `z`. See
+[`ratio_cdf`](@ref).
+"
+function ratio_logccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("ratio_logccdf not implemented for method type $(typeof(method))")
+end
+
+function ratio_logccdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _ratio_analytic_arm(
+        ratio_logccdf, logccdf, d, components, z,
+        method
+    )
+end
+
+function ratio_logccdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    l = ratio_logcdf(d, components, z, method)
+    l == -Inf && return zero(l)
+    l >= 0 && return oftype(l, -Inf)
+    return log1mexp(l)
+end
+
+@doc "
+    ratio_pdf(d, components, z, method)
+
+The density of `components[1] / components[2]` at `z`. See
+[`ratio_cdf`](@ref).
+"
+function ratio_pdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("ratio_pdf not implemented for method type $(typeof(method))")
+end
+
+function ratio_pdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _ratio_analytic_arm(ratio_pdf, pdf, d, components, z, method)
+end
+
+function ratio_pdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    return _ratio_numeric_pdf(d, z)
+end
+
+@doc "
+    ratio_logpdf(d, components, z, method)
+
+The log density of `components[1] / components[2]` at `z`. See
+[`ratio_cdf`](@ref).
+"
+function ratio_logpdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("ratio_logpdf not implemented for method type $(typeof(method))")
+end
+
+function ratio_logpdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _ratio_analytic_arm(
+        ratio_logpdf, logpdf, d, components, z,
+        method
+    )
+end
+
+function ratio_logpdf(
+        d::Ratio, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    insupport(d, z) || return oftype(float(z), -Inf)
+    p = _ratio_numeric_pdf(d, z)
+    return p <= 0 ? oftype(float(z), -Inf) : log(p)
+end
+
+@doc "
+    ratio_quantile(d, components, p, method)
+
+The quantile of `components[1] / components[2]` at probability `p`.
+Skeleton and `AnalyticalSolver` arm only, mirroring
+[`difference_quantile`](@ref): the `NumericSolver` arm needs a
+nonlinear solve and lives in the `ConvolvedDistributionsOptimizationExt`
+extension.
+
+See also: [`ratio_cdf`](@ref)
+"
+function ratio_quantile(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, p::Real, method::AbstractSolverMethod
+    )
+    error(
+        "ratio_quantile not implemented for method type $(typeof(method))"
+    )
+end
+
+function ratio_quantile(
+        d::Ratio, components::Tuple,
+        p::Real, method::AnalyticalSolver
+    )
+    return _ratio_analytic_arm(
+        ratio_quantile, quantile, d,
+        components, p, method
+    )
+end

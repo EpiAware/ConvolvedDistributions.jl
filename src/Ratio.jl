@@ -322,45 +322,9 @@ std(d::Ratio) = std(_ratio_moment_source(d))
 # Analytical fast paths
 # ---------------------------------------------------------------------------
 
-# `_try_ratio` returns the analytic ratio distribution when a closed form
-# exists, otherwise `nothing`. Dispatch (rather than `try`/`catch`)
-# selects the analytic pair so the path stays differentiable under every
-# AD backend.
-_try_ratio(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
-
-# Normal(0, σx) / Normal(0, σy) ~ Cauchy(0, σx / σy). Only the zero-mean
-# case is analytic: the general Marsaglia-Hinkley density has no
-# elementary closed form and no `Distributions.jl` type, so non-zero
-# means stay on the numeric path. Branching on `iszero(μ)` is
-# parameter-value dependent; see the `Ratio` docstring for the resulting
-# AD hazard exactly at zero means.
-function _try_ratio(x::Normal, y::Normal)
-    μx, σx = params(x)
-    μy, σy = params(y)
-    (iszero(μx) && iszero(μy)) || return nothing
-    return Cauchy(zero(σx / σy), σx / σy)
-end
-
-# Gamma(αx, θx) / Gamma(αy, θy) ~ (θx / θy) * BetaPrime(αx, αy). Unequal
-# scales are supported (unlike `convolve_pair(::Gamma, ::Gamma)`, which
-# needs equal scales) since the scale ratio simply factors out. The
-# affine wrapper is returned even when θx == θy so the return type stays
-# value-independent.
-function _try_ratio(x::Gamma, y::Gamma)
-    αx, θx = params(x)
-    αy, θy = params(y)
-    return (θx / θy) * BetaPrime(αx, αy)
-end
-
-# Chisq(ν1) / Chisq(ν2) ~ (ν1 / ν2) * FDist(ν1, ν2). Registered
-# separately from the Gamma rule because Chisq is its own Distributions.jl
-# type; equivalent to it since Chisq(ν) == Gamma(ν / 2, 2) and the scales
-# cancel in the Gamma rule above.
-function _try_ratio(x::Chisq, y::Chisq)
-    νx, = params(x)
-    νy, = params(y)
-    return (νx / νy) * FDist(νx, νy)
-end
+# `_try_ratio` (solver_dispatch.jl) is the analytic-pair hook: the
+# zero-mean Normal/Normal pair (Cauchy), Gamma/Gamma (scaled BetaPrime),
+# and Chisq/Chisq (scaled FDist).
 
 # The analytic ratio to use for `d`, or `nothing` when none exists or
 # when `d.method` is a `NumericSolver` requesting the numeric path.
@@ -615,11 +579,7 @@ docstring's *Density and CDF computation* section).
 See also: [`logcdf`](@ref)
 "
 function cdf(d::Ratio, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return cdf(analytic, z)
-    end
-    return _ratio_numeric_cdf(d, z)
+    return ratio_cdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
@@ -629,26 +589,15 @@ Compute the log cumulative distribution function.
 See also: [`cdf`](@ref)
 "
 function logcdf(d::Ratio, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return logcdf(analytic, z)
-    end
-    c = _ratio_numeric_cdf(d, z)
-    return c <= 0 ? oftype(float(c), -Inf) : log(c)
+    return ratio_logcdf(d, (d.x, d.y), z, d.method)
 end
 
 function ccdf(d::Ratio, z::Real)
-    return 1 - cdf(d, z)
+    return ratio_ccdf(d, (d.x, d.y), z, d.method)
 end
 
 function logccdf(d::Ratio, z::Real)
-    logcdf_val = logcdf(d, z)
-    if logcdf_val == -Inf
-        return zero(logcdf_val)
-    elseif logcdf_val >= 0
-        return oftype(logcdf_val, -Inf)
-    end
-    return log1mexp(logcdf_val)
+    return ratio_logccdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
@@ -662,11 +611,7 @@ AD-safe numeric quadrature ``f_Z(z) = \\int |y| f_X(z y) f_Y(y)
 See also: [`logpdf`](@ref)
 "
 function pdf(d::Ratio, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return pdf(analytic, z)
-    end
-    return _ratio_numeric_pdf(d, z)
+    return ratio_pdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
@@ -676,13 +621,5 @@ Compute the log probability density function.
 See also: [`pdf`](@ref), [`logcdf`](@ref)
 "
 function logpdf(d::Ratio, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return logpdf(analytic, z)
-    end
-    if !insupport(d, z)
-        return oftype(float(z), -Inf)
-    end
-    p = _ratio_numeric_pdf(d, z)
-    return p <= 0 ? oftype(float(z), -Inf) : log(p)
+    return ratio_logpdf(d, (d.x, d.y), z, d.method)
 end
