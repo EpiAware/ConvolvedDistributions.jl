@@ -692,6 +692,77 @@ end
     end
 end
 
+@testitem "convolved(d, k) matches the explicit n-ary form" begin
+    using Distributions
+
+    d = LogNormal(0.5, 0.4)
+    dk = convolved(d, 3)
+    explicit = convolved(d, d, d)
+    @test dk isa ConvolvedDistributions.Convolved
+    @test length(dk.components) == 3
+    for x in (0.5, 1.0, 2.0, 4.0)
+        @test pdf(dk, x) ≈ pdf(explicit, x)
+        @test cdf(dk, x) ≈ cdf(explicit, x)
+    end
+
+    dkv = convolved(d, Val(3))
+    for x in (0.5, 1.0, 2.0, 4.0)
+        @test pdf(dkv, x) ≈ pdf(explicit, x)
+        @test cdf(dkv, x) ≈ cdf(explicit, x)
+    end
+end
+
+@testitem "convolved(d, k) analytic families collapse exactly" begin
+    using Distributions
+
+    @test convolved(Gamma(2.0, 1.5), 5) == Gamma(10.0, 1.5)
+    @test convolved(Poisson(1.5), 4) == Poisson(6.0)
+    @test convolved(Exponential(2.0), 3) == Gamma(3, 2.0)
+    @test convolved(Normal(1.0, 2.0), 3) == Normal(3.0, sqrt(3) * 2.0)
+    @test convolved(Binomial(5, 0.3), 4) == Binomial(20, 0.3)
+    @test convolved(NegativeBinomial(3, 0.4), 2) ==
+          NegativeBinomial(6.0, 0.4)
+
+    # Val path gives the same closed form.
+    @test convolved(Gamma(2.0, 1.5), Val(5)) == Gamma(10.0, 1.5)
+end
+
+@testitem "convolved(d, k) analytic families skip tuple-building" begin
+    using Distributions
+
+    d = Gamma(2.0, 1.5)
+    convolved(d, 1_000_000)  # compile
+    bytes = @allocated convolved(d, 1_000_000)
+    @test bytes < 1000
+    @test convolved(d, 1_000_000) == Gamma(2_000_000.0, 1.5)
+end
+
+@testitem "convolved(d, k) edge cases" begin
+    using Distributions
+
+    d = LogNormal(0.5, 0.4)
+    @test convolved(d, 1) === d
+    @test convolved(d, Val(1)) === d
+
+    @test_throws ArgumentError convolved(d, 0)
+    @test_throws ArgumentError convolved(d, -3)
+    @test_throws ArgumentError convolved(d, Val(0))
+end
+
+@testitem "convolved(d, k) inference" begin
+    using Distributions, Test
+
+    # A closed-form family: stable even for a runtime Integer k, since
+    # the result type depends only on d's type, not k's value.
+    @inferred convolved(Gamma(2.0, 1.5), 5)
+
+    # A family with no closed form: the Val path is the inferable one;
+    # a runtime Integer k is not (the component count is part of the
+    # `Convolved` type), verified explicitly rather than merely noted.
+    @inferred convolved(LogNormal(0.5, 0.4), Val(3))
+    @test_throws ErrorException @inferred convolved(LogNormal(0.5, 0.4), 3)
+end
+
 # The AD-safety of the Convolved moments and densities (gradients flowing
 # through the component parameters) is covered by the multi-backend AD suite in
 # `test/ADFixtures`, which has the AD backends as dependencies; the main test

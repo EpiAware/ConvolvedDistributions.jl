@@ -52,6 +52,64 @@ function _convolve_series_fixed(series::AbstractVector, pmf::AbstractVector)
     return out
 end
 
+# A masked-output sibling of `_convolve_series_fixed`, kept as a separate
+# function (rather than a branch inside the loop above) so the unmasked
+# path stays exactly as it was. `mask[i] == false` positions are never
+# entered: no `acc`, no PMF read, no accumulate, only `zero(T)` from the
+# `zeros` fill. The outer loop is bounded to the requested window
+# (`findfirst`/`findlast` on `mask`) so a small window deep inside a long
+# series does not even iterate over the untouched positions either side.
+function _convolve_series_fixed(
+        series::AbstractVector, pmf::AbstractVector, mask::AbstractVector{Bool})
+    Base.require_one_based_indexing(series, pmf, mask)
+    n = length(series)
+    T = promote_type(eltype(series), eltype(pmf))
+    out = zeros(T, n)
+    first_i = findfirst(mask)
+    first_i === nothing && return out
+    last_i = findlast(mask)
+    @inbounds for i in first_i:last_i
+        mask[i] || continue
+        acc = zero(T)
+        kmax = min(length(pmf), i)
+        for k in 1:kmax
+            acc += pmf[k] * series[i - k + 1]
+        end
+        out[i] = acc
+    end
+    return out
+end
+
+# --- the output-position mask ------------------------------------------
+
+# A `Bool` vector the same length as the output: `true` marks a position
+# to compute, `false` leaves it at `zero(eltype(result))`. Bool entries
+# are never AD tracers (only `series` and the PMF carry Dual / tracked
+# numbers), so branching on `mask` needs no `primal` stripping — the
+# branch is already off the differentiated path.
+function _check_mask(mask::AbstractVector{Bool}, n::Int)
+    Base.require_one_based_indexing(mask)
+    length(mask) == n || throw(ArgumentError(
+        "convolve_series mask must be the same length as the output " *
+        "series; got $(length(mask)) for a series of length $(n)"))
+    return nothing
+end
+
+# How many lags are worth building for a single-PMF window: no lag past a
+# mask's last requested position can ever be read (`_convolve_series_fixed`
+# only ever reads `pmf[1:i]` for output position `i`), so the masses built
+# above that are pure waste. `nothing` keeps every position, so the answer
+# is the series length, unchanged. An all-`false` mask still asks for one
+# lag on a non-empty series — not because it is read, but so a genuinely
+# empty result still passes through as a real (if unused) PMF rather than
+# tripping the "at least one PMF mass" guard on its way to the early
+# return that actually produces the all-zero output.
+_mass_reach(::Nothing, n::Int) = n
+function _mass_reach(mask::AbstractVector{Bool}, n::Int)
+    last_i = findlast(mask)
+    return last_i === nothing ? min(n, 1) : last_i
+end
+
 # --- public API: the timeseries convolution verb ---------------------------
 
 @doc "
@@ -102,6 +160,15 @@ separate verb keeps `convolved` strictly for distribution construction.
   `DiscreteUniform`, a shifted count delay).
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
+- `mask`: optional. A `Bool` vector the same length as `series`; when
+  given, only the output positions where `mask` is `true` are computed
+  and the rest hold `zero(eltype(result))`. Masked-out positions are
+  genuinely skipped, not computed and discarded, so a mask selecting a
+  few positions out of a long series is cheap — `pdf(delay, k)` is only
+  evaluated for the lags a requested position can actually read, so a
+  mask restricted to an early window also skips evaluating the delay's
+  `pdf` at the later lags. Omitted (the default), every position is
+  computed.
 
 # Returns
 - A numeric vector of expected downstream counts, the same length as
@@ -123,14 +190,21 @@ expected_counts = convolve_series(delay, infections)
 "
 function convolve_series(
         delay::DiscreteUnivariateDistribution,
-        series::AbstractVector{<:Real})
+        series::AbstractVector{<:Real};
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
     # The lag-`k` mass of a discrete delay is `pdf(delay, k)` directly; do
     # NOT reuse the CDF-difference `_delay_pmf`, which would compute
     # `F(k + 1) - F(k) = pdf(delay, k + 1)` for integer support — an
-    # off-by-one. Lags run 0..(n - 1); negative-support mass is never read
-    # (it cannot enter a causal convolution).
-    masses = [pdf(delay, k) for k in 0:(length(series) - 1)]
-    return convolve_series(masses, series)
+    # off-by-one. Lags run 0..(reach - 1); negative-support mass is never
+    # read (it cannot enter a causal convolution). `reach` is the series
+    # length with no mask, or the mask's last requested position with one
+    # — a `pdf` evaluated per lag is real work for some delay families, so
+    # a mask restricted to an early window must not pay for the lags past
+    # it.
+    mask === nothing || _check_mask(mask, length(series))
+    reach = _mass_reach(mask, length(series))
+    masses = [pdf(delay, k) for k in 0:(reach - 1)]
+    return convolve_series(masses, series; mask)
 end
 
 @doc "
@@ -160,6 +234,8 @@ convolution is linear, so gradients flow through both `pmf` and
   `0, 1, 2, ...` (used as given).
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
+- `mask`: optional output-position mask, as in
+  [`convolve_series(delay, series)`](@ref convolve_series).
 
 # Returns
 - A numeric vector of expected downstream counts, the same length as
@@ -179,10 +255,13 @@ expected_counts = convolve_series(pmf, infections)
   convolve_series): the non-unit-grid form
 "
 function convolve_series(
-        pmf::AbstractVector{<:Real}, series::AbstractVector{<:Real})
+        pmf::AbstractVector{<:Real}, series::AbstractVector{<:Real};
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
     isempty(pmf) &&
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
-    return _convolve_series_fixed(series, pmf)
+    mask === nothing && return _convolve_series_fixed(series, pmf)
+    _check_mask(mask, length(series))
+    return _convolve_series_fixed(series, pmf, mask)
 end
 
 # --- the non-unit-grid form: DiscreteNonParametric --------------------------
@@ -246,6 +325,8 @@ instead.
   masses at those lags.
 - `series`: the input timeseries, sampled at the same grid steps as
   `pmf`'s support, from time 0.
+- `mask`: optional output-position mask, as in
+  [`convolve_series(delay, series)`](@ref convolve_series).
 
 # Examples
 ```@example
@@ -261,10 +342,11 @@ expected_counts = convolve_series(pmf, infections)
   the unit-grid vector form
 "
 function convolve_series(
-        pmf::DiscreteNonParametric, series::AbstractVector{<:Real})
+        pmf::DiscreteNonParametric, series::AbstractVector{<:Real};
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
     grid = support(pmf)
     _check_regular_delay_grid(grid)
-    return convolve_series(probs(pmf), series)
+    return convolve_series(probs(pmf), series; mask)
 end
 
 # --- time-varying delays: one delay per time point --------------------------
@@ -289,18 +371,45 @@ _kernel_eltype(ks::AbstractVector{<:AbstractVector}) = mapreduce(
 
 # One kernel per time point, truncated to the series window. The convention
 # dispatches through `Val`, so each is a loop and another one is a method
-# away.
+# away. `mask` (when given) is validated once here and threaded to the
+# masked `_accumulate_varying!` method; `nothing` reaches the unmasked
+# method, which computes every position.
 function _convolve_series_varying(
-        series::AbstractVector, kernels, indexed_by::Symbol)
+        series::AbstractVector, kernels, indexed_by::Symbol,
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
     n = length(series)
+    mask === nothing || _check_mask(mask, n)
     n == 0 && return zeros(float(eltype(series)), 0)
     T = promote_type(eltype(series), _kernel_eltype(kernels))
-    return _accumulate_varying!(zeros(T, n), series, kernels, Val(indexed_by))
+    mask === nothing && return _accumulate_varying!(
+        zeros(T, n), series, kernels, Val(indexed_by))
+    return _accumulate_varying!(
+        zeros(T, n), series, kernels, Val(indexed_by), mask)
 end
 
 # Gather: time `i` reads its own kernel back over the series.
 function _accumulate_varying!(out, series, kernels, ::Val{:secondary})
     @inbounds for i in eachindex(out)
+        acc = zero(eltype(out))
+        for k in 1:min(_kernel_length(kernels, i), i)
+            acc += _kernel_mass(kernels, i, k) * series[i - k + 1]
+        end
+        out[i] = acc
+    end
+    return out
+end
+
+# Masked gather: a separate method (not a branch inside the loop above) so
+# the unmasked path is untouched. Bounded to the requested window and
+# skips every position `mask` excludes before touching a kernel or series
+# entry.
+function _accumulate_varying!(
+        out, series, kernels, ::Val{:secondary}, mask::AbstractVector{Bool})
+    first_i = findfirst(mask)
+    first_i === nothing && return out
+    last_i = findlast(mask)
+    @inbounds for i in first_i:last_i
+        mask[i] || continue
         acc = zero(eltype(out))
         for k in 1:min(_kernel_length(kernels, i), i)
             acc += _kernel_mass(kernels, i, k) * series[i - k + 1]
@@ -321,10 +430,60 @@ function _accumulate_varying!(out, series, kernels, ::Val{:primary})
     return out
 end
 
+# Masked scatter: each source `s` only reaches targets `s:(s + kmax - 1)`,
+# so a source whose whole reach falls short of the first requested
+# position contributes nothing and is skipped before its kernel is read
+# at all (`s + kmax - 1 >= first_i`). The outer loop stops at `last_i`
+# (no source before it can land past it), and the inner loop breaks the
+# moment a target overshoots `last_i` (targets rise monotonically with
+# `k`). What survives both bounds is still checked against `mask`
+# directly, so a hole inside the requested window is skipped too.
+function _accumulate_varying!(
+        out, series, kernels, ::Val{:primary}, mask::AbstractVector{Bool})
+    n = length(out)
+    first_i = findfirst(mask)
+    first_i === nothing && return out
+    last_i = findlast(mask)
+    @inbounds for s in 1:min(n, last_i)
+        kmax = min(_kernel_length(kernels, s), n - s + 1)
+        s + kmax - 1 >= first_i || continue
+        for k in 1:kmax
+            target = s + k - 1
+            target > last_i && break
+            mask[target] || continue
+            out[target] += _kernel_mass(kernels, s, k) * series[s]
+        end
+    end
+    return out
+end
+
 # Lags time point `j` of `n` can reach: the cohort at `j` lands at `j:n`,
-# and time `j` reads back to time 1.
-_kernel_lags(n::Int, ::Val{:primary}) = n:-1:1
-_kernel_lags(n::Int, ::Val{:secondary}) = 1:n
+# and time `j` reads back to time 1. `nothing` (no mask) keeps this
+# unchanged from before the mask existed: every position is built at full
+# reach.
+_kernel_lags(n::Int, ::Val{:primary}, ::Nothing) = n:-1:1
+_kernel_lags(n::Int, ::Val{:secondary}, ::Nothing) = 1:n
+
+# Masked scatter: source `j` only ever lands on `j:(j + kernel_length - 1)`
+# (see the masked `_accumulate_varying!` above), and that loop never reads
+# past `last_i`, so `j` needs no more than `last_i - j + 1` lags — matching
+# `_accumulate_varying!`'s own `kmax` bound exactly — and a source entirely
+# past `last_i` needs none of its kernel at all. `1`, not `0`, for that
+# unused case: the entry is genuinely never read either way, but
+# `delay_masses` and the downstream "at least one PMF mass" guard both
+# expect a real PMF, not an empty one.
+function _kernel_lags(n::Int, ::Val{:primary}, mask::AbstractVector{Bool})
+    last_i = findlast(mask)
+    last_i === nothing && return fill(1, n)
+    return [j <= last_i ? (last_i - j + 1) : 1 for j in 1:n]
+end
+
+# Masked gather: time `j`'s kernel is read only when `mask[j]` asks for it
+# (see the masked `_accumulate_varying!` above); every other time point's
+# kernel is never read, so it costs one placeholder lag rather than `j`.
+function _kernel_lags(n::Int, ::Val{:secondary}, mask::AbstractVector{Bool})
+    return [mask[j] ? j : 1 for j in 1:n]
+end
 
 function _check_kernel_count(kernels, series::AbstractVector)
     count = _kernel_count(kernels)
@@ -394,13 +553,12 @@ delay_masses(d::DiscreteUnivariateDistribution, n::Int) = pdf.(d, 0:(n - 1))
 # continuous delays) is still selected and still runs unmodified when
 # nothing asks it for keywords.
 #
-# When keywords ARE given, `applicable` probes whether the delay's
-# `convolve_series` method can actually take them before calling it. A
-# two-argument-only downstream specialisation cannot, in which case
-# `applicable` is false for EVERY method carrying that positional
-# signature and keywords — including this one — so this default would
-# otherwise raise a bare keyword-sorter `MethodError`; the probe turns
-# that into an actionable error naming `delay_masses` instead. This is
+# When keywords ARE given, `_accepts_kwargs` probes whether the delay's
+# `convolve_series` method declares the requested keywords by name or
+# through a catch-all, before calling it. A method that takes some other
+# keyword would otherwise pass a mere can-it-take-keywords test and fail
+# later in the keyword sorter; the probe turns that into an actionable
+# error naming `delay_masses` instead. This is
 # also why a two-argument-only downstream `delay_masses` override does
 # not shadow this default when keywords are given: Julia's keyword
 # dispatch only considers methods that accept keywords at all, so the
@@ -411,9 +569,23 @@ delay_masses(d::DiscreteUnivariateDistribution, n::Int) = pdf.(d, 0:(n - 1))
 function delay_masses(d, n::Int; kwargs...)
     impulse = [i == 1 ? 1.0 : 0.0 for i in 1:n]
     isempty(kwargs) && return convolve_series(d, impulse)
-    applicable(convolve_series, d, impulse; kwargs...) ||
+    _accepts_kwargs(d, impulse, keys(kwargs)) ||
         throw(_delay_masses_kwargs_error(d, kwargs))
     return convolve_series(d, impulse; kwargs...)
+end
+
+# Whether the `convolve_series` method for these positional arguments
+# declares every requested keyword, by name or through a catch-all.
+# `@noinline` and shielded from AD in the extension modules: the answer
+# depends only on the argument TYPES, never on parameter values, and the
+# method-table lookup underneath is a reflection primitive no AD backend
+# can trace (the same class of call that had to be shielded for
+# construction-time closed-form resolution).
+@noinline function _accepts_kwargs(d, impulse, requested)
+    types = Tuple{typeof(d), typeof(impulse)}
+    return all(requested) do name
+        hasmethod(convolve_series, types, (name,))
+    end
 end
 
 # Message factored out to keep the dispatch-check line above short; named
@@ -444,7 +616,10 @@ what that method gives specialises
 [`delay_masses`](@ref ConvolvedDistributions.delay_masses) instead.
 
 Identical delays share one set of masses, however often they recur, so a
-delay is only ever built once.
+delay is only ever built once. With a `mask`, a delay is also built no
+larger than the requested output positions can actually read — a delay
+at a time point a mask excludes entirely is never built beyond a single
+placeholder lag.
 
 `indexed_by` names which time the delay belongs to:
 
@@ -467,6 +642,8 @@ vector of continuous delays needing a non-default discretisation (e.g.
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
 - `indexed_by`: `:primary` (default) or `:secondary`.
+- `mask`: optional output-position mask, as in
+  [`convolve_series(delay, series)`](@ref convolve_series).
 - `kwargs...`: discretisation keywords, forwarded to
   [`delay_masses`](@ref ConvolvedDistributions.delay_masses) for each
   distinct delay.
@@ -494,13 +671,15 @@ expected_counts = convolve_series(delays, infections)
 "
 function convolve_series(
         delays::AbstractVector, series::AbstractVector{<:Real};
-        indexed_by::Symbol = :primary, kwargs...)
+        indexed_by::Symbol = :primary,
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing, kwargs...)
     Base.require_one_based_indexing(delays, series)
     _check_kernel_count(delays, series)
     n = length(series)
-    lags = _kernel_lags(n, Val(indexed_by))
+    mask === nothing || _check_mask(mask, n)
+    lags = _kernel_lags(n, Val(indexed_by), mask)
     return convolve_series(
-        _distinct_masses(delays, lags; kwargs...), series; indexed_by)
+        _distinct_masses(delays, lags; kwargs...), series; indexed_by, mask)
 end
 
 # Masses per time point, built once per DISTINCT delay however often it
@@ -547,6 +726,8 @@ once per time point. The lengths must sum to `length(series)`.
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
 - `indexed_by`: `:primary` (default) or `:secondary`.
+- `mask`: optional output-position mask, as in
+  [`convolve_series(delay, series)`](@ref convolve_series).
 
 # Returns
 - A numeric vector of expected downstream counts, the same length as
@@ -567,9 +748,10 @@ expected_counts = convolve_series([Poisson(3.0) => 3, Poisson(1.0) => 4],
 "
 function convolve_series(
         runs::AbstractVector{<:Pair}, series::AbstractVector{<:Real};
-        indexed_by::Symbol = :primary)
+        indexed_by::Symbol = :primary,
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
     return convolve_series(
-        _expand_runs(runs, length(series)), series; indexed_by)
+        _expand_runs(runs, length(series)), series; indexed_by, mask)
 end
 
 # `fill` repeats the SAME object, so an expanded run is one run to
@@ -604,6 +786,8 @@ and no tail correction.
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
 - `indexed_by`: `:primary` (default) or `:secondary`.
+- `mask`: optional output-position mask, as in
+  [`convolve_series(delay, series)`](@ref convolve_series).
 
 # Returns
 - A numeric vector of expected downstream counts, the same length as
@@ -628,12 +812,13 @@ expected_counts = convolve_series(pmfs, infections)
 "
 function convolve_series(
         pmfs::AbstractMatrix{<:Real}, series::AbstractVector{<:Real};
-        indexed_by::Symbol = :primary)
+        indexed_by::Symbol = :primary,
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
     Base.require_one_based_indexing(pmfs, series)
     size(pmfs, 1) >= 1 ||
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
     _check_kernel_count(pmfs, series)
-    return _convolve_series_varying(series, pmfs, indexed_by)
+    return _convolve_series_varying(series, pmfs, indexed_by, mask)
 end
 
 @doc "
@@ -652,6 +837,8 @@ matrix form.
 - `series`: the input timeseries (expected events at unit-spaced times
   from 0).
 - `indexed_by`: `:primary` (default) or `:secondary`.
+- `mask`: optional output-position mask, as in
+  [`convolve_series(delay, series)`](@ref convolve_series).
 
 # Returns
 - A numeric vector of expected downstream counts, the same length as
@@ -673,11 +860,12 @@ expected_counts = convolve_series(pmfs, infections)
 function convolve_series(
         pmfs::AbstractVector{<:AbstractVector{<:Real}},
         series::AbstractVector{<:Real};
-        indexed_by::Symbol = :primary)
+        indexed_by::Symbol = :primary,
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
     Base.require_one_based_indexing(pmfs, series)
     _check_kernel_count(pmfs, series)
     all(!isempty, pmfs) ||
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
     foreach(Base.require_one_based_indexing, pmfs)
-    return _convolve_series_varying(series, pmfs, indexed_by)
+    return _convolve_series_varying(series, pmfs, indexed_by, mask)
 end

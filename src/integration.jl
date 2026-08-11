@@ -28,7 +28,13 @@ solver instead.
 `n = 64` is accurate to about `1e-13` on the smooth, density-weighted
 integrands used in this package. This is the core default and needs no
 heavy dependency. Load Integrals.jl and pass an Integrals.jl algorithm
-(e.g. `QuadGKJL()`) when adaptive accuracy is wanted and AD is not.
+(e.g. `QuadGKJL()`) when adaptive accuracy matters more than
+differentiability. AD support for an Integrals.jl-backed solver is
+backend-dependent: ForwardDiff, ReverseDiff, and Mooncake's forward mode
+differentiate through it correctly, but Mooncake's reverse mode and
+Enzyme (both modes) cannot build a derivative rule through the adaptive
+control flow and raise a clear error rather than returning a wrong
+gradient.
 
 # Examples
 ```@example

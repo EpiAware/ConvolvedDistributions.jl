@@ -103,16 +103,18 @@ include("interface.jl")
 # that use it.
 include("lattice.jl")
 include("Convolved.jl")
-# Solver-method dispatch (#77): the per-quantity generics `Convolved`
-# calls into for any number of components (review A), and the native
-# uniform-window forms hosted on them. After Convolved.jl, whose numeric
-# quadrature helpers and struct the `NumericSolver` arms and both-orders
-# retry reuse.
+# Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
+# reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window
+# clamp, and before solver_dispatch.jl since the `difference_*` generics
+# there dispatch on the `Difference` type itself.
+include("Difference.jl")
+# Solver-method dispatch: the per-quantity generics `Convolved` and
+# `Difference` call into (any number of components for `Convolved`, a
+# fixed X/Y pair for `Difference`), and the native uniform-window forms
+# hosted on them. After Convolved.jl and Difference.jl, whose numeric
+# quadrature helpers and structs the `NumericSolver` arms reuse.
 include("solver_dispatch.jl")
 include("uniform_window.jl")
-# Difference (Z = X - Y), the dual of Convolved. After Convolved.jl since it
-# reuses `_window_quantile` / `_CONVOLVED_TAIL` for the quadrature window clamp.
-include("Difference.jl")
 # Product (Z = X * Y), the Mellin-convolution member for non-negative
 # components. Also after Convolved.jl for `_window_quantile` /
 # `_CONVOLVED_TAIL` / `_max2` / `_min2`.

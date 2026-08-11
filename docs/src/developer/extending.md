@@ -35,7 +35,7 @@ Beyond the minimal contract, `Convolved`, `Difference`, `Product`, and `Ratio` s
 **A solver-method field.**
 Each type carries a `method::AbstractSolverMethod` field, defaulting to `AnalyticalSolver()`.
 The CDF and PDF check for a closed form first and fall back to numeric quadrature; a `NumericSolver` forces the quadrature path, which is how the numeric machinery is validated against the analytic results.
-Select the analytic pairs by dispatch (as `_try_convolve` does), never by `try`/`catch` — Mooncake reverse cannot differentiate through `try`/`catch`.
+Select the analytic pairs by dispatch (as `convolve_pair` does), never by `try`/`catch` — Mooncake reverse cannot differentiate through `try`/`catch`.
 
 **AD-safe quadrature.**
 The numeric path uses the shared fixed-node Gauss-Legendre layer (`gl_integrate` in `src/integration.jl`).

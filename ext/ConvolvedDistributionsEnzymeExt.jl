@@ -1,6 +1,7 @@
 module ConvolvedDistributionsEnzymeExt
 
-using ConvolvedDistributions: _window_quantile, _lattice_quantile
+using ConvolvedDistributions: _window_quantile, _lattice_quantile,
+                              _accepts_kwargs
 using Enzyme: Enzyme
 using Enzyme.EnzymeRules: EnzymeRules
 
@@ -25,5 +26,9 @@ EnzymeRules.inactive(::typeof(_window_quantile), args...) = nothing
 # `_lattice_quantile` is the same kind of non-differentiable step
 # function: an `Int` lattice point from a summation scan.
 EnzymeRules.inactive(::typeof(_lattice_quantile), args...) = nothing
+
+# `_accepts_kwargs` is a type-level method-table query, never a numeric
+# quantity, so it is inactive for the same reason.
+EnzymeRules.inactive(::typeof(_accepts_kwargs), args...) = nothing
 
 end
