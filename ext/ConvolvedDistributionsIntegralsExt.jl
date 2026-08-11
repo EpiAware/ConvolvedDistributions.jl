@@ -20,7 +20,8 @@ const AbstractIntegralAlgorithm = Integrals.SciMLBase.AbstractIntegralAlgorithm
 # already closed over their parameters, so `p` is unused). `solve(...)[1]`
 # returns the scalar integral value, matching the `integrate` contract.
 function integrate(
-        solver::AbstractIntegralAlgorithm, f::F, lower, upper) where {F}
+        solver::AbstractIntegralAlgorithm, f::F, lower, upper
+    ) where {F}
     prob = IntegralProblem((u, _) -> f(u), (lower, upper))
     return solve(prob, solver)[1]
 end

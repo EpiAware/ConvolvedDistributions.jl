@@ -46,8 +46,10 @@ membership with `ConvolvedDistributions.TestUtils.test_abstract_membership`.
 - `ConvolvedDistributions.TestUtils`: the interface verifiers for a new
   subtype.
 "
-abstract type AbstractConvolvedDistribution{F <: Distributions.VariateForm,
-    S <: Distributions.ValueSupport} <: Distributions.Distribution{F, S} end
+abstract type AbstractConvolvedDistribution{
+    F <: Distributions.VariateForm,
+    S <: Distributions.ValueSupport,
+} <: Distributions.Distribution{F, S} end
 
 # ---------------------------------------------------------------------------
 # Derived value support (#85)
@@ -68,7 +70,8 @@ abstract type AbstractConvolvedDistribution{F <: Distributions.VariateForm,
 
 function _component_support(::Type{D}) where {D <: UnivariateDistribution}
     return _component_support(
-        Distributions.value_support(D), Base.eltype(D))
+        Distributions.value_support(D), Base.eltype(D)
+    )
 end
 _component_support(::Type{Discrete}, ::Type{<:Integer}) = Discrete
 _component_support(::Type{<:Distributions.ValueSupport}, ::Type) = Continuous
@@ -77,14 +80,17 @@ _component_support(::Type{<:Distributions.ValueSupport}, ::Type) = Continuous
 # combination continuous.
 _combine_support(::Type{Discrete}, ::Type{Discrete}) = Discrete
 function _combine_support(
-        ::Type{<:Distributions.ValueSupport}, ::Type{<:Distributions.ValueSupport})
+        ::Type{<:Distributions.ValueSupport}, ::Type{<:Distributions.ValueSupport}
+    )
     return Continuous
 end
 
 _components_support(c::Tuple{Any}) = _component_support(typeof(c[1]))
 function _components_support(c::Tuple)
-    return _combine_support(_component_support(typeof(c[1])),
-        _components_support(Base.tail(c)))
+    return _combine_support(
+        _component_support(typeof(c[1])),
+        _components_support(Base.tail(c))
+    )
 end
 
 # ---------------------------------------------------------------------------
@@ -109,8 +115,10 @@ end
 _mixed_slot(::Type{Discrete}, ::Type{Discrete}) = nothing
 _mixed_slot(::Type{Discrete}, ::Type{<:Distributions.ValueSupport}) = Val(1)
 _mixed_slot(::Type{<:Distributions.ValueSupport}, ::Type{Discrete}) = Val(2)
-function _mixed_slot(::Type{<:Distributions.ValueSupport},
-        ::Type{<:Distributions.ValueSupport})
+function _mixed_slot(
+        ::Type{<:Distributions.ValueSupport},
+        ::Type{<:Distributions.ValueSupport}
+    )
     return nothing
 end
 
@@ -146,11 +154,15 @@ _has_mixed_fold(::AbstractConvolvedDistribution) = false
 # exactness can never drift from the route actually executed.
 _exact_discrete_route(::AbstractConvolvedDistribution) = false
 function _exact_discrete_route(
-        ::AbstractConvolvedDistribution{<:Distributions.VariateForm, Discrete})
+        ::AbstractConvolvedDistribution{<:Distributions.VariateForm, Discrete}
+    )
     return true
 end
-function _exact_discrete_route(d::AbstractConvolvedDistribution{
-        <:Distributions.VariateForm, Continuous})
+function _exact_discrete_route(
+        d::AbstractConvolvedDistribution{
+            <:Distributions.VariateForm, Continuous,
+        }
+    )
     return _has_mixed_fold(d)
 end
 
@@ -160,7 +172,8 @@ end
 _on_lattice(::AbstractConvolvedDistribution, ::Real) = true
 function _on_lattice(
         ::AbstractConvolvedDistribution{<:Distributions.VariateForm, Discrete},
-        x::Real)
+        x::Real
+    )
     return isinteger(x)
 end
 
@@ -243,8 +256,10 @@ ConvolvedDistributions.evaluation_path(dn)
 - [`has_closed_form`](@ref): the boolean convenience form.
 - [`is_exact`](@ref): whether evaluation carries any quadrature error.
 "
-function evaluation_path(d::AbstractConvolvedDistribution,
-        quantities = (pdf, cdf))
+function evaluation_path(
+        d::AbstractConvolvedDistribution,
+        quantities = (pdf, cdf)
+    )
     qs = quantities isa Tuple ? quantities : (quantities,)
     return all(f -> _is_analytic(d, f), qs) ? :analytic : :numeric
 end
@@ -272,8 +287,11 @@ ConvolvedDistributions.has_closed_form(d)
 - [`evaluation_path`](@ref): the full `:analytic`/`:numeric` predicate.
 - [`is_exact`](@ref): true for a closed form OR an exact discrete fold.
 "
-has_closed_form(d::AbstractConvolvedDistribution, quantities = (
-    pdf, cdf)) = evaluation_path(d, quantities) === :analytic
+has_closed_form(
+    d::AbstractConvolvedDistribution, quantities = (
+        pdf, cdf,
+    )
+) = evaluation_path(d, quantities) === :analytic
 
 @doc "
 
@@ -342,11 +360,14 @@ end
 function _check_strict(d::AbstractConvolvedDistribution, strict::Bool)
     strict || return d
     is_exact(d) && return d
-    throw(ArgumentError(
-        "$(nameof(typeof(d)))(...; strict = true) requires an exact " *
-        "route (a closed form or the exact discrete fold), but no exact " *
-        "route exists for components $(_family_names(d)); pass strict " *
-        "= false to allow quadrature"))
+    throw(
+        ArgumentError(
+            "$(nameof(typeof(d)))(...; strict = true) requires an exact " *
+                "route (a closed form or the exact discrete fold), but no exact " *
+                "route exists for components $(_family_names(d)); pass strict " *
+                "= false to allow quadrature"
+        )
+    )
 end
 
 # ---------------------------------------------------------------------------
@@ -364,8 +385,11 @@ Validate a repeat count for `convolved(d, k)` / `product(d, k)`: must be
 a positive integer, else throw an `ArgumentError`.
 "
 function _validate_repeat_count(k::Integer)
-    k > 0 || throw(ArgumentError(
-        "repeat count must be a positive integer, got $k"))
+    k > 0 || throw(
+        ArgumentError(
+            "repeat count must be a positive integer, got $k"
+        )
+    )
     return nothing
 end
 
@@ -379,7 +403,8 @@ build the k-fold combination via `build(d, k)`. `k` is either a plain
 an inference-stable path for the `Val` case.
 "
 function _repeat_combination(
-        analytic::A, build::B, d::UnivariateDistribution, k) where {A, B}
+        analytic::A, build::B, d::UnivariateDistribution, k
+    ) where {A, B}
     kk = _repeat_count(k)
     _validate_repeat_count(kk)
     kk == 1 && return d

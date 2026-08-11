@@ -9,7 +9,7 @@ SUITE["Product"] = BenchmarkGroup()
 
 const PRODUCT_VARIANTS = [
     "analytic" => product(LogNormal(0.5, 0.4), LogNormal(0.0, 0.3)),
-    "numeric" => product(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    "numeric" => product(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
 ]
 
 for (name, d) in PRODUCT_VARIANTS
@@ -24,6 +24,8 @@ for (name, d) in PRODUCT_VARIANTS
 end
 
 SUITE["Product"]["analytic"]["construction"] = @benchmarkable product(
-    LogNormal(0.5, 0.4), LogNormal(0.0, 0.3))
+    LogNormal(0.5, 0.4), LogNormal(0.0, 0.3)
+)
 SUITE["Product"]["numeric"]["construction"] = @benchmarkable product(
-    Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+)

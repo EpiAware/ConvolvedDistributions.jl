@@ -17,13 +17,13 @@ module ConvolvedDistributionsOptimizationExt
 # see #116 for a dedicated lattice-scan quantile.
 
 using ConvolvedDistributions: ConvolvedDistributions, Convolved, Difference,
-                              Product, Ratio, NumericSolver, _maybe_analytic
+    Product, Ratio, NumericSolver, _maybe_analytic
 import ConvolvedDistributions: quantile_by_optimization,
-                               quantile_initial_guess
+    quantile_initial_guess
 import Distributions
 using Distributions: UnivariateDistribution, cdf, insupport, quantile
 using Optimization: OptimizationFunction, OptimizationProblem, solve,
-                    ReturnCode
+    ReturnCode
 using OptimizationOptimJL: NelderMead
 
 # Log-odds transform used to steepen the tail objective below. Clamping
@@ -42,7 +42,8 @@ function quantile_by_optimization(
         d::UnivariateDistribution, p::Real,
         initial_guess::AbstractVector{<:Real};
         postprocess = identity, check_nan::Bool = true,
-        solver = NelderMead(), solve_kwargs...)
+        solver = NelderMead(), solve_kwargs...
+    )
     if check_nan && isnan(p)
         throw(ArgumentError("p must be in [0, 1], got $p"))
     end
@@ -66,7 +67,7 @@ function quantile_by_optimization(
             min_d = minimum(d)
             max_d = maximum(d)
 
-            penalty = 1e10
+            penalty = 1.0e10
             if q_val < min_d && isfinite(min_d)
                 penalty += (q_val - min_d)^2
             elseif q_val > max_d && isfinite(max_d)
@@ -82,7 +83,7 @@ function quantile_by_optimization(
     optfun = OptimizationFunction(objective)
     prob = OptimizationProblem(optfun, initial_guess, nothing)
 
-    default_solve_kwargs = (; reltol = 1e-8, abstol = 1e-8, maxiters = 10000)
+    default_solve_kwargs = (; reltol = 1.0e-8, abstol = 1.0e-8, maxiters = 10000)
     sol = solve(prob, solver; merge(default_solve_kwargs, solve_kwargs)...)
 
     if sol.retcode == ReturnCode.Success || sol.retcode == ReturnCode.Default
@@ -101,7 +102,8 @@ guess otherwise). This is the fallback for any fold the
 of components, not just three-or-more (review A).
 "
 function ConvolvedDistributions.convolved_quantile(
-        d::Convolved, components::Tuple, p::Real, method::NumericSolver)
+        d::Convolved, components::Tuple, p::Real, method::NumericSolver
+    )
     return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
 end
 

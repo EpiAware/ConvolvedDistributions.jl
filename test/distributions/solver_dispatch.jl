@@ -10,7 +10,7 @@
 
 @testitem "Convolved cdf dispatch" begin
     using ConvolvedDistributions: convolved_cdf, Convolved, AnalyticalSolver,
-                                  NumericSolver, AbstractSolverMethod
+        NumericSolver, AbstractSolverMethod
     using Distributions
 
     struct DispatchTestDelay <: ContinuousUnivariateDistribution end
@@ -25,7 +25,8 @@
     analytic_called = Ref(false)
     function ConvolvedDistributions.convolved_cdf(
             ::Convolved, ::Tuple{DispatchTestDelay, Uniform}, x::Real,
-            ::AnalyticalSolver)
+            ::AnalyticalSolver
+        )
         analytic_called[] = true
         return 0.12345
     end
@@ -33,9 +34,11 @@
     # downstream method for one order needs its mirror defined too.
     function ConvolvedDistributions.convolved_cdf(
             d::Convolved, components::Tuple{Uniform, DispatchTestDelay},
-            x::Real, m::AnalyticalSolver)
+            x::Real, m::AnalyticalSolver
+        )
         return ConvolvedDistributions.convolved_cdf(
-            d, reverse(components), x, m)
+            d, reverse(components), x, m
+        )
     end
 
     @testset "Dispatch to analytical method" begin
@@ -48,7 +51,8 @@
     @testset "Force numerical method" begin
         analytic_called[] = false
         d = convolved(
-            DispatchTestDelay(), Uniform(0.0, 1.0); method = NumericSolver())
+            DispatchTestDelay(), Uniform(0.0, 1.0); method = NumericSolver()
+        )
         result = cdf(d, 2.0)
         @test !analytic_called[]
         @test result != 0.12345
@@ -66,10 +70,13 @@
 
     @testset "Unknown solver type errors" begin
         struct BrokenMethod <: AbstractSolverMethod end
-        d = Convolved((Gamma(2.0, 1.0), Uniform(0.0, 1.0));
-            method = BrokenMethod())
+        d = Convolved(
+            (Gamma(2.0, 1.0), Uniform(0.0, 1.0));
+            method = BrokenMethod()
+        )
         @test_throws ErrorException convolved_cdf(
-            d, (Gamma(2.0, 1.0), Uniform(0.0, 1.0)), 1.0, BrokenMethod())
+            d, (Gamma(2.0, 1.0), Uniform(0.0, 1.0)), 1.0, BrokenMethod()
+        )
     end
 
     @testset "Reversed component order" begin
@@ -90,10 +97,10 @@ end
     # exercises all of them so the shared skeleton shape stays proven for
     # every quantity, not just `cdf`.
     using ConvolvedDistributions: convolved_cdf, convolved_logcdf,
-                                  convolved_ccdf, convolved_logccdf,
-                                  convolved_pdf, convolved_logpdf,
-                                  convolved_quantile, convolved_minimum,
-                                  Convolved, AbstractSolverMethod
+        convolved_ccdf, convolved_logccdf,
+        convolved_pdf, convolved_logpdf,
+        convolved_quantile, convolved_minimum,
+        Convolved, AbstractSolverMethod
     using Distributions
 
     struct BrokenMethod <: AbstractSolverMethod end
@@ -103,27 +110,38 @@ end
     xs = [1.0, 2.0]
 
     @test_throws ErrorException convolved_cdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException convolved_cdf(
-        d, components, xs, BrokenMethod())
+        d, components, xs, BrokenMethod()
+    )
     @test_throws ErrorException convolved_logcdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException convolved_ccdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException convolved_logccdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException convolved_pdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException convolved_pdf(
-        d, components, xs, BrokenMethod())
+        d, components, xs, BrokenMethod()
+    )
     @test_throws ErrorException convolved_logpdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException convolved_logpdf(
-        d, components, xs, BrokenMethod())
+        d, components, xs, BrokenMethod()
+    )
     @test_throws ErrorException convolved_quantile(
-        d, components, 0.5, BrokenMethod())
+        d, components, 0.5, BrokenMethod()
+    )
     @test_throws ErrorException convolved_minimum(
-        d, components, BrokenMethod())
+        d, components, BrokenMethod()
+    )
 end
 
 @testitem "Analytic collapse works for any component count (review A)" begin
@@ -150,7 +168,8 @@ end
     # fold reduces all the way to one distribution regardless of which
     # pair it happens to pick first, and reports :analytic.
     d4 = convolved(
-        Gamma(1.0, 1.5), Gamma(3.0, 1.5), Gamma(2.0, 1.5), Gamma(4.0, 1.5))
+        Gamma(1.0, 1.5), Gamma(3.0, 1.5), Gamma(2.0, 1.5), Gamma(4.0, 1.5)
+    )
     @test evaluation_path(d4) === :analytic
 end
 
@@ -210,7 +229,7 @@ end
 
 @testitem "Difference cdf dispatch" begin
     using ConvolvedDistributions: difference_cdf, Difference, AnalyticalSolver,
-                                  NumericSolver, AbstractSolverMethod
+        NumericSolver, AbstractSolverMethod
     using Distributions
 
     struct DispatchTestDelay <: ContinuousUnivariateDistribution end
@@ -226,7 +245,8 @@ end
     analytic_called = Ref(false)
     function ConvolvedDistributions.difference_cdf(
             ::Difference, ::Tuple{DispatchTestDelay, Uniform}, z::Real,
-            ::AnalyticalSolver)
+            ::AnalyticalSolver
+        )
         analytic_called[] = true
         return 0.54321
     end
@@ -241,7 +261,8 @@ end
     @testset "Force numerical method" begin
         analytic_called[] = false
         d = difference(
-            DispatchTestDelay(), Uniform(0.0, 1.0); method = NumericSolver())
+            DispatchTestDelay(), Uniform(0.0, 1.0); method = NumericSolver()
+        )
         result = cdf(d, 2.0)
         @test !analytic_called[]
         @test result != 0.54321
@@ -258,10 +279,13 @@ end
 
     @testset "Unknown solver type errors" begin
         struct BrokenMethod <: AbstractSolverMethod end
-        d = Difference(Gamma(2.0, 1.0), Uniform(0.0, 1.0);
-            method = BrokenMethod())
+        d = Difference(
+            Gamma(2.0, 1.0), Uniform(0.0, 1.0);
+            method = BrokenMethod()
+        )
         @test_throws ErrorException difference_cdf(
-            d, (Gamma(2.0, 1.0), Uniform(0.0, 1.0)), 1.0, BrokenMethod())
+            d, (Gamma(2.0, 1.0), Uniform(0.0, 1.0)), 1.0, BrokenMethod()
+        )
     end
 end
 
@@ -271,10 +295,10 @@ end
     # for a solver type that is neither `AnalyticalSolver` nor
     # `NumericSolver`), so this exercises all of them, not just `cdf`.
     using ConvolvedDistributions: difference_cdf, difference_logcdf,
-                                  difference_ccdf, difference_logccdf,
-                                  difference_pdf, difference_logpdf,
-                                  difference_quantile, Difference,
-                                  AbstractSolverMethod
+        difference_ccdf, difference_logccdf,
+        difference_pdf, difference_logpdf,
+        difference_quantile, Difference,
+        AbstractSolverMethod
     using Distributions
 
     struct BrokenMethod <: AbstractSolverMethod end
@@ -283,19 +307,26 @@ end
     d = Difference(components...; method = BrokenMethod())
 
     @test_throws ErrorException difference_cdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException difference_logcdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException difference_ccdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException difference_logccdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException difference_pdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException difference_logpdf(
-        d, components, 1.0, BrokenMethod())
+        d, components, 1.0, BrokenMethod()
+    )
     @test_throws ErrorException difference_quantile(
-        d, components, 0.5, BrokenMethod())
+        d, components, 0.5, BrokenMethod()
+    )
 end
 
 @testitem "Difference quantile dispatch: analytic without Optimization.jl" begin
@@ -311,7 +342,7 @@ end
     ref = Normal(1.0 - 3.0, sqrt(2.0^2 + 4.0^2))
     for p in (0.1, 0.25, 0.5, 0.75, 0.9)
         @test difference_quantile(d, (d.x, d.y), p, AnalyticalSolver()) ==
-              quantile(ref, p)
+            quantile(ref, p)
     end
 end
 
@@ -335,7 +366,8 @@ end
     called = Ref(false)
     override = Exponential(5.0)
     function ConvolvedDistributions.convolve_pair(
-            ::ExtPairDelay, ::ExtPairDelay)
+            ::ExtPairDelay, ::ExtPairDelay
+        )
         called[] = true
         return override
     end
@@ -351,9 +383,14 @@ end
         # method itself lives on the shared `convolve_pair` generic in
         # `ConvolvedDistributions`, which persists for the rest of the
         # test run unless removed.
-        Base.delete_method(only(methods(
-            ConvolvedDistributions.convolve_pair,
-            Tuple{ExtPairDelay, ExtPairDelay})))
+        Base.delete_method(
+            only(
+                methods(
+                    ConvolvedDistributions.convolve_pair,
+                    Tuple{ExtPairDelay, ExtPairDelay}
+                )
+            )
+        )
     end
 end
 
@@ -372,7 +409,8 @@ end
     called = Ref(false)
     closed = Exponential(9.0)
     function ConvolvedDistributions.convolve_power(
-            ::ExtPowerDelay, k::Integer)
+            ::ExtPowerDelay, k::Integer
+        )
         called[] = true
         return closed
     end
@@ -382,8 +420,13 @@ end
         @test called[]
         @test result === closed
     finally
-        Base.delete_method(only(methods(
-            ConvolvedDistributions.convolve_power,
-            Tuple{ExtPowerDelay, Integer})))
+        Base.delete_method(
+            only(
+                methods(
+                    ConvolvedDistributions.convolve_power,
+                    Tuple{ExtPowerDelay, Integer}
+                )
+            )
+        )
     end
 end

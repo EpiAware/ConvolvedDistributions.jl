@@ -80,8 +80,12 @@ end
 # silently wrong answer rather than the true (divergent) sum.
 function _pgf_ratio_domain_guard(fam::Symbol, p::Real, s::Real)
     bound = 1 / (1 - p)
-    abs(s) < bound || throw(DomainError(s,
-        "pgf(::$fam, s) requires |s| < 1/(1-p) = $bound"))
+    abs(s) < bound || throw(
+        DomainError(
+            s,
+            "pgf(::$fam, s) requires |s| < 1/(1-p) = $bound"
+        )
+    )
     return nothing
 end
 
@@ -142,16 +146,23 @@ starting point), a `DomainError` for `|s| > 1` with unbounded support
 "
 function pgf(d::DiscreteUnivariateDistribution, s::Real)
     lo = minimum(d)
-    isfinite(lo) || throw(ArgumentError(
-        "pgf fallback requires a distribution bounded below; " *
-        "minimum($(nameof(typeof(d)))) is not finite"))
+    isfinite(lo) || throw(
+        ArgumentError(
+            "pgf fallback requires a distribution bounded below; " *
+                "minimum($(nameof(typeof(d)))) is not finite"
+        )
+    )
     lo_i = Int(lo)
     hi = maximum(d)
     isfinite(hi) && return _pgf_series_sum(d, s, lo_i, Int(hi))
 
-    abs(s) <= 1 || throw(DomainError(s,
-        "pgf fallback for $(nameof(typeof(d))) (unbounded support, no " *
-        "closed form registered) requires |s| <= 1 to bound the tail"))
+    abs(s) <= 1 || throw(
+        DomainError(
+            s,
+            "pgf fallback for $(nameof(typeof(d))) (unbounded support, no " *
+                "closed form registered) requires |s| <= 1 to bound the tail"
+        )
+    )
     return _pgf_series_sum(d, s, lo_i, nothing)
 end
 
@@ -168,10 +179,13 @@ function _pgf_series_sum(d, s::Real, lo::Int, hi::Union{Int, Nothing})
     while hi === nothing ? mass < 1 - _PGF_SERIES_TOL : k < hi
         k += 1
         if hi === nothing && k - lo > _PGF_SERIES_MAX_TERMS
-            throw(ErrorException(
-                "pgf fallback for $(nameof(typeof(d))) did not reach " *
-                "the mass tolerance within $_PGF_SERIES_MAX_TERMS terms; " *
-                "the tail could not be bounded"))
+            throw(
+                ErrorException(
+                    "pgf fallback for $(nameof(typeof(d))) did not reach " *
+                        "the mass tolerance within $_PGF_SERIES_MAX_TERMS terms; " *
+                        "the tail could not be bounded"
+                )
+            )
         end
         pk = pdf(d, k)
         acc += s^k * pk
@@ -209,9 +223,12 @@ ConvolvedDistributions.pgf(d, 0.5) ≈
 "
 function pgf(d::Convolved, s::Real)
     bad = filter(c -> !applicable(pgf, c, s), d.components)
-    isempty(bad) || throw(ArgumentError(
-        "pgf(::Convolved, s) requires every component to have a pgf " *
-        "method (discrete components only); no method for " *
-        "$(nameof.(typeof.(bad)))"))
+    isempty(bad) || throw(
+        ArgumentError(
+            "pgf(::Convolved, s) requires every component to have a pgf " *
+                "method (discrete components only); no method for " *
+                "$(nameof.(typeof.(bad)))"
+        )
+    )
     return prod(c -> pgf(c, s), d.components)
 end

@@ -8,11 +8,11 @@
     function consistency_grid(d; n = 12)
         lo, hi = minimum(d), maximum(d)
         interior = if isfinite(lo) && isfinite(hi)
-            collect(range(lo + 1e-6, hi - 1e-6; length = n))
+            collect(range(lo + 1.0e-6, hi - 1.0e-6; length = n))
         elseif isfinite(lo)
-            collect(range(lo + 1e-6, lo + 15.0; length = n))
+            collect(range(lo + 1.0e-6, lo + 15.0; length = n))
         elseif isfinite(hi)
-            collect(range(hi - 15.0, hi - 1e-6; length = n))
+            collect(range(hi - 15.0, hi - 1.0e-6; length = n))
         else
             collect(range(-10.0, 10.0; length = n))
         end
@@ -21,27 +21,38 @@
 
     cases = [
         "Normal+Normal (analytic)" => convolved(
-            Normal(1.0, 2.0), Normal(-0.5, 1.5)),
+            Normal(1.0, 2.0), Normal(-0.5, 1.5)
+        ),
         "Gamma+Gamma equal-scale (analytic)" => convolved(
-            Gamma(2.0, 1.5), Gamma(3.0, 1.5)),
+            Gamma(2.0, 1.5), Gamma(3.0, 1.5)
+        ),
         "Exponential+Exponential equal-rate (analytic)" => convolved(
-            Exponential(2.0), Exponential(2.0)),
+            Exponential(2.0), Exponential(2.0)
+        ),
         "Gamma+LogNormal (numeric)" => convolved(
-            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+        ),
         "LogNormal+Gamma order swapped (numeric)" => convolved(
-            LogNormal(0.5, 0.4), Gamma(2.0, 1.0)),
+            LogNormal(0.5, 0.4), Gamma(2.0, 1.0)
+        ),
         "Uniform+Uniform (bounded, numeric)" => convolved(
-            Uniform(0.0, 2.0), Uniform(0.0, 3.0)),
+            Uniform(0.0, 2.0), Uniform(0.0, 3.0)
+        ),
         "Uniform+Gamma (bounded+unbounded, numeric)" => convolved(
-            Uniform(0.0, 1.0), Gamma(2.0, 1.0)),
+            Uniform(0.0, 1.0), Gamma(2.0, 1.0)
+        ),
         "Gamma+Uniform (closed-form window pair)" => convolved(
-            Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
+            Gamma(2.0, 1.5), Uniform(0.0, 2.0)
+        ),
         "Weibull+Normal (numeric)" => convolved(
-            Weibull(1.5, 2.0), Normal(1.0, 0.5)),
+            Weibull(1.5, 2.0), Normal(1.0, 0.5)
+        ),
         "three-component Gamma+Gamma+LogNormal (pair breadth)" => convolved(
-            Gamma(2.0, 1.0), Gamma(1.5, 2.0), LogNormal(0.5, 0.4)),
+            Gamma(2.0, 1.0), Gamma(1.5, 2.0), LogNormal(0.5, 0.4)
+        ),
         "nested Convolved-of-Convolved (deeper nesting)" => convolved(
-            convolved(Gamma(2.0, 1.0), Normal(1.0, 0.5)), LogNormal(0.3, 0.2))
+            convolved(Gamma(2.0, 1.0), Normal(1.0, 0.5)), LogNormal(0.3, 0.2)
+        ),
     ]
 
     for (name, d) in cases
@@ -54,7 +65,7 @@
                 logpdf_val = logpdf(d, x)
                 @test pdf_val >= 0.0
                 if pdf_val > 0
-                    @test logpdf_val≈log(pdf_val) rtol=1e-8
+                    @test logpdf_val ≈ log(pdf_val) rtol = 1.0e-8
                 else
                     @test logpdf_val == -Inf
                 end
@@ -62,7 +73,7 @@
                 cdf_val = cdf(d, x)
                 logcdf_val = logcdf(d, x)
                 if cdf_val > 0
-                    @test logcdf_val≈log(cdf_val) atol=1e-8
+                    @test logcdf_val ≈ log(cdf_val) atol = 1.0e-8
                 else
                     @test logcdf_val == -Inf
                 end
@@ -70,13 +81,13 @@
                 ccdf_val = ccdf(d, x)
                 logccdf_val = logccdf(d, x)
                 if ccdf_val > 0
-                    @test logccdf_val≈log(ccdf_val) atol=1e-6
+                    @test logccdf_val ≈ log(ccdf_val) atol = 1.0e-6
                 else
                     @test logccdf_val == -Inf
                 end
 
-                @test cdf_val + ccdf_val≈1.0 atol=1e-8
-                @test cdf_val >= prev_cdf - 1e-9  # non-decreasing
+                @test cdf_val + ccdf_val ≈ 1.0 atol = 1.0e-8
+                @test cdf_val >= prev_cdf - 1.0e-9  # non-decreasing
                 prev_cdf = cdf_val
             end
 
@@ -90,10 +101,12 @@
             # where quadrature error compounds across components), so
             # `rtol` alongside a looser `atol` is the size-appropriate
             # check.
-            @test pdf(d, grid) ≈ [pdf(d, x) for x in grid] atol=1e-8
-            @test isapprox(logpdf(d, grid), [logpdf(d, x) for x in grid];
-                atol = 1e-6, rtol = 1e-4)
-            @test cdf(d, grid) ≈ [cdf(d, x) for x in grid] atol=1e-8
+            @test pdf(d, grid) ≈ [pdf(d, x) for x in grid] atol = 1.0e-8
+            @test isapprox(
+                logpdf(d, grid), [logpdf(d, x) for x in grid];
+                atol = 1.0e-6, rtol = 1.0e-4
+            )
+            @test cdf(d, grid) ≈ [cdf(d, x) for x in grid] atol = 1.0e-8
         end
     end
 end
@@ -104,11 +117,11 @@ end
     function consistency_grid(d; n = 12)
         lo, hi = minimum(d), maximum(d)
         interior = if isfinite(lo) && isfinite(hi)
-            collect(range(lo + 1e-6, hi - 1e-6; length = n))
+            collect(range(lo + 1.0e-6, hi - 1.0e-6; length = n))
         elseif isfinite(lo)
-            collect(range(lo + 1e-6, lo + 15.0; length = n))
+            collect(range(lo + 1.0e-6, lo + 15.0; length = n))
         elseif isfinite(hi)
-            collect(range(hi - 15.0, hi - 1e-6; length = n))
+            collect(range(hi - 15.0, hi - 1.0e-6; length = n))
         else
             collect(range(-10.0, 10.0; length = n))
         end
@@ -117,17 +130,23 @@ end
 
     cases = [
         "Normal-Normal (analytic)" => difference(
-            Normal(5.0, 1.0), Normal(2.0, 1.0)),
+            Normal(5.0, 1.0), Normal(2.0, 1.0)
+        ),
         "Gamma-Gamma (numeric)" => difference(
-            Gamma(3.0, 1.0), Gamma(2.0, 1.0)),
+            Gamma(3.0, 1.0), Gamma(2.0, 1.0)
+        ),
         "LogNormal-Gamma (numeric)" => difference(
-            LogNormal(0.5, 0.4), Gamma(2.0, 1.0)),
+            LogNormal(0.5, 0.4), Gamma(2.0, 1.0)
+        ),
         "Uniform-Uniform (bounded, numeric)" => difference(
-            Uniform(0.0, 1.0), Uniform(0.0, 2.0)),
+            Uniform(0.0, 1.0), Uniform(0.0, 2.0)
+        ),
         "Weibull-Normal (numeric)" => difference(
-            Weibull(1.5, 2.0), Normal(1.0, 0.5)),
+            Weibull(1.5, 2.0), Normal(1.0, 0.5)
+        ),
         "Difference of a Convolved minuend (deeper nesting)" => difference(
-            convolved(Gamma(2.0, 1.0), Normal(1.0, 0.5)), LogNormal(0.3, 0.2))
+            convolved(Gamma(2.0, 1.0), Normal(1.0, 0.5)), LogNormal(0.3, 0.2)
+        ),
     ]
 
     for (name, d) in cases
@@ -140,7 +159,7 @@ end
                 logpdf_val = logpdf(d, x)
                 @test pdf_val >= 0.0
                 if pdf_val > 0
-                    @test logpdf_val≈log(pdf_val) rtol=1e-8
+                    @test logpdf_val ≈ log(pdf_val) rtol = 1.0e-8
                 else
                     @test logpdf_val == -Inf
                 end
@@ -148,7 +167,7 @@ end
                 cdf_val = cdf(d, x)
                 logcdf_val = logcdf(d, x)
                 if cdf_val > 0
-                    @test logcdf_val≈log(cdf_val) atol=1e-8
+                    @test logcdf_val ≈ log(cdf_val) atol = 1.0e-8
                 else
                     @test logcdf_val == -Inf
                 end
@@ -156,13 +175,13 @@ end
                 ccdf_val = ccdf(d, x)
                 logccdf_val = logccdf(d, x)
                 if ccdf_val > 0
-                    @test logccdf_val≈log(ccdf_val) atol=1e-6
+                    @test logccdf_val ≈ log(ccdf_val) atol = 1.0e-6
                 else
                     @test logccdf_val == -Inf
                 end
 
-                @test cdf_val + ccdf_val≈1.0 atol=1e-8
-                @test cdf_val >= prev_cdf - 1e-9
+                @test cdf_val + ccdf_val ≈ 1.0 atol = 1.0e-8
+                @test cdf_val >= prev_cdf - 1.0e-9
                 prev_cdf = cdf_val
             end
 
@@ -175,10 +194,12 @@ end
             # a broadcast-dispatch regression guard, using the `.`-form so
             # it does not hit Distributions.jl's deprecated bare
             # `pdf(d, ::AbstractArray)` fallback.
-            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol=1e-8
-            @test isapprox(logpdf.(d, grid), [logpdf(d, x) for x in grid];
-                atol = 1e-6, rtol = 1e-4)
-            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol=1e-8
+            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol = 1.0e-8
+            @test isapprox(
+                logpdf.(d, grid), [logpdf(d, x) for x in grid];
+                atol = 1.0e-6, rtol = 1.0e-4
+            )
+            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol = 1.0e-8
         end
     end
 end
@@ -189,11 +210,11 @@ end
     function consistency_grid(d; n = 12)
         lo, hi = minimum(d), maximum(d)
         interior = if isfinite(lo) && isfinite(hi)
-            collect(range(lo + 1e-6, hi - 1e-6; length = n))
+            collect(range(lo + 1.0e-6, hi - 1.0e-6; length = n))
         elseif isfinite(lo)
-            collect(range(lo + 1e-6, lo + 15.0; length = n))
+            collect(range(lo + 1.0e-6, lo + 15.0; length = n))
         elseif isfinite(hi)
-            collect(range(hi - 15.0, hi - 1e-6; length = n))
+            collect(range(hi - 15.0, hi - 1.0e-6; length = n))
         else
             collect(range(-10.0, 10.0; length = n))
         end
@@ -203,15 +224,20 @@ end
     # v1 scope: both Product components must have non-negative support.
     cases = [
         "LogNormal*LogNormal (analytic)" => product(
-            LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)),
+            LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)
+        ),
         "Gamma*LogNormal (numeric)" => product(
-            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+        ),
         "Uniform*Uniform (bounded, numeric)" => product(
-            Uniform(0.5, 2.0), Uniform(0.5, 3.0)),
+            Uniform(0.5, 2.0), Uniform(0.5, 3.0)
+        ),
         "Weibull*Gamma (numeric)" => product(
-            Weibull(1.5, 2.0), Gamma(2.0, 1.0)),
+            Weibull(1.5, 2.0), Gamma(2.0, 1.0)
+        ),
         "Product of a Convolved multiplier (deeper nesting)" => product(
-            convolved(Gamma(2.0, 1.0), Uniform(0.0, 1.0)), LogNormal(0.3, 0.2))
+            convolved(Gamma(2.0, 1.0), Uniform(0.0, 1.0)), LogNormal(0.3, 0.2)
+        ),
     ]
 
     for (name, d) in cases
@@ -224,7 +250,7 @@ end
                 logpdf_val = logpdf(d, x)
                 @test pdf_val >= 0.0
                 if pdf_val > 0
-                    @test logpdf_val≈log(pdf_val) rtol=1e-8
+                    @test logpdf_val ≈ log(pdf_val) rtol = 1.0e-8
                 else
                     @test logpdf_val == -Inf
                 end
@@ -232,7 +258,7 @@ end
                 cdf_val = cdf(d, x)
                 logcdf_val = logcdf(d, x)
                 if cdf_val > 0
-                    @test logcdf_val≈log(cdf_val) atol=1e-8
+                    @test logcdf_val ≈ log(cdf_val) atol = 1.0e-8
                 else
                     @test logcdf_val == -Inf
                 end
@@ -240,13 +266,13 @@ end
                 ccdf_val = ccdf(d, x)
                 logccdf_val = logccdf(d, x)
                 if ccdf_val > 0
-                    @test logccdf_val≈log(ccdf_val) atol=1e-6
+                    @test logccdf_val ≈ log(ccdf_val) atol = 1.0e-6
                 else
                     @test logccdf_val == -Inf
                 end
 
-                @test cdf_val + ccdf_val≈1.0 atol=1e-8
-                @test cdf_val >= prev_cdf - 1e-9
+                @test cdf_val + ccdf_val ≈ 1.0 atol = 1.0e-8
+                @test cdf_val >= prev_cdf - 1.0e-9
                 prev_cdf = cdf_val
             end
 
@@ -259,10 +285,12 @@ end
             # a broadcast-dispatch regression guard, using the `.`-form so
             # it does not hit Distributions.jl's deprecated bare
             # `pdf(d, ::AbstractArray)` fallback.
-            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol=1e-8
-            @test isapprox(logpdf.(d, grid), [logpdf(d, x) for x in grid];
-                atol = 1e-6, rtol = 1e-4)
-            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol=1e-8
+            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol = 1.0e-8
+            @test isapprox(
+                logpdf.(d, grid), [logpdf(d, x) for x in grid];
+                atol = 1.0e-6, rtol = 1.0e-4
+            )
+            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol = 1.0e-8
         end
     end
 end
@@ -273,11 +301,11 @@ end
     function consistency_grid(d; n = 12)
         lo, hi = minimum(d), maximum(d)
         interior = if isfinite(lo) && isfinite(hi)
-            collect(range(lo + 1e-6, hi - 1e-6; length = n))
+            collect(range(lo + 1.0e-6, hi - 1.0e-6; length = n))
         elseif isfinite(lo)
-            collect(range(lo + 1e-6, lo + 15.0; length = n))
+            collect(range(lo + 1.0e-6, lo + 15.0; length = n))
         elseif isfinite(hi)
-            collect(range(hi - 15.0, hi - 1e-6; length = n))
+            collect(range(hi - 15.0, hi - 1.0e-6; length = n))
         else
             collect(range(-10.0, 10.0; length = n))
         end
@@ -286,14 +314,17 @@ end
 
     cases = [
         "Normal/Normal (analytic, sign-crossing)" => ratio(
-            Normal(0.0, 2.0), Normal(0.0, 0.5)),
+            Normal(0.0, 2.0), Normal(0.0, 0.5)
+        ),
         "Gamma/Gamma (analytic)" => ratio(Gamma(2.0, 1.5), Gamma(3.0, 0.5)),
         "Gamma/LogNormal (numeric)" => ratio(
-            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+        ),
         "LogNormal/Uniform(0, 2) (numeric, zero-touching denominator)" =>
             ratio(LogNormal(0.5, 0.4), Uniform(0.0, 2.0)),
         "Ratio of a Convolved numerator (deeper nesting)" => ratio(
-            convolved(Gamma(2.0, 1.0), Uniform(0.0, 1.0)), Gamma(3.0, 1.0))
+            convolved(Gamma(2.0, 1.0), Uniform(0.0, 1.0)), Gamma(3.0, 1.0)
+        ),
     ]
 
     for (name, d) in cases
@@ -306,7 +337,7 @@ end
                 logpdf_val = logpdf(d, x)
                 @test pdf_val >= 0.0
                 if pdf_val > 0
-                    @test logpdf_val≈log(pdf_val) rtol=1e-8
+                    @test logpdf_val ≈ log(pdf_val) rtol = 1.0e-8
                 else
                     @test logpdf_val == -Inf
                 end
@@ -314,7 +345,7 @@ end
                 cdf_val = cdf(d, x)
                 logcdf_val = logcdf(d, x)
                 if cdf_val > 0
-                    @test logcdf_val≈log(cdf_val) atol=1e-8
+                    @test logcdf_val ≈ log(cdf_val) atol = 1.0e-8
                 else
                     @test logcdf_val == -Inf
                 end
@@ -322,13 +353,13 @@ end
                 ccdf_val = ccdf(d, x)
                 logccdf_val = logccdf(d, x)
                 if ccdf_val > 0
-                    @test logccdf_val≈log(ccdf_val) atol=1e-6
+                    @test logccdf_val ≈ log(ccdf_val) atol = 1.0e-6
                 else
                     @test logccdf_val == -Inf
                 end
 
-                @test cdf_val + ccdf_val≈1.0 atol=1e-8
-                @test cdf_val >= prev_cdf - 1e-9
+                @test cdf_val + ccdf_val ≈ 1.0 atol = 1.0e-8
+                @test cdf_val >= prev_cdf - 1.0e-9
                 prev_cdf = cdf_val
             end
 
@@ -341,10 +372,12 @@ end
             # a broadcast-dispatch regression guard, using the `.`-form so
             # it does not hit Distributions.jl's deprecated bare
             # `pdf(d, ::AbstractArray)` fallback.
-            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol=1e-8
-            @test isapprox(logpdf.(d, grid), [logpdf(d, x) for x in grid];
-                atol = 1e-6, rtol = 1e-4)
-            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol=1e-8
+            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol = 1.0e-8
+            @test isapprox(
+                logpdf.(d, grid), [logpdf(d, x) for x in grid];
+                atol = 1.0e-6, rtol = 1.0e-4
+            )
+            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol = 1.0e-8
         end
     end
 end
@@ -361,18 +394,20 @@ end
     d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
     grid = collect(0.5:0.5:8.0)
 
-    @test pdf(d, grid) ≈ [pdf(d, x) for x in grid] atol=1e-8
-    @test isapprox(logpdf(d, grid), [logpdf(d, x) for x in grid];
-        atol = 1e-6, rtol = 1e-6)
-    @test cdf(d, grid) ≈ [cdf(d, x) for x in grid] atol=1e-8
+    @test pdf(d, grid) ≈ [pdf(d, x) for x in grid] atol = 1.0e-8
+    @test isapprox(
+        logpdf(d, grid), [logpdf(d, x) for x in grid];
+        atol = 1.0e-6, rtol = 1.0e-6
+    )
+    @test cdf(d, grid) ≈ [cdf(d, x) for x in grid] atol = 1.0e-8
 
     for x in grid
         pdf_val, logpdf_val = pdf(d, x), logpdf(d, x)
-        @test logpdf_val≈log(pdf_val) rtol=1e-8
+        @test logpdf_val ≈ log(pdf_val) rtol = 1.0e-8
 
         cdf_val, ccdf_val = cdf(d, x), ccdf(d, x)
-        @test cdf_val + ccdf_val≈1.0 atol=1e-8
-        @test logcdf(d, x)≈log(cdf_val) atol=1e-8
+        @test cdf_val + ccdf_val ≈ 1.0 atol = 1.0e-8
+        @test logcdf(d, x) ≈ log(cdf_val) atol = 1.0e-8
     end
 end
 
@@ -391,14 +426,22 @@ end
     # component rather than pinned by hand.
 
     cases = [
-        ("Convolved", convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
-            LogNormal(0.5, 0.4)),
-        ("Difference", difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)),
-            LogNormal(0.5, 0.4)),
-        ("Product", product(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
-            LogNormal(0.5, 0.4)),
-        ("Ratio", ratio(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
-            LogNormal(0.5, 0.4))
+        (
+            "Convolved", convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            LogNormal(0.5, 0.4),
+        ),
+        (
+            "Difference", difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)),
+            LogNormal(0.5, 0.4),
+        ),
+        (
+            "Product", product(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            LogNormal(0.5, 0.4),
+        ),
+        (
+            "Ratio", ratio(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            LogNormal(0.5, 0.4),
+        ),
     ]
 
     for (name, d, panel_comp) in cases
@@ -411,18 +454,18 @@ end
             @test !isempty(interior_breaks)
 
             for b in interior_breaks
-                for x in (b - 1e-6, b, b + 1e-6)
+                for x in (b - 1.0e-6, b, b + 1.0e-6)
                     pdf_val, logpdf_val = pdf(d, x), logpdf(d, x)
                     if pdf_val > 0
-                        @test logpdf_val≈log(pdf_val) rtol=1e-6
+                        @test logpdf_val ≈ log(pdf_val) rtol = 1.0e-6
                     else
                         @test logpdf_val == -Inf
                     end
 
                     cdf_val, ccdf_val = cdf(d, x), ccdf(d, x)
-                    @test cdf_val + ccdf_val≈1.0 atol=1e-8
+                    @test cdf_val + ccdf_val ≈ 1.0 atol = 1.0e-8
                     if cdf_val > 0
-                        @test logcdf(d, x)≈log(cdf_val) atol=1e-8
+                        @test logcdf(d, x) ≈ log(cdf_val) atol = 1.0e-8
                     end
                 end
 
@@ -434,9 +477,11 @@ end
                 # Ratio case's density near its break points (~0.5-0.6)
                 # pushes that product to ~1.2e-6 on its own -- a real
                 # slope, not a jump.
-                @test cdf(d, b - 1e-6)≈cdf(d, b + 1e-6) atol=2e-6
-                @test isapprox(pdf(d, b - 1e-6), pdf(d, b + 1e-6);
-                    atol = 1e-6, rtol = 1e-3)
+                @test cdf(d, b - 1.0e-6) ≈ cdf(d, b + 1.0e-6) atol = 2.0e-6
+                @test isapprox(
+                    pdf(d, b - 1.0e-6), pdf(d, b + 1.0e-6);
+                    atol = 1.0e-6, rtol = 1.0e-3
+                )
             end
         end
     end
@@ -452,23 +497,32 @@ end
     # assertion — only that nothing returns NaN or errors.
     cases = [
         "Convolved: Gamma+LogNormal (numeric, half-line support)" => convolved(
-            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+        ),
         "Convolved: Normal+Normal (analytic, full-line support)" => convolved(
-            Normal(1.0, 2.0), Normal(-0.5, 1.5)),
+            Normal(1.0, 2.0), Normal(-0.5, 1.5)
+        ),
         "Convolved: Uniform+Uniform (bounded support)" => convolved(
-            Uniform(0.0, 2.0), Uniform(0.0, 3.0)),
+            Uniform(0.0, 2.0), Uniform(0.0, 3.0)
+        ),
         "Difference: Gamma-Gamma (numeric, full-line support)" => difference(
-            Gamma(3.0, 1.0), Gamma(2.0, 1.0)),
+            Gamma(3.0, 1.0), Gamma(2.0, 1.0)
+        ),
         "Difference: Normal-Normal (analytic, full-line support)" => difference(
-            Normal(5.0, 1.0), Normal(2.0, 1.0)),
+            Normal(5.0, 1.0), Normal(2.0, 1.0)
+        ),
         "Product: Gamma*LogNormal (numeric, half-line support)" => product(
-            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+        ),
         "Product: LogNormal*LogNormal (analytic, half-line support)" => product(
-            LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)),
+            LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)
+        ),
         "Ratio: Gamma/LogNormal (numeric, half-line support)" => ratio(
-            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+            Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+        ),
         "Ratio: Normal/Normal (analytic, full-line support)" => ratio(
-            Normal(0.0, 2.0), Normal(0.0, 0.5))
+            Normal(0.0, 2.0), Normal(0.0, 0.5)
+        ),
     ]
 
     for (name, d) in cases
@@ -489,7 +543,7 @@ end
             end
 
             @testset "Extreme finite and infinite values" begin
-                for x in (-1e10, 1e10, -Inf, Inf)
+                for x in (-1.0e10, 1.0e10, -Inf, Inf)
                     pdf_val, logpdf_val = pdf(d, x), logpdf(d, x)
                     cdf_val, logcdf_val = cdf(d, x), logcdf(d, x)
 
@@ -533,7 +587,7 @@ end
         Weibull(1.5, 2.0) => Uniform(0.0, 1.5),
         Normal(2.0, 1.0) => Uniform(-1.0, 1.0),
         Exponential(2.0) => Uniform(0.0, 2.0),
-        Gamma(2.0, 1.5) => Uniform(0.0, 1e-3)
+        Gamma(2.0, 1.5) => Uniform(0.0, 1.0e-3),
     ]
 
     # Composite Simpson's rule on an even number of panels.
@@ -551,12 +605,12 @@ end
         d = convolved(delay, primary)
         lo = max(minimum(d), 0.0) + 0.5
         for x in (lo, lo + 1.0, lo + 3.0, lo + 8.0)
-            h = 1e-5 * max(abs(x), 1.0)
+            h = 1.0e-5 * max(abs(x), 1.0)
             fd = (cdf(d, x + h) - cdf(d, x - h)) / (2h)
-            @test pdf(d, x)≈fd rtol=1e-4 atol=1e-8
+            @test pdf(d, x) ≈ fd rtol = 1.0e-4 atol = 1.0e-8
 
             integral = cdf(d, lo) + simpson(t -> pdf(d, t), lo, x, 2000)
-            @test cdf(d, x)≈integral atol=1e-5
+            @test cdf(d, x) ≈ integral atol = 1.0e-5
         end
     end
 end

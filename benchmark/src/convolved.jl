@@ -11,7 +11,7 @@ SUITE["Convolved"] = BenchmarkGroup()
 
 const CONVOLVED_VARIANTS = [
     "analytic" => convolved(Normal(1.0, 0.5), Normal(0.5, 1.0)),
-    "numeric" => convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    "numeric" => convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
 ]
 
 for (name, d) in CONVOLVED_VARIANTS
@@ -30,6 +30,8 @@ end
 
 # Construction, including the analytic-form resolution.
 SUITE["Convolved"]["analytic"]["construction"] = @benchmarkable convolved(
-    Normal(1.0, 0.5), Normal(0.5, 1.0))
+    Normal(1.0, 0.5), Normal(0.5, 1.0)
+)
 SUITE["Convolved"]["numeric"]["construction"] = @benchmarkable convolved(
-    Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+)

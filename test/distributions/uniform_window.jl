@@ -12,10 +12,10 @@
         d_analytic = convolved(delay, primary)
         d_numeric = convolved(delay, primary; method = NumericSolver())
         for x in (0.1, 0.5, 1.0, 2.0, 3.0, 6.0, 15.0)
-            @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol=1e-9
-            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol=1e-6
-            @test pdf(d_analytic, x)≈pdf(d_numeric, x) atol=1e-6 rtol=1e-3
-            @test logpdf(d_analytic, x)≈logpdf(d_numeric, x) atol=1e-4
+            @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol = 1.0e-9
+            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol = 1.0e-6
+            @test pdf(d_analytic, x) ≈ pdf(d_numeric, x) atol = 1.0e-6 rtol = 1.0e-3
+            @test logpdf(d_analytic, x) ≈ logpdf(d_numeric, x) atol = 1.0e-4
         end
         # Below the primary's minimum the CDF is exactly zero.
         @test cdf(d_analytic, pmin - 1.0) == 0.0
@@ -32,10 +32,10 @@ end
         d_analytic = convolved(delay, primary)
         d_numeric = convolved(delay, primary; method = NumericSolver())
         for x in (0.1, 0.5, 1.0, 2.0, 3.0, 6.0, 15.0)
-            @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol=1e-9
-            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol=1e-6
-            @test pdf(d_analytic, x)≈pdf(d_numeric, x) atol=1e-6 rtol=1e-3
-            @test logpdf(d_analytic, x)≈logpdf(d_numeric, x) atol=1e-3
+            @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol = 1.0e-9
+            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol = 1.0e-6
+            @test pdf(d_analytic, x) ≈ pdf(d_numeric, x) atol = 1.0e-6 rtol = 1.0e-3
+            @test logpdf(d_analytic, x) ≈ logpdf(d_numeric, x) atol = 1.0e-3
         end
         @test cdf(d_analytic, pmin - 1.0) == 0.0
     end
@@ -51,7 +51,7 @@ end
         d_analytic = convolved(delay, primary)
         d_numeric = convolved(delay, primary; method = NumericSolver())
         for x in (0.1, 0.5, 1.0, 2.0, 3.0, 6.0, 15.0)
-            @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol=1e-6
+            @test cdf(d_analytic, x) ≈ cdf(d_numeric, x) atol = 1.0e-6
             # `k = 0.7`'s density is near-singular at 0, so `NumericSolver`'s
             # own fixed-panel pdf quadrature (not the closed form, which
             # matches a finite difference of the cdf above to ~1e-9) is
@@ -60,9 +60,9 @@ end
             # now routes through the same closed form as `cdf` rather
             # than a fresh quadrature, its agreement with the numeric
             # arm's `logcdf` inherits the same ~0.5% ceiling.
-            @test pdf(d_analytic, x)≈pdf(d_numeric, x) atol=1e-6 rtol=1e-2
-            @test logpdf(d_analytic, x)≈logpdf(d_numeric, x) atol=1e-2
-            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol=1e-4
+            @test pdf(d_analytic, x) ≈ pdf(d_numeric, x) atol = 1.0e-6 rtol = 1.0e-2
+            @test logpdf(d_analytic, x) ≈ logpdf(d_numeric, x) atol = 1.0e-2
+            @test logcdf(d_analytic, x) ≈ logcdf(d_numeric, x) atol = 1.0e-4
         end
         @test cdf(d_analytic, pmin - 1.0) == 0.0
     end
@@ -80,7 +80,7 @@ end
         M = partial_expectation(Weibull(k, lambda))
         @test M(0.0) == 0.0
         @test M(-1.0) == 0.0
-        @test M(-1e-12) == 0.0
+        @test M(-1.0e-12) == 0.0
     end
 end
 
@@ -99,7 +99,7 @@ end
         m = mean(component)
         @test N(0.0) == m
         @test N(-1.0) == m
-        @test N(-1e-12) == m
+        @test N(-1.0e-12) == m
     end
 end
 
@@ -134,19 +134,20 @@ end
     @test all(isfinite, gc)
     @test all(isfinite, glc)
 
-    h = 1e-6
+    h = 1.0e-6
     for i in eachindex(θ)
         θp = copy(θ)
         θm = copy(θ)
         θp[i] += h
         θm[i] -= h
-        @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol=1e-6
-        @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol=1e-6
+        @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol = 1.0e-6
+        @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol = 1.0e-6
     end
 
     # Batched cdf differentiates too, and matches the pointwise gradient.
     fb = θ -> sum(
-        cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), [1.0, 3.0]))
+        cdf(convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), [1.0, 3.0])
+    )
     gb = ForwardDiff.gradient(fb, θ)
     @test all(isfinite, gb)
 end
@@ -156,7 +157,8 @@ end
 
     fc = θ -> cdf(convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), 4.0)
     flc = θ -> logcdf(
-        convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), 4.0)
+        convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), 4.0
+    )
     θ = [1.5, 0.5]
 
     gc = ForwardDiff.gradient(fc, θ)
@@ -164,14 +166,14 @@ end
     @test all(isfinite, gc)
     @test all(isfinite, glc)
 
-    h = 1e-6
+    h = 1.0e-6
     for i in eachindex(θ)
         θp = copy(θ)
         θm = copy(θ)
         θp[i] += h
         θm[i] -= h
-        @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol=1e-6
-        @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol=1e-6
+        @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol = 1.0e-6
+        @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol = 1.0e-6
     end
 end
 
@@ -187,14 +189,14 @@ end
     @test all(isfinite, gc)
     @test all(isfinite, glc)
 
-    h = 1e-6
+    h = 1.0e-6
     for i in eachindex(θ)
         θp = copy(θ)
         θm = copy(θ)
         θp[i] += h
         θm[i] -= h
-        @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol=1e-6
-        @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol=1e-6
+        @test gc[i] ≈ (fc(θp) - fc(θm)) / (2h) atol = 1.0e-6
+        @test glc[i] ≈ (flc(θp) - flc(θm)) / (2h) atol = 1.0e-6
     end
 end
 
@@ -202,9 +204,11 @@ end
     using ConvolvedDistributions: evaluation_path
     using Distributions
 
-    pairs = ((Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
+    pairs = (
+        (Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
         (LogNormal(1.5, 0.5), Uniform(0.0, 3.0)),
-        (Weibull(1.5, 2.0), Uniform(0.0, 1.5)))
+        (Weibull(1.5, 2.0), Uniform(0.0, 1.5)),
+    )
     for (component, window) in pairs
         for d in (convolved(component, window), convolved(window, component))
             @test evaluation_path(d, logcdf) === :analytic
@@ -231,7 +235,7 @@ end
                     @test logccdf_val == -Inf
                 end
 
-                @test cdf_val + ccdf_val≈1.0 atol=1e-12
+                @test cdf_val + ccdf_val ≈ 1.0 atol = 1.0e-12
                 @test 0.0 <= ccdf_val <= 1.0
             end
             @test issorted(-[ccdf(d, x) for x in grid])
@@ -245,33 +249,36 @@ end
 
     reference(component, window, x) = integrate(
         GaussLegendre(; n = 256), t -> ccdf(component, t),
-        x - maximum(window), x - minimum(window)) /
-                                      (maximum(window) - minimum(window))
+        x - maximum(window), x - minimum(window)
+    ) /
+        (maximum(window) - minimum(window))
 
     d = convolved(LogNormal(1.0, 0.5), Uniform(0.5, 1.5))
     component, window = LogNormal(1.0, 0.5), Uniform(0.5, 1.5)
     for x in (50.0, 100.0, 200.0)
-        @test ccdf(d, x) ≈ reference(component, window, x) rtol=1e-10
+        @test ccdf(d, x) ≈ reference(component, window, x) rtol = 1.0e-10
     end
     @test 1 - cdf(d, 200.0) == 0.0
     @test ccdf(d, 200.0) > 0.0
 
     dg = convolved(Gamma(2.0, 1.5), Uniform(0.0, 1.0))
     cg, wg = Gamma(2.0, 1.5), Uniform(0.0, 1.0)
-    @test ccdf(dg, 20.0) ≈ reference(cg, wg, 20.0) rtol=1e-10
-    @test ccdf(dg, 30.0) ≈ reference(cg, wg, 30.0) rtol=1e-6
+    @test ccdf(dg, 20.0) ≈ reference(cg, wg, 20.0) rtol = 1.0e-10
+    @test ccdf(dg, 30.0) ≈ reference(cg, wg, 30.0) rtol = 1.0e-6
 
     dw = convolved(Weibull(1.5, 2.0), Uniform(0.0, 0.5))
     cw, ww = Weibull(1.5, 2.0), Uniform(0.0, 0.5)
-    @test ccdf(dw, 20.0) ≈ reference(cw, ww, 20.0) rtol=1e-2
+    @test ccdf(dw, 20.0) ≈ reference(cw, ww, 20.0) rtol = 1.0e-2
 end
 
 @testitem "Uniform-window cdf/ccdf are probabilities at the extremes" begin
     using Distributions
 
-    pairs = ((Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
+    pairs = (
+        (Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
         (LogNormal(1.5, 0.5), Uniform(0.0, 3.0)),
-        (Weibull(1.5, 2.0), Uniform(0.0, 1.5)))
+        (Weibull(1.5, 2.0), Uniform(0.0, 1.5)),
+    )
     for (component, window) in pairs
         d = convolved(component, window)
         @test cdf(d, Inf) == 1.0
@@ -288,7 +295,7 @@ end
         @test isnan(logccdf(d, NaN))
     end
 
-    narrow = convolved(Gamma(2.0, 1.0), Uniform(0.0, 1e-6))
+    narrow = convolved(Gamma(2.0, 1.0), Uniform(0.0, 1.0e-6))
     @test cdf(narrow, 25.0) <= 1.0
     @test logcdf(narrow, 25.0) <= 0.0
 end
@@ -297,12 +304,19 @@ end
     using Distributions, ForwardDiff
 
     cases = (
-        (θ -> convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), [2.0, 1.5],
-            3.0),
-        (θ -> convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), [1.5, 0.5],
-            4.0),
-        (θ -> convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), [1.5, 2.0],
-            2.5))
+        (
+            θ -> convolved(Gamma(θ[1], θ[2]), Uniform(0.0, 2.0)), [2.0, 1.5],
+            3.0,
+        ),
+        (
+            θ -> convolved(LogNormal(θ[1], θ[2]), Uniform(0.0, 3.0)), [1.5, 0.5],
+            4.0,
+        ),
+        (
+            θ -> convolved(Weibull(θ[1], θ[2]), Uniform(0.0, 1.5)), [1.5, 2.0],
+            2.5,
+        ),
+    )
     for (build, θ, x) in cases
         fq = θ -> ccdf(build(θ), x)
         flq = θ -> logccdf(build(θ), x)
@@ -312,14 +326,14 @@ end
         @test all(isfinite, gq)
         @test all(isfinite, glq)
 
-        h = 1e-6
+        h = 1.0e-6
         for i in eachindex(θ)
             θp = copy(θ)
             θm = copy(θ)
             θp[i] += h
             θm[i] -= h
-            @test gq[i] ≈ (fq(θp) - fq(θm)) / (2h) atol=1e-6
-            @test glq[i] ≈ (flq(θp) - flq(θm)) / (2h) atol=1e-6
+            @test gq[i] ≈ (fq(θp) - fq(θm)) / (2h) atol = 1.0e-6
+            @test glq[i] ≈ (flq(θp) - flq(θm)) / (2h) atol = 1.0e-6
         end
     end
 end
@@ -329,14 +343,15 @@ end
     using Distributions
 
     d = convolved(
-        Gamma(2.0, 1.5), Uniform(0.0, 2.0); method = NumericSolver())
+        Gamma(2.0, 1.5), Uniform(0.0, 2.0); method = NumericSolver()
+    )
     @test evaluation_path(d, cdf) === :numeric
     @test evaluation_path(d, pdf) === :numeric
 
     # The scalar/batched cdf and pdf therefore differ from the analytic
     # pair's exact values (they run quadrature instead).
     da = convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0))
-    @test cdf(d, 3.0) ≈ cdf(da, 3.0) atol=1e-9
+    @test cdf(d, 3.0) ≈ cdf(da, 3.0) atol = 1.0e-9
     @test cdf(d, 3.0) != cdf(da, 3.0)
 end
 
@@ -379,8 +394,10 @@ end
 @testitem "@inferred cdf/pdf for closed-form and non-closed-form pairs" begin
     using Distributions, Test
 
-    for d in (convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
-        convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
+    for d in (
+            convolved(Gamma(2.0, 1.5), Uniform(0.0, 2.0)),
+            convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+        )
         @test (@inferred(cdf(d, 1.0)); true)
         @test (@inferred(pdf(d, 1.0)); true)
         @test (@inferred(logpdf(d, 1.0)); true)
@@ -395,15 +412,15 @@ end
         LogNormal(1.5, 0.5) => Uniform(0.0, 3.0),
         Weibull(1.5, 2.0) => Uniform(0.0, 1.5),
         Normal(2.0, 1.0) => Uniform(-1.0, 1.0),
-        Exponential(2.0) => Uniform(0.0, 2.0)
+        Exponential(2.0) => Uniform(0.0, 2.0),
     ]
 
     for (delay, primary) in cases
         d = convolved(delay, primary)
         dn = convolved(delay, primary; method = NumericSolver())
         for x in (-5.0, -1.0, 0.5, 1.0, 3.0, 6.0, 15.0)
-            @test pdf(d, x)≈pdf(dn, x) atol=1e-6 rtol=1e-3
-            @test logpdf(d, x)≈logpdf(dn, x) atol=1e-4 rtol=1e-4
+            @test pdf(d, x) ≈ pdf(dn, x) atol = 1.0e-6 rtol = 1.0e-3
+            @test logpdf(d, x) ≈ logpdf(dn, x) atol = 1.0e-4 rtol = 1.0e-4
             @test pdf(d, x) >= 0.0
         end
     end
@@ -419,14 +436,14 @@ end
     # with `w` -- what matters is that the closed form does not degrade
     # faster than quadrature does, and never returns NaN/negative.
     delay = Gamma(2.0, 1.5)
-    for w in (1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6)
+    for w in (1.0e-1, 1.0e-2, 1.0e-3, 1.0e-4, 1.0e-5, 1.0e-6)
         d = convolved(delay, Uniform(0.0, w))
         dn = convolved(delay, Uniform(0.0, w); method = NumericSolver())
         for x in (0.1, 3.0, 10.0)
             p = pdf(d, x)
             @test isfinite(p)
             @test p >= 0.0
-            @test p≈pdf(dn, x) rtol=1e-3
+            @test p ≈ pdf(dn, x) rtol = 1.0e-3
             @test isfinite(logpdf(d, x))
         end
     end
@@ -443,7 +460,7 @@ end
         LogNormal(1.5, 0.5) => 1.0e6,
         Weibull(1.5, 2.0) => 100.0,
         Normal(2.0, 1.0) => 60.0,
-        Exponential(2.0) => 800.0
+        Exponential(2.0) => 800.0,
     ]
 
     for (delay, x) in cases
@@ -461,7 +478,7 @@ end
         # -- that asymmetry is expected, not a bug, so only check
         # agreement when the numeric path itself stayed finite.
         if isfinite(lpn)
-            @test lp≈lpn rtol=1e-2
+            @test lp ≈ lpn rtol = 1.0e-2
         end
     end
 
@@ -486,7 +503,7 @@ end
     cases = [
         Gamma(2.0, 1.5) => Uniform(0.0, 2.0),
         LogNormal(1.5, 0.5) => Uniform(0.0, 3.0),
-        Weibull(1.5, 2.0) => Uniform(0.0, 1.5)
+        Weibull(1.5, 2.0) => Uniform(0.0, 1.5),
     ]
     n = 20_000
     for (delay, primary) in cases
@@ -495,7 +512,7 @@ end
         m, s = mean(d), std(d)
         for x in (m - s, m, m + s)
             empirical = mean(y -> y <= x, samples)
-            @test empirical≈cdf(d, x) atol=0.02
+            @test empirical ≈ cdf(d, x) atol = 0.02
         end
     end
 end
@@ -542,10 +559,11 @@ end
     # NumericSolver since the density is exact and symmetric either way.
     d = convolved(Uniform(0.0, 1.0), Uniform(0.5, 1.5))
     dn = convolved(
-        Uniform(0.0, 1.0), Uniform(0.5, 1.5); method = NumericSolver())
+        Uniform(0.0, 1.0), Uniform(0.5, 1.5); method = NumericSolver()
+    )
     for x in (0.2, 0.75, 1.2, 1.6)
-        @test pdf(d, x) ≈ pdf(dn, x) atol=1e-9
-        @test logpdf(d, x) ≈ logpdf(dn, x) atol=1e-6
+        @test pdf(d, x) ≈ pdf(dn, x) atol = 1.0e-9
+        @test logpdf(d, x) ≈ logpdf(dn, x) atol = 1.0e-6
     end
 end
 
@@ -588,7 +606,7 @@ end
     # way.
     cases = [
         (Gamma(2.0, 1.5), "Gamma"), (LogNormal(1.5, 0.5), "LogNormal"),
-        (Weibull(1.5, 2.0), "Weibull")
+        (Weibull(1.5, 2.0), "Weibull"),
     ]
     for (delay, name) in cases
         @testset "$name + Uniform cdf speedup" begin

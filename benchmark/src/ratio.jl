@@ -26,7 +26,7 @@ SUITE["Ratio"] = BenchmarkGroup()
 
 const RATIO_VARIANTS = [
     "analytic" => ratio(Gamma(2.0, 1.5), Gamma(3.0, 0.5)),
-    "numeric" => ratio(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    "numeric" => ratio(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
 ]
 
 for (name, d) in RATIO_VARIANTS
@@ -41,6 +41,8 @@ for (name, d) in RATIO_VARIANTS
 end
 
 SUITE["Ratio"]["analytic"]["construction"] = @benchmarkable ratio(
-    Gamma(2.0, 1.5), Gamma(3.0, 0.5))
+    Gamma(2.0, 1.5), Gamma(3.0, 0.5)
+)
 SUITE["Ratio"]["numeric"]["construction"] = @benchmarkable ratio(
-    Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+)

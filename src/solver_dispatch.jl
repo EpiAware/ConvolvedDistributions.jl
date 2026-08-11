@@ -200,9 +200,12 @@ components: this same arm handles a two-component pair (collapsing it
 in one step) and a three-or-more fold (collapsing repeatedly, taking
 whichever pair resolves first) uniformly.
 "
-function _convolved_analytic_arm(generic::F, direct::G,
-        d::Convolved, components::Tuple, x, method::AnalyticalSolver) where {
-        F, G}
+function _convolved_analytic_arm(
+        generic::F, direct::G,
+        d::Convolved, components::Tuple, x, method::AnalyticalSolver
+    ) where {
+        F, G,
+    }
     length(components) == 1 && return direct(components[1], x)
     reduced = _collapse_analytic_pair(components)
     reduced === nothing &&
@@ -239,19 +242,27 @@ ConvolvedDistributions.convolved_cdf(
 
 See also: [`Convolved`](@ref)
 "
-function convolved_cdf(d::AbstractConvolvedDistribution,
-        components::Tuple, x::Real, method::AbstractSolverMethod)
+function convolved_cdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, x::Real, method::AbstractSolverMethod
+    )
     error("convolved_cdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_cdf(d::Convolved, components::Tuple,
-        x::Real, method::AnalyticalSolver)
-    return _convolved_analytic_arm(convolved_cdf, cdf, d, components, x,
-        method)
+function convolved_cdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::AnalyticalSolver
+    )
+    return _convolved_analytic_arm(
+        convolved_cdf, cdf, d, components, x,
+        method
+    )
 end
 
-function convolved_cdf(d::Convolved, components::Tuple,
-        x::Real, method::NumericSolver)
+function convolved_cdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::NumericSolver
+    )
     # `_convolved_cdf_route` dispatches on `d`'s derived value-support
     # type parameter: the exact lattice fold for an all-discrete-integer
     # pair with no named closed form (e.g. Poisson+Geometric), quadrature
@@ -264,21 +275,29 @@ end
 # the uniform-window pairs ship one) rather than losing the
 # composite-quadrature batch (`_convolved_numeric_cdf_batched`) that the
 # `NumericSolver` arm shares across points.
-function convolved_cdf(d::AbstractConvolvedDistribution,
+function convolved_cdf(
+        d::AbstractConvolvedDistribution,
         components::Tuple, x::AbstractVector{<:Real},
-        method::AbstractSolverMethod)
+        method::AbstractSolverMethod
+    )
     error("convolved_cdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_cdf(d::Convolved, components::Tuple,
-        x::AbstractVector{<:Real}, method::AnalyticalSolver)
+function convolved_cdf(
+        d::Convolved, components::Tuple,
+        x::AbstractVector{<:Real}, method::AnalyticalSolver
+    )
     direct(c, xv) = map(xi -> cdf(c, xi), xv)
-    return _convolved_analytic_arm(convolved_cdf, direct, d, components, x,
-        method)
+    return _convolved_analytic_arm(
+        convolved_cdf, direct, d, components, x,
+        method
+    )
 end
 
-function convolved_cdf(d::Convolved, components::Tuple,
-        x::AbstractVector{<:Real}, method::NumericSolver)
+function convolved_cdf(
+        d::Convolved, components::Tuple,
+        x::AbstractVector{<:Real}, method::NumericSolver
+    )
     return _convolved_cdf_route(d, x)
 end
 
@@ -288,19 +307,27 @@ end
 The log CDF of the sum of `components` at `x`. See
 [`convolved_cdf`](@ref).
 "
-function convolved_logcdf(d::AbstractConvolvedDistribution,
-        components::Tuple, x::Real, method::AbstractSolverMethod)
+function convolved_logcdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, x::Real, method::AbstractSolverMethod
+    )
     error("convolved_logcdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_logcdf(d::Convolved, components::Tuple,
-        x::Real, method::AnalyticalSolver)
-    return _convolved_analytic_arm(convolved_logcdf, logcdf, d, components,
-        x, method)
+function convolved_logcdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::AnalyticalSolver
+    )
+    return _convolved_analytic_arm(
+        convolved_logcdf, logcdf, d, components,
+        x, method
+    )
 end
 
-function convolved_logcdf(d::Convolved, components::Tuple,
-        x::Real, method::NumericSolver)
+function convolved_logcdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::NumericSolver
+    )
     c = convolved_cdf(d, components, x, method)
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
 end
@@ -311,19 +338,27 @@ end
 The complementary CDF of the sum of `components` at `x`. See
 [`convolved_cdf`](@ref).
 "
-function convolved_ccdf(d::AbstractConvolvedDistribution,
-        components::Tuple, x::Real, method::AbstractSolverMethod)
+function convolved_ccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, x::Real, method::AbstractSolverMethod
+    )
     error("convolved_ccdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_ccdf(d::Convolved, components::Tuple,
-        x::Real, method::AnalyticalSolver)
-    return _convolved_analytic_arm(convolved_ccdf, ccdf, d, components, x,
-        method)
+function convolved_ccdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::AnalyticalSolver
+    )
+    return _convolved_analytic_arm(
+        convolved_ccdf, ccdf, d, components, x,
+        method
+    )
 end
 
-function convolved_ccdf(d::Convolved, components::Tuple,
-        x::Real, method::NumericSolver)
+function convolved_ccdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::NumericSolver
+    )
     return 1 - convolved_cdf(d, components, x, method)
 end
 
@@ -333,20 +368,29 @@ end
 The log complementary CDF of the sum of `components` at `x`. See
 [`convolved_cdf`](@ref).
 "
-function convolved_logccdf(d::AbstractConvolvedDistribution,
-        components::Tuple, x::Real, method::AbstractSolverMethod)
+function convolved_logccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, x::Real, method::AbstractSolverMethod
+    )
     error(
-        "convolved_logccdf not implemented for method type $(typeof(method))")
+        "convolved_logccdf not implemented for method type $(typeof(method))"
+    )
 end
 
-function convolved_logccdf(d::Convolved, components::Tuple,
-        x::Real, method::AnalyticalSolver)
-    return _convolved_analytic_arm(convolved_logccdf, logccdf, d, components,
-        x, method)
+function convolved_logccdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::AnalyticalSolver
+    )
+    return _convolved_analytic_arm(
+        convolved_logccdf, logccdf, d, components,
+        x, method
+    )
 end
 
-function convolved_logccdf(d::Convolved, components::Tuple,
-        x::Real, method::NumericSolver)
+function convolved_logccdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::NumericSolver
+    )
     l = convolved_logcdf(d, components, x, method)
     l == -Inf && return zero(l)
     l >= 0 && return oftype(l, -Inf)
@@ -359,19 +403,27 @@ end
 The density of the sum of `components` at `x`. See
 [`convolved_cdf`](@ref).
 "
-function convolved_pdf(d::AbstractConvolvedDistribution,
-        components::Tuple, x::Real, method::AbstractSolverMethod)
+function convolved_pdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, x::Real, method::AbstractSolverMethod
+    )
     error("convolved_pdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_pdf(d::Convolved, components::Tuple,
-        x::Real, method::AnalyticalSolver)
-    return _convolved_analytic_arm(convolved_pdf, pdf, d, components, x,
-        method)
+function convolved_pdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::AnalyticalSolver
+    )
+    return _convolved_analytic_arm(
+        convolved_pdf, pdf, d, components, x,
+        method
+    )
 end
 
-function convolved_pdf(d::Convolved, components::Tuple,
-        x::Real, method::NumericSolver)
+function convolved_pdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::NumericSolver
+    )
     # See `convolved_cdf`'s `NumericSolver` arm: `_convolved_pdf_route`
     # picks the exact lattice fold or quadrature by `d`'s derived
     # value-support type parameter (#85).
@@ -379,21 +431,29 @@ function convolved_pdf(d::Convolved, components::Tuple,
 end
 
 # Vector-`x` skeleton (S1.4): see `convolved_cdf`'s.
-function convolved_pdf(d::AbstractConvolvedDistribution,
+function convolved_pdf(
+        d::AbstractConvolvedDistribution,
         components::Tuple, x::AbstractVector{<:Real},
-        method::AbstractSolverMethod)
+        method::AbstractSolverMethod
+    )
     error("convolved_pdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_pdf(d::Convolved, components::Tuple,
-        x::AbstractVector{<:Real}, method::AnalyticalSolver)
+function convolved_pdf(
+        d::Convolved, components::Tuple,
+        x::AbstractVector{<:Real}, method::AnalyticalSolver
+    )
     direct(c, xv) = map(xi -> pdf(c, xi), xv)
-    return _convolved_analytic_arm(convolved_pdf, direct, d, components, x,
-        method)
+    return _convolved_analytic_arm(
+        convolved_pdf, direct, d, components, x,
+        method
+    )
 end
 
-function convolved_pdf(d::Convolved, components::Tuple,
-        x::AbstractVector{<:Real}, method::NumericSolver)
+function convolved_pdf(
+        d::Convolved, components::Tuple,
+        x::AbstractVector{<:Real}, method::NumericSolver
+    )
     return _convolved_pdf_route(d, x)
 end
 
@@ -403,19 +463,27 @@ end
 The log density of the sum of `components` at `x`. See
 [`convolved_cdf`](@ref).
 "
-function convolved_logpdf(d::AbstractConvolvedDistribution,
-        components::Tuple, x::Real, method::AbstractSolverMethod)
+function convolved_logpdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, x::Real, method::AbstractSolverMethod
+    )
     error("convolved_logpdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_logpdf(d::Convolved, components::Tuple,
-        x::Real, method::AnalyticalSolver)
-    return _convolved_analytic_arm(convolved_logpdf, logpdf, d, components,
-        x, method)
+function convolved_logpdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::AnalyticalSolver
+    )
+    return _convolved_analytic_arm(
+        convolved_logpdf, logpdf, d, components,
+        x, method
+    )
 end
 
-function convolved_logpdf(d::Convolved, components::Tuple,
-        x::Real, method::NumericSolver)
+function convolved_logpdf(
+        d::Convolved, components::Tuple,
+        x::Real, method::NumericSolver
+    )
     insupport(d, x) || return oftype(float(x), -Inf)
     p = _convolved_pdf_route(d, x)
     return p <= 0 ? oftype(float(x), -Inf) : log(p)
@@ -425,21 +493,29 @@ end
 # arm reuses `_batched_numeric_logpdf` (Convolved.jl), the same
 # insupport-aware log of the shared composite-quadrature/lattice pdf
 # batch.
-function convolved_logpdf(d::AbstractConvolvedDistribution,
+function convolved_logpdf(
+        d::AbstractConvolvedDistribution,
         components::Tuple, x::AbstractVector{<:Real},
-        method::AbstractSolverMethod)
+        method::AbstractSolverMethod
+    )
     error("convolved_logpdf not implemented for method type $(typeof(method))")
 end
 
-function convolved_logpdf(d::Convolved, components::Tuple,
-        x::AbstractVector{<:Real}, method::AnalyticalSolver)
+function convolved_logpdf(
+        d::Convolved, components::Tuple,
+        x::AbstractVector{<:Real}, method::AnalyticalSolver
+    )
     direct(c, xv) = map(xi -> logpdf(c, xi), xv)
-    return _convolved_analytic_arm(convolved_logpdf, direct, d, components,
-        x, method)
+    return _convolved_analytic_arm(
+        convolved_logpdf, direct, d, components,
+        x, method
+    )
 end
 
-function convolved_logpdf(d::Convolved, components::Tuple,
-        x::AbstractVector{<:Real}, method::NumericSolver)
+function convolved_logpdf(
+        d::Convolved, components::Tuple,
+        x::AbstractVector{<:Real}, method::NumericSolver
+    )
     return _batched_numeric_logpdf(d, x)
 end
 
@@ -455,16 +531,23 @@ Optimization.jl is loaded, while a fully analytic one
 
 See also: [`convolved_cdf`](@ref)
 "
-function convolved_quantile(d::AbstractConvolvedDistribution,
-        components::Tuple, p::Real, method::AbstractSolverMethod)
+function convolved_quantile(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, p::Real, method::AbstractSolverMethod
+    )
     error(
-        "convolved_quantile not implemented for method type $(typeof(method))")
+        "convolved_quantile not implemented for method type $(typeof(method))"
+    )
 end
 
-function convolved_quantile(d::Convolved, components::Tuple,
-        p::Real, method::AnalyticalSolver)
-    return _convolved_analytic_arm(convolved_quantile, quantile, d,
-        components, p, method)
+function convolved_quantile(
+        d::Convolved, components::Tuple,
+        p::Real, method::AnalyticalSolver
+    )
+    return _convolved_analytic_arm(
+        convolved_quantile, quantile, d,
+        components, p, method
+    )
 end
 
 @doc "
@@ -476,10 +559,13 @@ is already exact by summation; only the unimplemented-method-type error
 exists, demonstrating the shape compiles for a future zero-argument
 quantity.
 "
-function convolved_minimum(d::AbstractConvolvedDistribution,
-        components::Tuple, method::AbstractSolverMethod)
+function convolved_minimum(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, method::AbstractSolverMethod
+    )
     error(
-        "convolved_minimum not implemented for method type $(typeof(method))")
+        "convolved_minimum not implemented for method type $(typeof(method))"
+    )
 end
 
 # `convolved_quantile`'s `NumericSolver` arm has no method in core: the
@@ -517,18 +603,26 @@ end
 # registered pair-specific closed form rather than the collapse-or-numeric
 # fallback itself. Called only from `_resolve_closed_form`, at
 # construction.
-function _more_specific_pair_method(generic::F, components::Tuple,
-        method::AnalyticalSolver) where {F}
+function _more_specific_pair_method(
+        generic::F, components::Tuple,
+        method::AnalyticalSolver
+    ) where {F}
     fallback = which(generic, Tuple{Convolved, Tuple, Real, AnalyticalSolver})
-    resolved = which(generic,
-        Tuple{Convolved, typeof(components), Real, typeof(method)})
+    resolved = which(
+        generic,
+        Tuple{Convolved, typeof(components), Real, typeof(method)}
+    )
     return resolved !== fallback
 end
 
-const _CONVOLVED_QUANTITY_KEYS = (:pdf, :logpdf, :cdf, :logcdf, :ccdf,
-    :logccdf)
-const _CONVOLVED_QUANTITY_GENERICS = (convolved_pdf, convolved_logpdf,
-    convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf)
+const _CONVOLVED_QUANTITY_KEYS = (
+    :pdf, :logpdf, :cdf, :logcdf, :ccdf,
+    :logccdf,
+)
+const _CONVOLVED_QUANTITY_GENERICS = (
+    convolved_pdf, convolved_logpdf,
+    convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
+)
 
 # Per-quantity closed-form answer for `components` under `method`,
 # resolved once at construction (see the section banner above).
@@ -592,9 +686,12 @@ Shared `AnalyticalSolver` arm for a `difference_*` quantity generic: when
 `(x, y)` resolves via [`_try_difference`](@ref), evaluate `direct` on the
 result; otherwise fall through to `generic`'s `NumericSolver` arm.
 "
-function _difference_analytic_arm(generic::F, direct::G,
-        d::Difference, components::Tuple, x, method::AnalyticalSolver) where {
-        F, G}
+function _difference_analytic_arm(
+        generic::F, direct::G,
+        d::Difference, components::Tuple, x, method::AnalyticalSolver
+    ) where {
+        F, G,
+    }
     resolved = _try_difference(components[1], components[2])
     resolved === nothing &&
         return generic(d, components, x, NumericSolver(method.solver))
@@ -612,19 +709,27 @@ two-element tuple TYPE more specific than
 
 See also: [`Difference`](@ref)
 "
-function difference_cdf(d::AbstractConvolvedDistribution,
-        components::Tuple, z::Real, method::AbstractSolverMethod)
+function difference_cdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
     error("difference_cdf not implemented for method type $(typeof(method))")
 end
 
-function difference_cdf(d::Difference, components::Tuple,
-        z::Real, method::AnalyticalSolver)
-    return _difference_analytic_arm(difference_cdf, cdf, d, components, z,
-        method)
+function difference_cdf(
+        d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _difference_analytic_arm(
+        difference_cdf, cdf, d, components, z,
+        method
+    )
 end
 
-function difference_cdf(d::Difference, components::Tuple,
-        z::Real, method::NumericSolver)
+function difference_cdf(
+        d::Difference, components::Tuple,
+        z::Real, method::NumericSolver
+    )
     return _difference_cdf_route(d, z)
 end
 
@@ -634,20 +739,29 @@ end
 The log CDF of `components[1] - components[2]` at `z`. See
 [`difference_cdf`](@ref).
 "
-function difference_logcdf(d::AbstractConvolvedDistribution,
-        components::Tuple, z::Real, method::AbstractSolverMethod)
+function difference_logcdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
     error(
-        "difference_logcdf not implemented for method type $(typeof(method))")
+        "difference_logcdf not implemented for method type $(typeof(method))"
+    )
 end
 
-function difference_logcdf(d::Difference, components::Tuple,
-        z::Real, method::AnalyticalSolver)
-    return _difference_analytic_arm(difference_logcdf, logcdf, d, components,
-        z, method)
+function difference_logcdf(
+        d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _difference_analytic_arm(
+        difference_logcdf, logcdf, d, components,
+        z, method
+    )
 end
 
-function difference_logcdf(d::Difference, components::Tuple,
-        z::Real, method::NumericSolver)
+function difference_logcdf(
+        d::Difference, components::Tuple,
+        z::Real, method::NumericSolver
+    )
     c = difference_cdf(d, components, z, method)
     return c <= 0 ? oftype(float(c), -Inf) : log(c)
 end
@@ -658,19 +772,27 @@ end
 The complementary CDF of `components[1] - components[2]` at `z`. See
 [`difference_cdf`](@ref).
 "
-function difference_ccdf(d::AbstractConvolvedDistribution,
-        components::Tuple, z::Real, method::AbstractSolverMethod)
+function difference_ccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
     error("difference_ccdf not implemented for method type $(typeof(method))")
 end
 
-function difference_ccdf(d::Difference, components::Tuple,
-        z::Real, method::AnalyticalSolver)
-    return _difference_analytic_arm(difference_ccdf, ccdf, d, components, z,
-        method)
+function difference_ccdf(
+        d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _difference_analytic_arm(
+        difference_ccdf, ccdf, d, components, z,
+        method
+    )
 end
 
-function difference_ccdf(d::Difference, components::Tuple,
-        z::Real, method::NumericSolver)
+function difference_ccdf(
+        d::Difference, components::Tuple,
+        z::Real, method::NumericSolver
+    )
     return 1 - difference_cdf(d, components, z, method)
 end
 
@@ -680,20 +802,29 @@ end
 The log complementary CDF of `components[1] - components[2]` at `z`. See
 [`difference_cdf`](@ref).
 "
-function difference_logccdf(d::AbstractConvolvedDistribution,
-        components::Tuple, z::Real, method::AbstractSolverMethod)
+function difference_logccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
     error(
-        "difference_logccdf not implemented for method type $(typeof(method))")
+        "difference_logccdf not implemented for method type $(typeof(method))"
+    )
 end
 
-function difference_logccdf(d::Difference, components::Tuple,
-        z::Real, method::AnalyticalSolver)
-    return _difference_analytic_arm(difference_logccdf, logccdf, d,
-        components, z, method)
+function difference_logccdf(
+        d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _difference_analytic_arm(
+        difference_logccdf, logccdf, d,
+        components, z, method
+    )
 end
 
-function difference_logccdf(d::Difference, components::Tuple,
-        z::Real, method::NumericSolver)
+function difference_logccdf(
+        d::Difference, components::Tuple,
+        z::Real, method::NumericSolver
+    )
     l = difference_logcdf(d, components, z, method)
     l == -Inf && return zero(l)
     l >= 0 && return oftype(l, -Inf)
@@ -706,19 +837,27 @@ end
 The density of `components[1] - components[2]` at `z`. See
 [`difference_cdf`](@ref).
 "
-function difference_pdf(d::AbstractConvolvedDistribution,
-        components::Tuple, z::Real, method::AbstractSolverMethod)
+function difference_pdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
     error("difference_pdf not implemented for method type $(typeof(method))")
 end
 
-function difference_pdf(d::Difference, components::Tuple,
-        z::Real, method::AnalyticalSolver)
-    return _difference_analytic_arm(difference_pdf, pdf, d, components, z,
-        method)
+function difference_pdf(
+        d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _difference_analytic_arm(
+        difference_pdf, pdf, d, components, z,
+        method
+    )
 end
 
-function difference_pdf(d::Difference, components::Tuple,
-        z::Real, method::NumericSolver)
+function difference_pdf(
+        d::Difference, components::Tuple,
+        z::Real, method::NumericSolver
+    )
     return _difference_pdf_route(d, z)
 end
 
@@ -728,20 +867,29 @@ end
 The log density of `components[1] - components[2]` at `z`. See
 [`difference_cdf`](@ref).
 "
-function difference_logpdf(d::AbstractConvolvedDistribution,
-        components::Tuple, z::Real, method::AbstractSolverMethod)
+function difference_logpdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
     error(
-        "difference_logpdf not implemented for method type $(typeof(method))")
+        "difference_logpdf not implemented for method type $(typeof(method))"
+    )
 end
 
-function difference_logpdf(d::Difference, components::Tuple,
-        z::Real, method::AnalyticalSolver)
-    return _difference_analytic_arm(difference_logpdf, logpdf, d, components,
-        z, method)
+function difference_logpdf(
+        d::Difference, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _difference_analytic_arm(
+        difference_logpdf, logpdf, d, components,
+        z, method
+    )
 end
 
-function difference_logpdf(d::Difference, components::Tuple,
-        z::Real, method::NumericSolver)
+function difference_logpdf(
+        d::Difference, components::Tuple,
+        z::Real, method::NumericSolver
+    )
     insupport(d, z) || return oftype(float(z), -Inf)
     p = _difference_pdf_route(d, z)
     return p <= 0 ? oftype(float(z), -Inf) : log(p)
@@ -758,14 +906,21 @@ extension.
 
 See also: [`difference_cdf`](@ref)
 "
-function difference_quantile(d::AbstractConvolvedDistribution,
-        components::Tuple, p::Real, method::AbstractSolverMethod)
+function difference_quantile(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, p::Real, method::AbstractSolverMethod
+    )
     error(
-        "difference_quantile not implemented for method type $(typeof(method))")
+        "difference_quantile not implemented for method type $(typeof(method))"
+    )
 end
 
-function difference_quantile(d::Difference, components::Tuple,
-        p::Real, method::AnalyticalSolver)
-    return _difference_analytic_arm(difference_quantile, quantile, d,
-        components, p, method)
+function difference_quantile(
+        d::Difference, components::Tuple,
+        p::Real, method::AnalyticalSolver
+    )
+    return _difference_analytic_arm(
+        difference_quantile, quantile, d,
+        components, p, method
+    )
 end
