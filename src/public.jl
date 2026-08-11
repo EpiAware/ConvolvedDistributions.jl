@@ -48,6 +48,13 @@ public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
 public difference_cdf, difference_logcdf, difference_ccdf,
        difference_logccdf, difference_pdf, difference_logpdf,
        difference_quantile
+# The analytic-closed-form registries `convolved`/`product` consult before
+# falling back to pairwise collapse or numeric quadrature: `convolve_pair`
+# for a two-component sum, `convolve_power`/`product_power` for a k-fold
+# repeat of one distribution. A downstream package adds a method to one of
+# these for its own distribution type to register a closed form, rather
+# than overloading a private internal.
+public convolve_pair, convolve_power, product_power
 
 # The probability generating function primitive (#90), mirroring
 # Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with

@@ -205,6 +205,72 @@ end
 # (see `_check_strict` in interface.jl).
 _family_names(d::Convolved) = nameof.(typeof.(d.components))
 
+# Build the k-fold `Convolved` from `k` copies of `d`; only reached once
+# `convolved(d, k)` has ruled out an analytic closed form
+# (`convolve_power`, solver_dispatch.jl) and the `k == 1` passthrough
+# (`_repeat_combination`, interface.jl).
+function _convolved_repeat_build(d::UnivariateDistribution, k::Integer)
+    convolved(ntuple(_ -> d, k))
+end
+function _convolved_repeat_build(d::UnivariateDistribution, ::Val{K}) where {K}
+    return convolved(ntuple(_ -> d, Val(K)))
+end
+
+@doc "
+
+    convolved(d::UnivariateDistribution, k::Integer)
+    convolved(d::UnivariateDistribution, k::Val)
+
+Create the distribution of the sum of `k` independent copies of `d`.
+
+Returns `d` itself for `k == 1`. For a family closed under addition
+(`Normal`, `Gamma`, `Poisson`, `Binomial`, `NegativeBinomial`, and
+`Exponential`, which sums to a `Gamma`) the closed form is returned
+directly, in `O(1)` time regardless of `k` -- no `k`-length tuple is
+built. Otherwise a [`Convolved`](@ref) of `k` copies of `d` is built and
+returned, equivalent to `convolved(d, d, ..., d)` (`k` times).
+
+# Inference
+
+The `Convolved` component-tuple type carries the component count, so
+the returned type depends on the VALUE of `k`, not just its type: with
+a runtime `k::Integer`, `convolved(d, k)` is not type-inferable for a
+family with no closed form (it is for a closed-form family, since the
+result type there depends only on `d`'s type). Pass a literal `k` or
+`convolved(d, Val(k))` for an inferable result on any family.
+
+# Arguments
+- `d`: The component distribution repeated `k` times.
+- `k`: The repeat count, a positive `Integer` or `Val`.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+# Closed form: exact, O(1).
+convolved(Gamma(2.0, 1.5), 5)  # == Gamma(10.0, 1.5)
+
+# No closed form: builds the 4-component `Convolved`.
+convolved(LogNormal(0.0, 0.5), 4)
+
+# Inference-stable path for a runtime k on any family.
+convolved(LogNormal(0.0, 0.5), Val(4))
+```
+
+# See also
+- [`Convolved`](@ref): The distribution type
+- [`convolved`](@ref): The explicit n-ary constructor
+"
+function convolved(d::UnivariateDistribution, k::Integer)
+    return _repeat_combination(
+        convolve_power, _convolved_repeat_build, d, k)
+end
+
+function convolved(d::UnivariateDistribution, k::Val)
+    return _repeat_combination(
+        convolve_power, _convolved_repeat_build, d, k)
+end
+
 # ---------------------------------------------------------------------------
 # Interface: params / support / sampling
 # ---------------------------------------------------------------------------
@@ -293,7 +359,7 @@ std(d::Convolved) = sqrt(var(d))
 # Analytical fast path: pairwise collapse for any number of components
 # ---------------------------------------------------------------------------
 #
-# `_try_convolve` (defined in solver_dispatch.jl, S1) returns the
+# `convolve_pair` (defined in solver_dispatch.jl, S1) returns the
 # analytically convolved distribution when a closed form exists for a
 # pair, otherwise `nothing`. Dispatch (rather than `try`/`catch`) keeps
 # the path differentiable under every AD backend — Mooncake reverse
@@ -306,7 +372,7 @@ std(d::Convolved) = sqrt(var(d))
 # the runtime `convolve` would throw — so a parameter check guards those
 # and falls through to the exact discrete lattice fold (still exact,
 # just not a closed form) rather than to quadrature. Every component
-# count routes through `_try_convolve` the SAME way, via
+# count routes through `convolve_pair` the SAME way, via
 # `_collapse_analytic_pair`/`_fully_collapse` in solver_dispatch.jl
 # (review A): a pair need not be adjacent, or even both original
 # components (a partial fold's merged result can itself collapse
