@@ -312,6 +312,9 @@ end
     for p in (0.1, 0.25, 0.5, 0.75, 0.9)
         @test difference_quantile(d, (d.x, d.y), p, AnalyticalSolver()) ==
               quantile(ref, p)
+    end
+end
+
 @testitem "convolve_pair is a public downstream extension point" begin
     # Proves the extension point is genuinely dispatched to, not merely
     # present: a spy records whether the override ran (so the assertion
