@@ -244,17 +244,9 @@ std(d::Difference) = sqrt(var(d))
 # Analytical fast path for Normal - Normal
 # ---------------------------------------------------------------------------
 
-# `_try_difference` returns the analytic difference distribution when a
-# closed form exists, otherwise `nothing`. Dispatch (rather than
-# `try`/`catch`) selects the analytic pair so the path stays
-# differentiable under every AD backend. Only Normal - Normal is enabled:
-# the difference of two independent normals is normal with the means
-# subtracted and the variances summed.
-_try_difference(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
-
-function _try_difference(x::Normal, y::Normal)
-    return Normal(mean(x) - mean(y), sqrt(var(x) + var(y)))
-end
+# `_try_difference` (solver_dispatch.jl) is the analytic-pair hook: only
+# Normal - Normal is enabled, since the difference of two independent
+# normals is normal with the means subtracted and the variances summed.
 
 # The analytic difference to use for `d`, or `nothing` when none exists or
 # when `d.method` is a `NumericSolver` requesting the numeric path.
@@ -485,11 +477,7 @@ AD-safe numeric quadrature of ``\\int F_X(z + y) f_Y(y)\\,\\mathrm{d}y``.
 See also: [`logcdf`](@ref)
 "
 function cdf(d::Difference, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return cdf(analytic, z)
-    end
-    return _difference_cdf_route(d, z)
+    return difference_cdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
@@ -499,26 +487,15 @@ Compute the log cumulative distribution function.
 See also: [`cdf`](@ref)
 "
 function logcdf(d::Difference, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return logcdf(analytic, z)
-    end
-    c = _difference_cdf_route(d, z)
-    return c <= 0 ? oftype(float(c), -Inf) : log(c)
+    return difference_logcdf(d, (d.x, d.y), z, d.method)
 end
 
 function ccdf(d::Difference, z::Real)
-    return 1 - cdf(d, z)
+    return difference_ccdf(d, (d.x, d.y), z, d.method)
 end
 
 function logccdf(d::Difference, z::Real)
-    logcdf_val = logcdf(d, z)
-    if logcdf_val == -Inf
-        return zero(logcdf_val)
-    elseif logcdf_val >= 0
-        return oftype(logcdf_val, -Inf)
-    end
-    return log1mexp(logcdf_val)
+    return difference_logccdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
@@ -532,11 +509,7 @@ otherwise the AD-safe numeric cross-correlation
 See also: [`logpdf`](@ref)
 "
 function pdf(d::Difference, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return pdf(analytic, z)
-    end
-    return _difference_pdf_route(d, z)
+    return difference_pdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
@@ -546,15 +519,7 @@ Compute the log probability density function.
 See also: [`pdf`](@ref), [`logcdf`](@ref)
 "
 function logpdf(d::Difference, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return logpdf(analytic, z)
-    end
-    if !insupport(d, z)
-        return oftype(float(z), -Inf)
-    end
-    p = _difference_pdf_route(d, z)
-    return p <= 0 ? oftype(float(z), -Inf) : log(p)
+    return difference_logpdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
