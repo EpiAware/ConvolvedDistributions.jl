@@ -416,6 +416,98 @@ end
     @test_throws ArgumentError product(Poisson(2.0), LogNormal(0.5, 0.4))
 end
 
+@testitem "product(d, k) matches the explicit n-ary form" begin
+    using Distributions
+
+    d = Gamma(2.0, 1.0)
+    dk = product(d, 3)
+    explicit = product(product(d, d), d)
+    for z in (0.5, 1.0, 2.0, 4.0)
+        @test pdf(dk, z) ≈ pdf(explicit, z)
+        @test cdf(dk, z) ≈ cdf(explicit, z)
+    end
+
+    dkv = product(d, Val(3))
+    for z in (0.5, 1.0, 2.0, 4.0)
+        @test pdf(dkv, z) ≈ pdf(explicit, z)
+        @test cdf(dkv, z) ≈ cdf(explicit, z)
+    end
+end
+
+@testitem "product(d, k) analytic LogNormal collapses exactly" begin
+    using Distributions
+
+    d = LogNormal(0.1, 0.2)
+    @test product(d, 5) == LogNormal(0.5, sqrt(5) * 0.2)
+    @test product(d, Val(5)) == LogNormal(0.5, sqrt(5) * 0.2)
+end
+
+@testitem "product_power is a public downstream extension point" begin
+    # Proves the extension point is genuinely dispatched to, not merely
+    # present: a spy records whether the override ran, and the result is
+    # checked against the override's own distribution (`===`), not a
+    # value that could coincidentally match a fallback path.
+    # `ExtProductFactor` is a plain, non-parametric struct so dispatch
+    # cannot fall prey to Julia's type-parameter invariance (unlike, say,
+    # `LogNormal`, whose concrete type carries an element-type parameter).
+    using ConvolvedDistributions: product_power
+    using Distributions
+
+    struct ExtProductFactor <: ContinuousUnivariateDistribution end
+    Base.minimum(::ExtProductFactor) = 0.0
+    Base.maximum(::ExtProductFactor) = Inf
+    Distributions.cdf(::ExtProductFactor, x::Real) = 1 - exp(-x)
+    Distributions.pdf(::ExtProductFactor, x::Real) = exp(-x)
+
+    called = Ref(false)
+    closed = LogNormal(0.0, 3.0)
+    function ConvolvedDistributions.product_power(
+            ::ExtProductFactor, k::Integer)
+        called[] = true
+        return closed
+    end
+
+    try
+        result = product(ExtProductFactor(), 4)
+        @test called[]
+        @test result === closed
+    finally
+        # Delete the method rather than rely on the throwaway type alone:
+        # `ExtProductFactor` is local to this testitem's module, but the
+        # method itself lives on the shared `product_power` generic in
+        # `ConvolvedDistributions`, which persists for the rest of the
+        # test run unless removed.
+        Base.delete_method(only(methods(
+            ConvolvedDistributions.product_power,
+            Tuple{ExtProductFactor, Integer})))
+    end
+end
+
+@testitem "product(d, k) edge cases" begin
+    using Distributions
+
+    d = Gamma(2.0, 1.0)
+    @test product(d, 1) === d
+    @test product(d, Val(1)) === d
+
+    @test_throws ArgumentError product(d, 0)
+    @test_throws ArgumentError product(d, -3)
+    @test_throws ArgumentError product(d, Val(0))
+end
+
+@testitem "product(d, k) inference" begin
+    using Distributions, Test
+
+    # A closed-form family: stable even for a runtime Integer k.
+    @inferred product(LogNormal(0.1, 0.2), 5)
+
+    # A family with no closed form: the Val path is the inferable one;
+    # a runtime Integer k is not (the nesting depth is part of the
+    # `Product` type), verified explicitly rather than merely noted.
+    @inferred product(Gamma(2.0, 1.0), Val(3))
+    @test_throws ErrorException @inferred product(Gamma(2.0, 1.0), 3)
+end
+
 # The AD-safety of Product (gradients flowing through both components'
 # parameters, on the numeric Mellin quadrature path) is covered by the
 # multi-backend AD suite in `test/ADFixtures`, which has the AD backends
