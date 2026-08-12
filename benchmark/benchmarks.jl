@@ -30,11 +30,28 @@ const TEST_ZS = collect(range(-4.0, 6.0, length = 100))
 const TEST_PS = collect(range(0.05, 0.95, length = 20))
 
 # Include benchmark definitions.
-include("src/baseline.jl")
-include("src/convolved.jl")
-include("src/difference.jl")
-include("src/product.jl")
-include("src/ratio.jl")
-include("src/timeseries.jl")
-include("src/quantile.jl")
-include("src/ad_gradients.jl")
+#
+# `benchmark-history` replays THIS suite against older commits, where a
+# member or verb the suite exercises may not exist yet. Loading such a
+# file raises at include time and would abort the whole run, losing every
+# other group's numbers along with it. Skip the group instead and carry
+# on, so the history keeps reporting for everything that does exist at
+# that commit -- the same trade-off the AD group already makes when its
+# scenarios cannot be constructed.
+function _include_group(path)
+    try
+        include(path)
+    catch err
+        @warn "Skipping benchmark group: it needs an API this commit " *
+            "does not have" path err
+    end
+    return nothing
+end
+
+for group in (
+        "src/baseline.jl", "src/convolved.jl", "src/difference.jl",
+        "src/product.jl", "src/ratio.jl", "src/timeseries.jl",
+        "src/quantile.jl", "src/ad_gradients.jl",
+    )
+    _include_group(group)
+end
