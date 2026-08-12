@@ -255,7 +255,7 @@ std(d::Difference) = sqrt(var(d))
 # Analytical fast path for Normal - Normal
 # ---------------------------------------------------------------------------
 
-# `_try_difference` (solver_dispatch.jl) is the analytic-pair hook: only
+# `difference_pair` (solver_dispatch.jl) is the analytic-pair hook: only
 # Normal - Normal is enabled, since the difference of two independent
 # normals is normal with the means subtracted and the variances summed.
 
@@ -263,7 +263,7 @@ std(d::Difference) = sqrt(var(d))
 # when `d.method` is a `NumericSolver` requesting the numeric path.
 function _maybe_analytic(d::Difference)
     d.method isa NumericSolver && return nothing
-    return _try_difference(d.x, d.y)
+    return difference_pair(d.x, d.y)
 end
 
 # ---------------------------------------------------------------------------

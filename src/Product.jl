@@ -406,7 +406,7 @@ std(d::Product) = sqrt(var(d))
 # Analytical fast path for LogNormal * LogNormal
 # ---------------------------------------------------------------------------
 
-# `_try_product` (solver_dispatch.jl) is the analytic-pair hook: only
+# `product_pair` (solver_dispatch.jl) is the analytic-pair hook: only
 # LogNormal * LogNormal is enabled, since on the log scale the product
 # is a sum of two independent normals, so the log-parameters add and the
 # log-variances sum.
@@ -415,7 +415,7 @@ std(d::Product) = sqrt(var(d))
 # when `d.method` is a `NumericSolver` requesting the numeric path.
 function _maybe_analytic(d::Product)
     d.method isa NumericSolver && return nothing
-    return _try_product(d.x, d.y)
+    return product_pair(d.x, d.y)
 end
 
 @doc "

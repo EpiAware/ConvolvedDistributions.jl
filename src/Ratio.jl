@@ -266,14 +266,14 @@ sampler(d::Ratio) = d
 # E[X / Y] = E[X] E[1/Y] under independence, but the inverse moment of the
 # denominator is not generally available and need not exist (it diverges
 # whenever f_Y(0) > 0), so there is nothing to copy from Product's exact
-# independent-moment algebra. Delegation is keyed on `_try_ratio(d.x, d.y)`,
+# independent-moment algebra. Delegation is keyed on `ratio_pair(d.x, d.y)`,
 # not `_maybe_analytic(d)`: NumericSolver selects the density/CDF route and
 # says nothing about whether a moment exists.
 
 # The analytic ratio distribution to delegate `mean`/`var`/`std` to, or an
 # error naming the component families when none exists.
 function _ratio_moment_source(d::Ratio)
-    analytic = _try_ratio(d.x, d.y)
+    analytic = ratio_pair(d.x, d.y)
     analytic === nothing && throw(
         ArgumentError(
             "mean(Ratio) has no closed form for components " *
@@ -322,7 +322,7 @@ std(d::Ratio) = std(_ratio_moment_source(d))
 # Analytical fast paths
 # ---------------------------------------------------------------------------
 
-# `_try_ratio` (solver_dispatch.jl) is the analytic-pair hook: the
+# `ratio_pair` (solver_dispatch.jl) is the analytic-pair hook: the
 # zero-mean Normal/Normal pair (Cauchy), Gamma/Gamma (scaled BetaPrime),
 # and Chisq/Chisq (scaled FDist).
 
@@ -330,7 +330,7 @@ std(d::Ratio) = std(_ratio_moment_source(d))
 # when `d.method` is a `NumericSolver` requesting the numeric path.
 function _maybe_analytic(d::Ratio)
     d.method isa NumericSolver && return nothing
-    return _try_ratio(d.x, d.y)
+    return ratio_pair(d.x, d.y)
 end
 
 # ---------------------------------------------------------------------------

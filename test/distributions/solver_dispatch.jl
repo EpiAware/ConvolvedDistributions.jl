@@ -681,3 +681,126 @@ end
         )
     end
 end
+
+@testitem "difference_pair is a public downstream extension point" begin
+    # Same proof shape as "convolve_pair is a public downstream extension
+    # point": a spy records that the override actually ran, and the
+    # throwaway type is non-parametric so type-parameter invariance
+    # cannot silently prevent it being selected. The spy is read AFTER
+    # the evaluation, not after construction: unlike `Convolved`, which
+    # resolves its closed form once when built, this member consults the
+    # pair hook when a quantity is asked for.
+    using ConvolvedDistributions: difference_pair
+    using Distributions
+
+    struct ExtDiffDelay <: ContinuousUnivariateDistribution end
+    Base.minimum(::ExtDiffDelay) = 0.0
+    Base.maximum(::ExtDiffDelay) = Inf
+    Distributions.cdf(::ExtDiffDelay, x::Real) = 1 - exp(-x)
+    Distributions.pdf(::ExtDiffDelay, x::Real) = exp(-x)
+
+    called = Ref(false)
+    override = Normal(0.0, 2.0)
+    function ConvolvedDistributions.difference_pair(::ExtDiffDelay, ::ExtDiffDelay)
+        called[] = true
+        return override
+    end
+
+    try
+        d = difference(ExtDiffDelay(), ExtDiffDelay())
+        @test cdf(d, 0.5) == cdf(override, 0.5)
+        @test called[]
+    finally
+        # The method lives on the shared generic in ConvolvedDistributions,
+        # so it outlives this testitem's module unless removed.
+        Base.delete_method(
+            only(
+                methods(
+                    ConvolvedDistributions.difference_pair, Tuple{ExtDiffDelay, ExtDiffDelay}
+                )
+            )
+        )
+    end
+end
+
+@testitem "product_pair is a public downstream extension point" begin
+    # Same proof shape as "convolve_pair is a public downstream extension
+    # point": a spy records that the override actually ran, and the
+    # throwaway type is non-parametric so type-parameter invariance
+    # cannot silently prevent it being selected. The spy is read AFTER
+    # the evaluation, not after construction: unlike `Convolved`, which
+    # resolves its closed form once when built, this member consults the
+    # pair hook when a quantity is asked for.
+    using ConvolvedDistributions: product_pair
+    using Distributions
+
+    struct ExtProdDelay <: ContinuousUnivariateDistribution end
+    Base.minimum(::ExtProdDelay) = 0.0
+    Base.maximum(::ExtProdDelay) = Inf
+    Distributions.cdf(::ExtProdDelay, x::Real) = 1 - exp(-x)
+    Distributions.pdf(::ExtProdDelay, x::Real) = exp(-x)
+
+    called = Ref(false)
+    override = LogNormal(0.0, 1.0)
+    function ConvolvedDistributions.product_pair(::ExtProdDelay, ::ExtProdDelay)
+        called[] = true
+        return override
+    end
+
+    try
+        d = product(ExtProdDelay(), ExtProdDelay())
+        @test cdf(d, 2.0) == cdf(override, 2.0)
+        @test called[]
+    finally
+        # The method lives on the shared generic in ConvolvedDistributions,
+        # so it outlives this testitem's module unless removed.
+        Base.delete_method(
+            only(
+                methods(
+                    ConvolvedDistributions.product_pair, Tuple{ExtProdDelay, ExtProdDelay}
+                )
+            )
+        )
+    end
+end
+
+@testitem "ratio_pair is a public downstream extension point" begin
+    # Same proof shape as "convolve_pair is a public downstream extension
+    # point": a spy records that the override actually ran, and the
+    # throwaway type is non-parametric so type-parameter invariance
+    # cannot silently prevent it being selected. The spy is read AFTER
+    # the evaluation, not after construction: unlike `Convolved`, which
+    # resolves its closed form once when built, this member consults the
+    # pair hook when a quantity is asked for.
+    using ConvolvedDistributions: ratio_pair
+    using Distributions
+
+    struct ExtRatioDelay <: ContinuousUnivariateDistribution end
+    Base.minimum(::ExtRatioDelay) = 0.0
+    Base.maximum(::ExtRatioDelay) = Inf
+    Distributions.cdf(::ExtRatioDelay, x::Real) = 1 - exp(-x)
+    Distributions.pdf(::ExtRatioDelay, x::Real) = exp(-x)
+
+    called = Ref(false)
+    override = Cauchy(0.0, 1.0)
+    function ConvolvedDistributions.ratio_pair(::ExtRatioDelay, ::ExtRatioDelay)
+        called[] = true
+        return override
+    end
+
+    try
+        d = ratio(ExtRatioDelay(), ExtRatioDelay())
+        @test cdf(d, 0.5) == cdf(override, 0.5)
+        @test called[]
+    finally
+        # The method lives on the shared generic in ConvolvedDistributions,
+        # so it outlives this testitem's module unless removed.
+        Base.delete_method(
+            only(
+                methods(
+                    ConvolvedDistributions.ratio_pair, Tuple{ExtRatioDelay, ExtRatioDelay}
+                )
+            )
+        )
+    end
+end
