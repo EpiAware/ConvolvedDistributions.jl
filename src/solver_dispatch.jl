@@ -662,28 +662,44 @@ end
 # `Difference`: the same per-quantity dispatch shape as `Convolved`
 # above, simplified for a fixed X/Y pair. There is no n-ary fold to
 # collapse -- the `AnalyticalSolver` arm just asks whether the one
-# `(x, y)` pair resolves via `_try_difference`, and falls through to the
+# `(x, y)` pair resolves via `difference_pair`, and falls through to the
 # `NumericSolver` arm when it does not.
 # ---------------------------------------------------------------------------
 
 @doc "
 
-    _try_difference(x, y)
+    difference_pair(x, y)
 
-The analytic distribution for `x - y` when one exists, else `nothing`.
-Dispatch (not `try`/`catch`) keeps the path differentiable under every
-AD backend.
+The analytic distribution for `x - y`, or `nothing` when no closed form
+is registered for the pair. This is the extension point a downstream
+package adds a method to, to teach `difference` a closed form for its own
+distribution type: dispatch (not `try`/`catch`) keeps the path
+differentiable under every AD backend, and returning `nothing` (rather
+than throwing) is what tells the caller to fall back to numeric
+quadrature instead.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+struct MyDiffDelay <: ContinuousUnivariateDistribution end
+function ConvolvedDistributions.difference_pair(::MyDiffDelay, ::MyDiffDelay)
+    return Normal(0.0, 1.0)
+end
+```
+
+See also: [`convolve_pair`](@ref)
 "
-_try_difference(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
+difference_pair(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
 
-function _try_difference(x::Normal, y::Normal)
+function difference_pair(x::Normal, y::Normal)
     return Normal(mean(x) - mean(y), sqrt(var(x) + var(y)))
 end
 
 @doc "
 
 Shared `AnalyticalSolver` arm for a `difference_*` quantity generic: when
-`(x, y)` resolves via [`_try_difference`](@ref), evaluate `direct` on the
+`(x, y)` resolves via [`difference_pair`](@ref), evaluate `direct` on the
 result; otherwise fall through to `generic`'s `NumericSolver` arm.
 "
 function _difference_analytic_arm(
@@ -692,7 +708,7 @@ function _difference_analytic_arm(
     ) where {
         F, G,
     }
-    resolved = _try_difference(components[1], components[2])
+    resolved = difference_pair(components[1], components[2])
     resolved === nothing &&
         return generic(d, components, x, NumericSolver(method.solver))
     return direct(resolved, x)
@@ -937,15 +953,31 @@ end
 
 @doc "
 
-    _try_product(x, y)
+    product_pair(x, y)
 
-The analytic distribution for `x * y` when one exists, else `nothing`.
-Dispatch (not `try`/`catch`) keeps the path differentiable under every
-AD backend.
+The analytic distribution for `x * y`, or `nothing` when no closed form
+is registered for the pair. This is the extension point a downstream
+package adds a method to, to teach `product` a closed form for its own
+distribution type: dispatch (not `try`/`catch`) keeps the path
+differentiable under every AD backend, and returning `nothing` (rather
+than throwing) is what tells the caller to fall back to numeric
+quadrature instead.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+struct MyProdDelay <: ContinuousUnivariateDistribution end
+function ConvolvedDistributions.product_pair(::MyProdDelay, ::MyProdDelay)
+    return LogNormal(0.0, 1.0)
+end
+```
+
+See also: [`convolve_pair`](@ref)
 "
-_try_product(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
+product_pair(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
 
-function _try_product(x::LogNormal, y::LogNormal)
+function product_pair(x::LogNormal, y::LogNormal)
     μx, σx = params(x)
     μy, σy = params(y)
     return LogNormal(μx + μy, sqrt(σx^2 + σy^2))
@@ -954,7 +986,7 @@ end
 @doc "
 
 Shared `AnalyticalSolver` arm for a `product_*` quantity generic: when
-`(x, y)` resolves via [`_try_product`](@ref), evaluate `direct` on the
+`(x, y)` resolves via [`product_pair`](@ref), evaluate `direct` on the
 result; otherwise fall through to `generic`'s `NumericSolver` arm.
 "
 function _product_analytic_arm(
@@ -963,7 +995,7 @@ function _product_analytic_arm(
     ) where {
         F, G,
     }
-    resolved = _try_product(components[1], components[2])
+    resolved = product_pair(components[1], components[2])
     resolved === nothing &&
         return generic(d, components, x, NumericSolver(method.solver))
     return direct(resolved, x)
@@ -1197,13 +1229,29 @@ end
 
 @doc "
 
-    _try_ratio(x, y)
+    ratio_pair(x, y)
 
-The analytic distribution for `x / y` when one exists, else `nothing`.
-Dispatch (not `try`/`catch`) keeps the path differentiable under every
-AD backend.
+The analytic distribution for `x / y`, or `nothing` when no closed form
+is registered for the pair. This is the extension point a downstream
+package adds a method to, to teach `ratio` a closed form for its own
+distribution type: dispatch (not `try`/`catch`) keeps the path
+differentiable under every AD backend, and returning `nothing` (rather
+than throwing) is what tells the caller to fall back to numeric
+quadrature instead.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+struct MyRatioDelay <: ContinuousUnivariateDistribution end
+function ConvolvedDistributions.ratio_pair(::MyRatioDelay, ::MyRatioDelay)
+    return Cauchy(0.0, 1.0)
+end
+```
+
+See also: [`convolve_pair`](@ref)
 "
-_try_ratio(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
+ratio_pair(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
 
 # Normal(0, σx) / Normal(0, σy) ~ Cauchy(0, σx / σy). Only the zero-mean
 # case is analytic: the general Marsaglia-Hinkley density has no
@@ -1211,7 +1259,7 @@ _try_ratio(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
 # means stay on the numeric path. Branching on `iszero(μ)` is
 # parameter-value dependent; see the `Ratio` docstring for the resulting
 # AD hazard exactly at zero means.
-function _try_ratio(x::Normal, y::Normal)
+function ratio_pair(x::Normal, y::Normal)
     μx, σx = params(x)
     μy, σy = params(y)
     (iszero(μx) && iszero(μy)) || return nothing
@@ -1223,7 +1271,7 @@ end
 # needs equal scales) since the scale ratio simply factors out. The
 # affine wrapper is returned even when θx == θy so the return type stays
 # value-independent.
-function _try_ratio(x::Gamma, y::Gamma)
+function ratio_pair(x::Gamma, y::Gamma)
     αx, θx = params(x)
     αy, θy = params(y)
     return (θx / θy) * BetaPrime(αx, αy)
@@ -1233,7 +1281,7 @@ end
 # separately from the Gamma rule because Chisq is its own Distributions.jl
 # type; equivalent to it since Chisq(ν) == Gamma(ν / 2, 2) and the scales
 # cancel in the Gamma rule above.
-function _try_ratio(x::Chisq, y::Chisq)
+function ratio_pair(x::Chisq, y::Chisq)
     νx, = params(x)
     νy, = params(y)
     return (νx / νy) * FDist(νx, νy)
@@ -1242,7 +1290,7 @@ end
 @doc "
 
 Shared `AnalyticalSolver` arm for a `ratio_*` quantity generic: when
-`(x, y)` resolves via [`_try_ratio`](@ref), evaluate `direct` on the
+`(x, y)` resolves via [`ratio_pair`](@ref), evaluate `direct` on the
 result; otherwise fall through to `generic`'s `NumericSolver` arm.
 "
 function _ratio_analytic_arm(
@@ -1251,7 +1299,7 @@ function _ratio_analytic_arm(
     ) where {
         F, G,
     }
-    resolved = _try_ratio(components[1], components[2])
+    resolved = ratio_pair(components[1], components[2])
     resolved === nothing &&
         return generic(d, components, x, NumericSolver(method.solver))
     return direct(resolved, x)

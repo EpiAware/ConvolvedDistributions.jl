@@ -62,13 +62,14 @@ public product_cdf, product_logcdf, product_ccdf, product_logccdf,
 # `(Ratio, Tuple, Real, AnalyticalSolver)`.
 public ratio_cdf, ratio_logcdf, ratio_ccdf, ratio_logccdf, ratio_pdf,
     ratio_logpdf, ratio_quantile
-# The analytic-closed-form registries `convolved`/`product` consult before
-# falling back to pairwise collapse or numeric quadrature: `convolve_pair`
-# for a two-component sum, `convolve_power`/`product_power` for a k-fold
-# repeat of one distribution. A downstream package adds a method to one of
-# these for its own distribution type to register a closed form, rather
-# than overloading a private internal.
-public convolve_pair, convolve_power, product_power
+# The analytic-closed-form registries each verb consults before falling
+# back to pairwise collapse or numeric quadrature: one `*_pair` hook per
+# operation for a two-component combination, and `convolve_power` /
+# `product_power` for a k-fold repeat of one distribution. A downstream
+# package adds a method to one of these for its own distribution type to
+# register a closed form, rather than overloading a private internal.
+public convolve_pair, difference_pair, product_pair, ratio_pair,
+    convolve_power, product_power
 
 # The probability generating function primitive (#90), mirroring
 # Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with
