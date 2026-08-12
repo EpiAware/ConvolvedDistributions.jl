@@ -4,11 +4,12 @@
 # must not mutate tracked storage ("TrackedArrays do not support
 # setindex!" from the old `fill`-seeded accumulator).
 
-@testitem "batched ReverseDiff gradient wrt evaluation points (#44)" tags=[
-    :ad, :reversediff] begin
+@testitem "batched ReverseDiff gradient wrt evaluation points (#44)" tags = [
+    :ad, :reversediff,
+] begin
     using ConvolvedDistributions
     using ConvolvedDistributions.Distributions: Gamma, LogNormal,
-                                                logpdf, pdf, cdf
+        logpdf, pdf, cdf
     using ForwardDiff, ReverseDiff
 
     d = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
@@ -17,8 +18,9 @@
     # The scalar-path ForwardDiff gradient is the trusted reference.
     for f in (logpdf, pdf, cdf)
         g_ref = ForwardDiff.gradient(
-            x -> sum(xi -> f(d, xi), x), obs)
+            x -> sum(xi -> f(d, xi), x), obs
+        )
         g_rd = ReverseDiff.gradient(x -> sum(f(d, x)), obs)
-        @test g_rd ≈ g_ref rtol=1e-6
+        @test g_rd ≈ g_ref rtol = 1.0e-6
     end
 end

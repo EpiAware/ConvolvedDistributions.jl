@@ -78,42 +78,57 @@ its own.
 # See also
 - [`convolved`](@ref): Constructor function
 """
-struct Convolved{C <: Tuple, M <: AbstractSolverMethod,
-    S <: Distributions.ValueSupport} <:
-       AbstractConvolvedDistribution{Distributions.Univariate, S}
+struct Convolved{
+        C <: Tuple, M <: AbstractSolverMethod,
+        S <: Distributions.ValueSupport,
+    } <:
+    AbstractConvolvedDistribution{Distributions.Univariate, S}
     "Tuple of independent component distributions to be summed."
     components::C
     "Solver method choosing the analytic vs numeric quadrature backend."
     method::M
     "Per-quantity closed-form answer, resolved once here (#92, review B)."
     _closed_form::NamedTuple{
-        (:pdf, :logpdf, :cdf, :logcdf, :ccdf, :logccdf), NTuple{6, Bool}}
+        (:pdf, :logpdf, :cdf, :logcdf, :ccdf, :logccdf), NTuple{6, Bool},
+    }
 
-    function Convolved(components::C;
-            method::AbstractSolverMethod = AnalyticalSolver()) where {
-            C <: Tuple}
+    function Convolved(
+            components::C;
+            method::AbstractSolverMethod = AnalyticalSolver()
+        ) where {
+            C <: Tuple,
+        }
         length(components) >= 1 ||
             throw(ArgumentError("Convolved needs at least one component"))
         all(c -> c isa UnivariateDistribution, components) ||
-            throw(ArgumentError(
-                "All components must be UnivariateDistributions"))
+            throw(
+            ArgumentError(
+                "All components must be UnivariateDistributions"
+            )
+        )
         S = _components_support(components)
         closed_form = _resolve_closed_form(components, method)
-        new{C, typeof(method), S}(components, method, closed_form)
+        return new{C, typeof(method), S}(components, method, closed_form)
     end
 
     function Convolved(components::C, method::M) where {
-            C <: Tuple, M <: AbstractSolverMethod}
+            C <: Tuple, M <: AbstractSolverMethod,
+        }
         length(components) >= 1 ||
             throw(ArgumentError("Convolved needs at least one component"))
         all(c -> c isa UnivariateDistribution, components) ||
-            throw(ArgumentError(
-                "All components must be UnivariateDistributions"))
+            throw(
+            ArgumentError(
+                "All components must be UnivariateDistributions"
+            )
+        )
         S = _components_support(components)
         closed_form = NamedTuple{
-            (:pdf, :logpdf, :cdf, :logcdf, :ccdf, :logccdf)}(
-            ntuple(_ -> false, 6))
-        new{C, M, S}(components, method, closed_form)
+            (:pdf, :logpdf, :cdf, :logcdf, :ccdf, :logccdf),
+        }(
+            ntuple(_ -> false, 6)
+        )
+        return new{C, M, S}(components, method, closed_form)
     end
 end
 
@@ -121,13 +136,20 @@ const _DiscreteConvolved = Convolved{<:Tuple, <:AbstractSolverMethod, Discrete}
 
 const _MixedableConvolved = Convolved{
     <:Tuple{<:UnivariateDistribution, <:UnivariateDistribution},
-    <:AbstractSolverMethod, Continuous}
+    <:AbstractSolverMethod, Continuous,
+}
 
-function _has_mixed_fold(::Convolved{<:Tuple{
-        D1, D2}}) where {
-        D1 <: UnivariateDistribution, D2 <: UnivariateDistribution}
+function _has_mixed_fold(
+        ::Convolved{
+            <:Tuple{
+                D1, D2,
+            },
+        }
+    ) where {
+        D1 <: UnivariateDistribution, D2 <: UnivariateDistribution,
+    }
     return _mixed_slot(_component_support(D1), _component_support(D2)) !==
-           nothing
+        nothing
 end
 
 const _SingleConvolved = Convolved{<:Tuple{UnivariateDistribution}}
@@ -180,7 +202,8 @@ cdf_numeric = cdf(dn, 2.0)
 "
 function convolved(
         components::AbstractVector{<:UnivariateDistribution};
-        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
+    )
     length(components) >= 2 ||
         throw(ArgumentError("convolved needs at least two components"))
     return _check_strict(Convolved(Tuple(components); method = method), strict)
@@ -189,13 +212,17 @@ end
 function convolved(
         c1::UnivariateDistribution, c2::UnivariateDistribution,
         rest::UnivariateDistribution...;
-        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
+    )
     return _check_strict(
-        Convolved((c1, c2, rest...); method = method), strict)
+        Convolved((c1, c2, rest...); method = method), strict
+    )
 end
 
-function convolved(components::Tuple;
-        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
+function convolved(
+        components::Tuple;
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
+    )
     length(components) >= 2 ||
         throw(ArgumentError("convolved needs at least two components"))
     return _check_strict(Convolved(components; method = method), strict)
@@ -210,7 +237,7 @@ _family_names(d::Convolved) = nameof.(typeof.(d.components))
 # (`convolve_power`, solver_dispatch.jl) and the `k == 1` passthrough
 # (`_repeat_combination`, interface.jl).
 function _convolved_repeat_build(d::UnivariateDistribution, k::Integer)
-    convolved(ntuple(_ -> d, k))
+    return convolved(ntuple(_ -> d, k))
 end
 function _convolved_repeat_build(d::UnivariateDistribution, ::Val{K}) where {K}
     return convolved(ntuple(_ -> d, Val(K)))
@@ -263,12 +290,14 @@ convolved(LogNormal(0.0, 0.5), Val(4))
 "
 function convolved(d::UnivariateDistribution, k::Integer)
     return _repeat_combination(
-        convolve_power, _convolved_repeat_build, d, k)
+        convolve_power, _convolved_repeat_build, d, k
+    )
 end
 
 function convolved(d::UnivariateDistribution, k::Val)
     return _repeat_combination(
-        convolve_power, _convolved_repeat_build, d, k)
+        convolve_power, _convolved_repeat_build, d, k
+    )
 end
 
 # ---------------------------------------------------------------------------
@@ -389,14 +418,14 @@ end
 
 # Fraction of probability trimmed from each tail of an unbounded
 # integration component when clamping an infinite quadrature window.
-const _CONVOLVED_TAIL = 1e-8
+const _CONVOLVED_TAIL = 1.0e-8
 
 # True when the numeric path keeps its native quantile-panelled
 # quadrature, i.e. the payload is the default `GaussLegendre(; n = 64)`.
 # Any other payload is honoured through the pluggable
 # `integrate(solver, …)` contract instead.
 function _native_quadrature(d)
-    d.method.solver isa GaussLegendre &&
+    return d.method.solver isa GaussLegendre &&
         d.method.solver == _default_solver_payload()
 end
 
@@ -461,7 +490,7 @@ end
 function _finite_window(last_comp, lower::Real, upper::Real)
     lo = isfinite(lower) ? lower : _window_quantile(last_comp, _CONVOLVED_TAIL)
     hi = isfinite(upper) ? upper :
-         _window_quantile(last_comp, 1 - _CONVOLVED_TAIL)
+        _window_quantile(last_comp, 1 - _CONVOLVED_TAIL)
     return lo, hi
 end
 
@@ -480,7 +509,7 @@ function _mixed_discrete_window(D::UnivariateDistribution)
     dmax = maximum(D)
     lo = isfinite(dmin) ? float(dmin) : _window_quantile(D, _CONVOLVED_TAIL)
     hi = isfinite(dmax) ? float(dmax) :
-         _window_quantile(D, 1 - _CONVOLVED_TAIL)
+        _window_quantile(D, 1 - _CONVOLVED_TAIL)
     return lo, hi
 end
 
@@ -547,8 +576,8 @@ end
 # `Convolved`, `Difference`, `Product`, and `Ratio` numeric quadrature.
 function _solver_integrate(d, f::F, lo, hi, comp) where {F}
     return _native_quadrature(d) ?
-           _panel_integrate(f, lo, hi, comp) :
-           _panel_integrate_custom(d.method.solver, f, lo, hi, comp)
+        _panel_integrate(f, lo, hi, comp) :
+        _panel_integrate_custom(d.method.solver, f, lo, hi, comp)
 end
 
 # ---------------------------------------------------------------------------
@@ -603,20 +632,26 @@ _convolved_cdf_route(d::_DiscreteConvolved, x::Real) = _convolved_lattice_cdf(d,
 # `Convolved` resolves to.
 function _convolved_pdf_route(d::_MixedableConvolved, x::Real)
     return _convolved_mixed_pdf(
-        _mixed_slot(_component_support(typeof(d.components[1])),
-            _component_support(typeof(d.components[2]))), d, x)
+        _mixed_slot(
+            _component_support(typeof(d.components[1])),
+            _component_support(typeof(d.components[2]))
+        ), d, x
+    )
 end
 function _convolved_cdf_route(d::_MixedableConvolved, x::Real)
     return _convolved_mixed_cdf(
-        _mixed_slot(_component_support(typeof(d.components[1])),
-            _component_support(typeof(d.components[2]))), d, x)
+        _mixed_slot(
+            _component_support(typeof(d.components[1])),
+            _component_support(typeof(d.components[2]))
+        ), d, x
+    )
 end
 
 function _convolved_pdf_route(d::Convolved, x::AbstractVector{<:Real})
-    _convolved_numeric_pdf_batched(d, x)
+    return _convolved_numeric_pdf_batched(d, x)
 end
 function _convolved_pdf_route(d::_DiscreteConvolved, x::AbstractVector{<:Real})
-    map(xi -> _convolved_lattice_pdf(d, xi), x)
+    return map(xi -> _convolved_lattice_pdf(d, xi), x)
 end
 # An all-continuous pair (`_mixed_slot === nothing`) keeps the shared
 # composite-panel batch (`_convolved_numeric_pdf_batched`) rather than
@@ -624,29 +659,33 @@ end
 # the per-point lattice-sum cost, mirroring `_DiscreteConvolved`'s own
 # per-point vector route above.
 function _convolved_pdf_route(d::_MixedableConvolved, x::AbstractVector{<:Real})
-    slot = _mixed_slot(_component_support(typeof(d.components[1])),
-        _component_support(typeof(d.components[2])))
+    slot = _mixed_slot(
+        _component_support(typeof(d.components[1])),
+        _component_support(typeof(d.components[2]))
+    )
     return _convolved_mixed_pdf_batched(slot, d, x)
 end
 function _convolved_mixed_pdf_batched(::Nothing, d::Convolved, x::AbstractVector{<:Real})
-    _convolved_numeric_pdf_batched(d, x)
+    return _convolved_numeric_pdf_batched(d, x)
 end
 function _convolved_mixed_pdf_batched(slot, d::Convolved, x::AbstractVector{<:Real})
     return map(xi -> _convolved_mixed_pdf(slot, d, xi), x)
 end
 function _convolved_cdf_route(d::Convolved, x::AbstractVector{<:Real})
-    _convolved_numeric_cdf_batched(d, x)
+    return _convolved_numeric_cdf_batched(d, x)
 end
 function _convolved_cdf_route(d::_DiscreteConvolved, x::AbstractVector{<:Real})
-    map(xi -> _convolved_lattice_cdf(d, xi), x)
+    return map(xi -> _convolved_lattice_cdf(d, xi), x)
 end
 function _convolved_cdf_route(d::_MixedableConvolved, x::AbstractVector{<:Real})
-    slot = _mixed_slot(_component_support(typeof(d.components[1])),
-        _component_support(typeof(d.components[2])))
+    slot = _mixed_slot(
+        _component_support(typeof(d.components[1])),
+        _component_support(typeof(d.components[2]))
+    )
     return _convolved_mixed_cdf_batched(slot, d, x)
 end
 function _convolved_mixed_cdf_batched(::Nothing, d::Convolved, x::AbstractVector{<:Real})
-    _convolved_numeric_cdf_batched(d, x)
+    return _convolved_numeric_cdf_batched(d, x)
 end
 function _convolved_mixed_cdf_batched(slot, d::Convolved, x::AbstractVector{<:Real})
     return map(xi -> _convolved_mixed_cdf(slot, d, xi), x)
@@ -676,10 +715,12 @@ _convolution_pdf(d::Convolved, x::Real) = _convolved_pdf_route(d, x)
 # `kernel` is `_convolution_cdf` (CDF) or `_convolution_pdf` (PDF).
 # Returns the bare integral; callers add any saturated constant and clamp.
 function _convolved_quadrature(
-        last_comp, rest, kernel::F, x::Real, lower, upper) where {F}
+        last_comp, rest, kernel::F, x::Real, lower, upper
+    ) where {F}
     return _panel_integrate(
         t -> kernel(rest, x - t) * pdf_ad_safe(last_comp, t),
-        lower, upper, last_comp)
+        lower, upper, last_comp
+    )
 end
 
 # Per-point PDF integration window, shared by the scalar and batched
@@ -703,7 +744,7 @@ function _cdf_point_window(last_comp, rest, x::Real)
     lower = _max2(cmin, cut)
     upper = _min2(maximum(last_comp), x - minimum(rest))
     saturated = cut > cmin ? cdf_ad_safe(last_comp, cut) :
-                zero(float(typeof(x)))
+        zero(float(typeof(x)))
     upper <= lower && return lower, lower, saturated
     lower, upper = _finite_window(last_comp, lower, upper)
     return lower, upper, saturated
@@ -753,7 +794,8 @@ end
 # whose `setindex!` throws (issue #44).
 function _convolved_quadrature_composite(
         last_comp, rest, kernel::F, x::AbstractVector{<:Real},
-        wins, L::Float64, U::Float64) where {F}
+        wins, L::Float64, U::Float64
+    ) where {F}
     np = length(_PANEL_GL.nodes)
     nd, wts = _PANEL_GL.nodes, _PANEL_GL.weights
     bounds = vcat(L, _panel_breaks(last_comp, L, U), U)
@@ -763,12 +805,16 @@ function _convolved_quadrature_composite(
     # comprehensions seed the element types from the values so component
     # `Dual`s propagate. Panels are quantile-spaced, so each carries its
     # own half-width.
-    Tc = [(bounds[p] + bounds[p + 1]) / 2 +
-          (bounds[p + 1] - bounds[p]) / 2 * nd[k]
-          for k in 1:np, p in 1:npan]
-    Wc = [(bounds[p + 1] - bounds[p]) / 2 * wts[k] *
-          pdf_ad_safe(last_comp, Tc[k, p])
-          for k in 1:np, p in 1:npan]
+    Tc = [
+        (bounds[p] + bounds[p + 1]) / 2 +
+            (bounds[p + 1] - bounds[p]) / 2 * nd[k]
+            for k in 1:np, p in 1:npan
+    ]
+    Wc = [
+        (bounds[p + 1] - bounds[p]) / 2 * wts[k] *
+            pdf_ad_safe(last_comp, Tc[k, p])
+            for k in 1:np, p in 1:npan
+    ]
 
     z = zero(kernel(rest, first(x) - Tc[1, 1]) * Wc[1, 1])
     return map(eachindex(x)) do j
@@ -827,11 +873,14 @@ function _convolved_numeric_cdf(d::Convolved, x::Real)
     upper <= lower && return clamp(saturated, zero(saturated), one(saturated))
 
     result = _native_quadrature(d) ?
-             saturated + _convolved_quadrature(
-        last_comp, rest, _convolution_cdf, x, lower, upper) :
-             saturated + _panel_integrate_custom(d.method.solver,
-        t -> _convolution_cdf(rest, x - t) * pdf_ad_safe(last_comp, t),
-        lower, upper, last_comp)
+        saturated + _convolved_quadrature(
+            last_comp, rest, _convolution_cdf, x, lower, upper
+        ) :
+        saturated + _panel_integrate_custom(
+            d.method.solver,
+            t -> _convolution_cdf(rest, x - t) * pdf_ad_safe(last_comp, t),
+            lower, upper, last_comp
+        )
     return clamp(result, zero(result), one(result))
 end
 
@@ -853,11 +902,14 @@ function _convolved_numeric_pdf(d::Convolved, x::Real)
     upper <= lower && return zero(float(typeof(x)))
 
     result = _native_quadrature(d) ?
-             _convolved_quadrature(
-        last_comp, rest, _convolution_pdf, x, lower, upper) :
-             _panel_integrate_custom(d.method.solver,
-        t -> _convolution_pdf(rest, x - t) * pdf_ad_safe(last_comp, t),
-        lower, upper, last_comp)
+        _convolved_quadrature(
+            last_comp, rest, _convolution_pdf, x, lower, upper
+        ) :
+        _panel_integrate_custom(
+            d.method.solver,
+            t -> _convolution_pdf(rest, x - t) * pdf_ad_safe(last_comp, t),
+            lower, upper, last_comp
+        )
     return max(result, zero(result))
 end
 
@@ -893,7 +945,8 @@ function _convolved_lattice_pdf(d::Convolved, x::Real)
 
     return _lattice_sum(
         t -> _convolution_pdf(rest, x - t) * pdf_ad_safe(last_comp, t),
-        t0, t1)
+        t0, t1
+    )
 end
 
 # Exact discrete convolution CDF, keeping the quadrature path's
@@ -916,16 +969,17 @@ function _convolved_lattice_cdf(d::Convolved, x::Real)
     cut = x - maximum(rest)
     upper = _min2(maximum(last_comp), x - minimum(rest))
     saturated = cut > cmin ? cdf_ad_safe(last_comp, cut) :
-                zero(float(typeof(x)))
+        zero(float(typeof(x)))
     lower, upper = _finite_window(last_comp, _max2(cmin, cut), upper)
 
     t0, t1 = cut > cmin ? _lattice_range_above(cut, upper) :
-             _lattice_range(lower, upper)
+        _lattice_range(lower, upper)
     t1 < t0 && return clamp(saturated, zero(saturated), one(saturated))
 
     result = saturated + _lattice_sum(
         t -> _convolution_cdf(rest, x - t) * pdf_ad_safe(last_comp, t),
-        t0, t1)
+        t0, t1
+    )
     return clamp(result, zero(result), one(result))
 end
 
@@ -954,7 +1008,8 @@ function _convolved_mixed_pdf(::Val{1}, d::Convolved, x::Real)
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
     t1 < t0 && return zero(float(typeof(x)))
     return _lattice_sum(
-        k -> pdf_ad_safe(D, k) * pdf_ad_safe(C, x - k), t0, t1)
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(C, x - k), t0, t1
+    )
 end
 function _convolved_mixed_pdf(::Val{2}, d::Convolved, x::Real)
     isnan(x) && return convert(float(typeof(x)), NaN)
@@ -963,7 +1018,8 @@ function _convolved_mixed_pdf(::Val{2}, d::Convolved, x::Real)
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
     t1 < t0 && return zero(float(typeof(x)))
     return _lattice_sum(
-        k -> pdf_ad_safe(D, k) * pdf_ad_safe(C, x - k), t0, t1)
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(C, x - k), t0, t1
+    )
 end
 _convolved_mixed_pdf(::Nothing, d::Convolved, x::Real) = _convolved_numeric_pdf(d, x)
 
@@ -975,7 +1031,8 @@ function _convolved_mixed_cdf(::Val{1}, d::Convolved, x::Real)
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
     t1 < t0 && return zero(float(typeof(x)))
     result = _lattice_sum(
-        k -> pdf_ad_safe(D, k) * cdf_ad_safe(C, x - k), t0, t1)
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(C, x - k), t0, t1
+    )
     return clamp(result, zero(result), one(result))
 end
 function _convolved_mixed_cdf(::Val{2}, d::Convolved, x::Real)
@@ -986,7 +1043,8 @@ function _convolved_mixed_cdf(::Val{2}, d::Convolved, x::Real)
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
     t1 < t0 && return zero(float(typeof(x)))
     result = _lattice_sum(
-        k -> pdf_ad_safe(D, k) * cdf_ad_safe(C, x - k), t0, t1)
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(C, x - k), t0, t1
+    )
     return clamp(result, zero(result), one(result))
 end
 _convolved_mixed_cdf(::Nothing, d::Convolved, x::Real) = _convolved_numeric_cdf(d, x)
@@ -1010,11 +1068,13 @@ _convolved_mixed_cdf(::Nothing, d::Convolved, x::Real) = _convolved_numeric_cdf(
 _convolved_numeric_pdf(d::_SingleConvolved, x::Real) = pdf(d.components[1], x)
 _convolved_numeric_cdf(d::_SingleConvolved, x::Real) = cdf(d.components[1], x)
 function _convolved_numeric_pdf_batched(
-        d::_SingleConvolved, x::AbstractVector{<:Real})
+        d::_SingleConvolved, x::AbstractVector{<:Real}
+    )
     return map(xi -> pdf(d.components[1], xi), x)
 end
 function _convolved_numeric_cdf_batched(
-        d::_SingleConvolved, x::AbstractVector{<:Real})
+        d::_SingleConvolved, x::AbstractVector{<:Real}
+    )
     return map(xi -> cdf(d.components[1], xi), x)
 end
 _convolved_lattice_pdf(d::_SingleConvolved, x::Real) = pdf(d.components[1], x)
@@ -1165,7 +1225,8 @@ function _convolved_numeric_cdf_batched(d::Convolved, x::AbstractVector{<:Real})
     end
 
     raw = _convolved_quadrature_composite(
-        last_comp, rest, _convolution_cdf, x, wins, L, U)
+        last_comp, rest, _convolution_cdf, x, wins, L, U
+    )
 
     # `eltype(d)` stays `Float64` when the component parameters carry AD
     # tracers (Duals, tracked reals), so promote with the quadrature
@@ -1203,7 +1264,8 @@ function _convolved_numeric_pdf_batched(d::Convolved, x::AbstractVector{<:Real})
     end
 
     raw = _convolved_quadrature_composite(
-        last_comp, rest, _convolution_pdf, x, wins, L, U)
+        last_comp, rest, _convolution_pdf, x, wins, L, U
+    )
 
     # Promote with the quadrature result type: `eltype(d)` misses
     # AD tracers on the component parameters (#43).

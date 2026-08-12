@@ -37,10 +37,12 @@ difference_df = vcat(
 )
 draw(
     data(difference_df) *
-    mapping(:z, :value, color = :Quantity) *
-    visual(Lines, linewidth = 2);
-    axis = (xlabel = "Reporting delay - incubation period (days)",
-        ylabel = "Density / cumulative probability")
+        mapping(:z, :value, color = :Quantity) *
+        visual(Lines, linewidth = 2);
+    axis = (
+        xlabel = "Reporting delay - incubation period (days)",
+        ylabel = "Density / cumulative probability",
+    )
 )
 
 # The mass below zero is the probability that the reporting delay is shorter than the incubation period.
@@ -61,10 +63,12 @@ gap_df = vcat(
 )
 draw(
     data(gap_df) *
-    mapping(:z, :value, color = :Quantity) *
-    visual(Lines, linewidth = 2);
-    axis = (xlabel = "Two-stage delay - single delay (days)",
-        ylabel = "Density / cumulative probability")
+        mapping(:z, :value, color = :Quantity) *
+        visual(Lines, linewidth = 2);
+    axis = (
+        xlabel = "Two-stage delay - single delay (days)",
+        ylabel = "Density / cumulative probability",
+    )
 )
 
 # The mass below zero is the probability that the two-stage delay resolves before the single delay.

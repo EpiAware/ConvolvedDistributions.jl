@@ -60,7 +60,8 @@ end
 # (`findfirst`/`findlast` on `mask`) so a small window deep inside a long
 # series does not even iterate over the untouched positions either side.
 function _convolve_series_fixed(
-        series::AbstractVector, pmf::AbstractVector, mask::AbstractVector{Bool})
+        series::AbstractVector, pmf::AbstractVector, mask::AbstractVector{Bool}
+    )
     Base.require_one_based_indexing(series, pmf, mask)
     n = length(series)
     T = promote_type(eltype(series), eltype(pmf))
@@ -89,9 +90,12 @@ end
 # branch is already off the differentiated path.
 function _check_mask(mask::AbstractVector{Bool}, n::Int)
     Base.require_one_based_indexing(mask)
-    length(mask) == n || throw(ArgumentError(
-        "convolve_series mask must be the same length as the output " *
-        "series; got $(length(mask)) for a series of length $(n)"))
+    length(mask) == n || throw(
+        ArgumentError(
+            "convolve_series mask must be the same length as the output " *
+                "series; got $(length(mask)) for a series of length $(n)"
+        )
+    )
     return nothing
 end
 
@@ -191,7 +195,8 @@ expected_counts = convolve_series(delay, infections)
 function convolve_series(
         delay::DiscreteUnivariateDistribution,
         series::AbstractVector{<:Real};
-        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing
+    )
     # The lag-`k` mass of a discrete delay is `pdf(delay, k)` directly; do
     # NOT reuse the CDF-difference `_delay_pmf`, which would compute
     # `F(k + 1) - F(k) = pdf(delay, k + 1)` for integer support — an
@@ -256,7 +261,8 @@ expected_counts = convolve_series(pmf, infections)
 "
 function convolve_series(
         pmf::AbstractVector{<:Real}, series::AbstractVector{<:Real};
-        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing
+    )
     isempty(pmf) &&
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
     mask === nothing && return _convolve_series_fixed(series, pmf)
@@ -280,16 +286,22 @@ end
 # read as the lag-0 mass.
 function _check_regular_delay_grid(grid::AbstractVector{<:Real})
     first(grid) == 0 ||
-        throw(ArgumentError(
+        throw(
+        ArgumentError(
             "convolve_series needs a DiscreteNonParametric delay support " *
-            "starting at lag 0 (the first support point is read as the " *
-            "lag-0 mass); got first support point $(first(grid))"))
+                "starting at lag 0 (the first support point is read as the " *
+                "lag-0 mass); got first support point $(first(grid))"
+        )
+    )
     length(grid) == 1 && return nothing
     steps = diff(grid)
     all(isapprox.(steps, steps[1])) ||
-        throw(ArgumentError(
+        throw(
+        ArgumentError(
             "convolve_series needs a regularly spaced DiscreteNonParametric " *
-            "delay support (a constant lag width); got steps $(steps)"))
+                "delay support (a constant lag width); got steps $(steps)"
+        )
+    )
     return nothing
 end
 
@@ -343,7 +355,8 @@ expected_counts = convolve_series(pmf, infections)
 "
 function convolve_series(
         pmf::DiscreteNonParametric, series::AbstractVector{<:Real};
-        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing
+    )
     grid = support(pmf)
     _check_regular_delay_grid(grid)
     return convolve_series(probs(pmf), series; mask)
@@ -367,7 +380,8 @@ _kernel_mass(ks::AbstractVector{<:AbstractVector}, j::Int, k::Int) = ks[j][k]
 # Seeds the accumulator type so `Dual` / tracked masses propagate.
 _kernel_eltype(ks::AbstractMatrix) = eltype(ks)
 _kernel_eltype(ks::AbstractVector{<:AbstractVector}) = mapreduce(
-    eltype, promote_type, ks)
+    eltype, promote_type, ks
+)
 
 # One kernel per time point, truncated to the series window. The convention
 # dispatches through `Val`, so each is a loop and another one is a method
@@ -376,15 +390,18 @@ _kernel_eltype(ks::AbstractVector{<:AbstractVector}) = mapreduce(
 # method, which computes every position.
 function _convolve_series_varying(
         series::AbstractVector, kernels, indexed_by::Symbol,
-        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing
+    )
     n = length(series)
     mask === nothing || _check_mask(mask, n)
     n == 0 && return zeros(float(eltype(series)), 0)
     T = promote_type(eltype(series), _kernel_eltype(kernels))
     mask === nothing && return _accumulate_varying!(
-        zeros(T, n), series, kernels, Val(indexed_by))
+        zeros(T, n), series, kernels, Val(indexed_by)
+    )
     return _accumulate_varying!(
-        zeros(T, n), series, kernels, Val(indexed_by), mask)
+        zeros(T, n), series, kernels, Val(indexed_by), mask
+    )
 end
 
 # Gather: time `i` reads its own kernel back over the series.
@@ -404,7 +421,8 @@ end
 # skips every position `mask` excludes before touching a kernel or series
 # entry.
 function _accumulate_varying!(
-        out, series, kernels, ::Val{:secondary}, mask::AbstractVector{Bool})
+        out, series, kernels, ::Val{:secondary}, mask::AbstractVector{Bool}
+    )
     first_i = findfirst(mask)
     first_i === nothing && return out
     last_i = findlast(mask)
@@ -439,7 +457,8 @@ end
 # `k`). What survives both bounds is still checked against `mask`
 # directly, so a hole inside the requested window is skipped too.
 function _accumulate_varying!(
-        out, series, kernels, ::Val{:primary}, mask::AbstractVector{Bool})
+        out, series, kernels, ::Val{:primary}, mask::AbstractVector{Bool}
+    )
     n = length(out)
     first_i = findfirst(mask)
     first_i === nothing && return out
@@ -487,9 +506,12 @@ end
 
 function _check_kernel_count(kernels, series::AbstractVector)
     count = _kernel_count(kernels)
-    count == length(series) || throw(ArgumentError(
-        "convolve_series needs one delay PMF per time point; got $(count) " *
-        "for a series of length $(length(series))"))
+    count == length(series) || throw(
+        ArgumentError(
+            "convolve_series needs one delay PMF per time point; got $(count) " *
+                "for a series of length $(length(series))"
+        )
+    )
     return nothing
 end
 
@@ -595,12 +617,13 @@ function _delay_masses_kwargs_error(d, kwargs)
     names = join(keys(kwargs), ", ")
     return ArgumentError(
         "convolve_series was given discretisation keyword argument(s) " *
-        "$names for a delay of type $(typeof(d)), but its " *
-        "convolve_series method does not accept them. Define " *
-        "delay_masses(::$(nameof(typeof(d))), ::Int; kwargs...) (or a " *
-        "convolve_series(::$(nameof(typeof(d))), series; kwargs...) " *
-        "method) that accepts `; kwargs...` so this delay type can " *
-        "take discretisation keywords.")
+            "$names for a delay of type $(typeof(d)), but its " *
+            "convolve_series method does not accept them. Define " *
+            "delay_masses(::$(nameof(typeof(d))), ::Int; kwargs...) (or a " *
+            "convolve_series(::$(nameof(typeof(d))), series; kwargs...) " *
+            "method) that accepts `; kwargs...` so this delay type can " *
+            "take discretisation keywords."
+    )
 end
 
 @doc "
@@ -672,14 +695,16 @@ expected_counts = convolve_series(delays, infections)
 function convolve_series(
         delays::AbstractVector, series::AbstractVector{<:Real};
         indexed_by::Symbol = :primary,
-        mask::Union{Nothing, AbstractVector{Bool}} = nothing, kwargs...)
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing, kwargs...
+    )
     Base.require_one_based_indexing(delays, series)
     _check_kernel_count(delays, series)
     n = length(series)
     mask === nothing || _check_mask(mask, n)
     lags = _kernel_lags(n, Val(indexed_by), mask)
     return convolve_series(
-        _distinct_masses(delays, lags; kwargs...), series; indexed_by, mask)
+        _distinct_masses(delays, lags; kwargs...), series; indexed_by, mask
+    )
 end
 
 # Masses per time point, built once per DISTINCT delay however often it
@@ -703,8 +728,10 @@ function _distinct_masses(delays, lags; kwargs...)
         end
         index[j] = slot
     end
-    masses = [delay_masses(delays[firsts[s]], needed[s]; kwargs...)
-              for s in eachindex(firsts)]
+    masses = [
+        delay_masses(delays[firsts[s]], needed[s]; kwargs...)
+            for s in eachindex(firsts)
+    ]
     return masses[index]
 end
 
@@ -749,9 +776,11 @@ expected_counts = convolve_series([Poisson(3.0) => 3, Poisson(1.0) => 4],
 function convolve_series(
         runs::AbstractVector{<:Pair}, series::AbstractVector{<:Real};
         indexed_by::Symbol = :primary,
-        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing
+    )
     return convolve_series(
-        _expand_runs(runs, length(series)), series; indexed_by, mask)
+        _expand_runs(runs, length(series)), series; indexed_by, mask
+    )
 end
 
 # `fill` repeats the SAME object, so an expanded run is one run to
@@ -760,9 +789,12 @@ function _expand_runs(runs, n)
     all(r -> last(r) > 0, runs) ||
         throw(ArgumentError("convolve_series run lengths must be positive"))
     total = sum(last, runs)
-    total == n || throw(ArgumentError(
-        "convolve_series run lengths must sum to the series length; got " *
-        "$(total) for a series of length $(n)"))
+    total == n || throw(
+        ArgumentError(
+            "convolve_series run lengths must sum to the series length; got " *
+                "$(total) for a series of length $(n)"
+        )
+    )
     return reduce(vcat, [fill(first(r), last(r)) for r in runs])
 end
 
@@ -813,7 +845,8 @@ expected_counts = convolve_series(pmfs, infections)
 function convolve_series(
         pmfs::AbstractMatrix{<:Real}, series::AbstractVector{<:Real};
         indexed_by::Symbol = :primary,
-        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing
+    )
     Base.require_one_based_indexing(pmfs, series)
     size(pmfs, 1) >= 1 ||
         throw(ArgumentError("convolve_series needs at least one PMF mass"))
@@ -861,7 +894,8 @@ function convolve_series(
         pmfs::AbstractVector{<:AbstractVector{<:Real}},
         series::AbstractVector{<:Real};
         indexed_by::Symbol = :primary,
-        mask::Union{Nothing, AbstractVector{Bool}} = nothing)
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing
+    )
     Base.require_one_based_indexing(pmfs, series)
     _check_kernel_count(pmfs, series)
     all(!isempty, pmfs) ||

@@ -38,8 +38,8 @@ timeseries_df = vcat(
 )
 draw(
     data(timeseries_df) *
-    mapping(:t, :count, color = :Series) *
-    visual(Lines, linewidth = 2);
+        mapping(:t, :count, color = :Series) *
+        visual(Lines, linewidth = 2);
     axis = (xlabel = "Day", ylabel = "Expected count")
 )
 
@@ -65,12 +65,13 @@ timevarying_df = vcat(
     DataFrame(t = t, count = timevarying, Series = "Time-varying (primary)"),
     DataFrame(
         t = t, count = timevarying_secondary,
-        Series = "Time-varying (secondary)")
+        Series = "Time-varying (secondary)"
+    )
 )
 draw(
     data(timevarying_df) *
-    mapping(:t, :count, color = :Series) *
-    visual(Lines, linewidth = 2);
+        mapping(:t, :count, color = :Series) *
+        visual(Lines, linewidth = 2);
     axis = (xlabel = "Day", ylabel = "Expected count")
 )
 

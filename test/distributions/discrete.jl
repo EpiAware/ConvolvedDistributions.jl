@@ -12,7 +12,8 @@
 
     bruteforce = sum(
         pdf(NegativeBinomial(5, 0.5), k) * pdf(Poisson(2.0), 3 - k)
-    for k in 0:3)
+            for k in 0:3
+    )
     @test pdf(c, 3) ≈ bruteforce
     @test pdf(c, 3.0) ≈ bruteforce
 
@@ -37,18 +38,26 @@ end
     # analytic pair, exercises the lattice fold), and a three-component
     # mix.
     discrete_convolved_cases() = (
-        (name = "bounded pair",
+        (
+            name = "bounded pair",
             d = convolved(Binomial(4, 0.3), DiscreteUniform(0, 5)),
-            support = 0:9),
-        (name = "unbounded pair",
+            support = 0:9,
+        ),
+        (
+            name = "unbounded pair",
             d = convolved(Poisson(3.0), Geometric(0.3)),
-            support = 0:120),
-        (name = "unequal-p NegativeBinomial",
+            support = 0:120,
+        ),
+        (
+            name = "unequal-p NegativeBinomial",
             d = convolved(NegativeBinomial(5, 0.5), NegativeBinomial(3, 0.4)),
-            support = 0:150),
-        (name = "three-component mix",
+            support = 0:150,
+        ),
+        (
+            name = "three-component mix",
             d = convolved(Poisson(1.0), Binomial(3, 0.4), DiscreteUniform(0, 2)),
-            support = 0:12)
+            support = 0:12,
+        ),
     )
 
     # Brute-force reference pmf, built once per distribution by
@@ -73,27 +82,28 @@ end
     end
 end
 
-@testitem "exactness of the additive fold: masses, cdf, endpoints" setup=[
-    DiscreteConvolvedCases] begin
+@testitem "exactness of the additive fold: masses, cdf, endpoints" setup = [
+    DiscreteConvolvedCases,
+] begin
     for case in discrete_convolved_cases()
         d = case.d
         support = case.support
 
         masses = [pdf(d, k) for k in support]
         @test all(m -> m >= 0, masses)
-        @test isapprox(sum(masses), 1; atol = 1e-6)
+        @test isapprox(sum(masses), 1; atol = 1.0e-6)
 
         # Agreement with brute-force enumeration over the component
         # supports.
         reference = brute_force_convolved_pmf(d)
         for k in support
-            @test pdf(d, k) ≈ get(reference, k, 0.0) atol=1e-8
+            @test pdf(d, k) ≈ get(reference, k, 0.0) atol = 1.0e-8
         end
 
         running = 0.0
         for (k, m) in zip(support, masses)
             running += m
-            @test cdf(d, k) ≈ running atol=1e-8
+            @test cdf(d, k) ≈ running atol = 1.0e-8
         end
 
         # The endpoint atom: the continuous guard's strict `x <=
@@ -103,7 +113,7 @@ end
         # families (e.g. `NegativeBinomial`, via the regularised
         # incomplete beta function) are not bit-identical at the
         # minimum even though they are mathematically equal.
-        @test cdf(d, minimum(d))≈pdf(d, minimum(d)) atol=1e-12
+        @test cdf(d, minimum(d)) ≈ pdf(d, minimum(d)) atol = 1.0e-12
 
         if isfinite(maximum(d))
             @test cdf(d, maximum(d)) == 1.0

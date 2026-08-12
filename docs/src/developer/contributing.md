@@ -44,7 +44,7 @@ ConvolvedDistributions.jl/
 │   ├── package/            # Quality gates plus the family interface test
 │   ├── ad/                 # AD gradient harness (own environment)
 │   ├── jet/                # JET static analysis (isolated environment)
-│   ├── formatter/          # JuliaFormatter check (isolated environment)
+│   ├── formatter/          # Runic check (isolated environment)
 │   └── ADFixtures/         # AD gradient scenario registry
 ├── docs/
 │   ├── Project.toml        # Documentation environment
@@ -122,7 +122,7 @@ The quality gates in `test/package/` guard the package's health:
 - **Aqua.jl**: Common package issues (stale deps, ambiguities, piracy)
 - **ExplicitImports.jl**: No implicit or stale imports, and import centralisation
 - **JET.jl**: Static analysis for type stability (run from the isolated `test/jet` environment)
-- **JuliaFormatter**: Formatting check (run from the isolated `test/formatter` environment)
+- **Runic**: Formatting check (run from the isolated `test/formatter` environment)
 - **Docstring format**: Every docstring matches the [`src/docstrings.jl`](https://github.com/EpiAware/ConvolvedDistributions.jl/blob/main/src/docstrings.jl) template
 - **Doctest** and **README section** checks, plus an extension-ambiguity check
 
@@ -130,7 +130,7 @@ Run them all with `task test-quality`, or a single isolated gate directly:
 
 ```bash
 task test-jet         # JET static analysis
-task test-formatting  # JuliaFormatter check
+task test-formatting  # Runic check
 ```
 
 ### AD gradient harness

@@ -37,17 +37,31 @@ public GaussLegendre, integrate, gl_integrate
 # A on #137), plus the shared uniform-window CDF arithmetic a new
 # distribution family plugs its `partial_expectation` into.
 public convolved_cdf, convolved_logcdf, convolved_ccdf, convolved_logccdf,
-       convolved_pdf, convolved_logpdf, convolved_quantile,
-       convolved_minimum, uniform_window_cdf, uniform_window_ccdf,
-       partial_expectation, upper_partial_expectation
+    convolved_pdf, convolved_logpdf, convolved_quantile,
+    convolved_minimum, uniform_window_cdf, uniform_window_ccdf,
+    partial_expectation, upper_partial_expectation
 
 # The same per-quantity dispatch extension points as above, for
 # `Difference`: a downstream package adds its own analytic X/Y pair by
 # defining a method on a two-element tuple TYPE more specific than
 # `(Difference, Tuple, Real, AnalyticalSolver)`.
 public difference_cdf, difference_logcdf, difference_ccdf,
-       difference_logccdf, difference_pdf, difference_logpdf,
-       difference_quantile
+    difference_logccdf, difference_pdf, difference_logpdf,
+    difference_quantile
+
+# The same per-quantity dispatch extension points as above, for
+# `Product`: a downstream package adds its own analytic X/Y pair by
+# defining a method on a two-element tuple TYPE more specific than
+# `(Product, Tuple, Real, AnalyticalSolver)`.
+public product_cdf, product_logcdf, product_ccdf, product_logccdf,
+    product_pdf, product_logpdf, product_quantile
+
+# The same per-quantity dispatch extension points as above, for `Ratio`:
+# a downstream package adds its own analytic X/Y pair by defining a
+# method on a two-element tuple TYPE more specific than
+# `(Ratio, Tuple, Real, AnalyticalSolver)`.
+public ratio_cdf, ratio_logcdf, ratio_ccdf, ratio_logccdf, ratio_pdf,
+    ratio_logpdf, ratio_quantile
 # The analytic-closed-form registries `convolved`/`product` consult before
 # falling back to pairwise collapse or numeric quadrature: `convolve_pair`
 # for a two-component sum, `convolve_power`/`product_power` for a k-fold

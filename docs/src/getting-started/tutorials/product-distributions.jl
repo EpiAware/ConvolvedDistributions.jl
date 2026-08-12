@@ -34,17 +34,23 @@ w = product(incubation, factor)
 
 x = 0.0:0.05:15.0
 components_df = vcat(
-    DataFrame(x = x, density = pdf.(incubation, x),
-        Distribution = "Incubation (Gamma)"),
-    DataFrame(x = x, density = pdf.(factor, x),
-        Distribution = "Multiplicative factor (LogNormal)"),
-    DataFrame(x = x, density = pdf(w, collect(x)),
-        Distribution = "Product")
+    DataFrame(
+        x = x, density = pdf.(incubation, x),
+        Distribution = "Incubation (Gamma)"
+    ),
+    DataFrame(
+        x = x, density = pdf.(factor, x),
+        Distribution = "Multiplicative factor (LogNormal)"
+    ),
+    DataFrame(
+        x = x, density = pdf(w, collect(x)),
+        Distribution = "Product"
+    )
 )
 draw(
     data(components_df) *
-    mapping(:x, :density, color = :Distribution) *
-    visual(Lines, linewidth = 2);
+        mapping(:x, :density, color = :Distribution) *
+        visual(Lines, linewidth = 2);
     axis = (xlabel = "Value", ylabel = "Density")
 )
 
@@ -63,15 +69,19 @@ scaled = product(d, LogNormal(0.1, 0.25))
 
 xn = 0.0:0.25:25.0
 scaling_df = vcat(
-    DataFrame(x = xn, density = pdf(d, collect(xn)),
-        Distribution = "Two-stage delay"),
-    DataFrame(x = xn, density = pdf(scaled, collect(xn)),
-        Distribution = "Scaled by factor")
+    DataFrame(
+        x = xn, density = pdf(d, collect(xn)),
+        Distribution = "Two-stage delay"
+    ),
+    DataFrame(
+        x = xn, density = pdf(scaled, collect(xn)),
+        Distribution = "Scaled by factor"
+    )
 )
 draw(
     data(scaling_df) *
-    mapping(:x, :density, color = :Distribution) *
-    visual(Lines, linewidth = 2);
+        mapping(:x, :density, color = :Distribution) *
+        visual(Lines, linewidth = 2);
     axis = (xlabel = "Delay (days)", ylabel = "Density")
 )
 
@@ -90,28 +100,36 @@ d_numeric = product(pair...; method = NumericSolver())
 
 xs = 0.05:0.05:8.0
 solver_df = vcat(
-    DataFrame(x = xs, cdf = cdf(d_analytic, collect(xs)),
-        Solver = "Analytic (closed form)"),
-    DataFrame(x = xs, cdf = cdf(d_numeric, collect(xs)),
-        Solver = "Numeric (quadrature)")
+    DataFrame(
+        x = xs, cdf = cdf(d_analytic, collect(xs)),
+        Solver = "Analytic (closed form)"
+    ),
+    DataFrame(
+        x = xs, cdf = cdf(d_numeric, collect(xs)),
+        Solver = "Numeric (quadrature)"
+    )
 )
 draw(
     data(solver_df) *
-    mapping(:x, :cdf, color = :Solver, linestyle = :Solver) *
-    visual(Lines, linewidth = 2);
+        mapping(:x, :cdf, color = :Solver, linestyle = :Solver) *
+        visual(Lines, linewidth = 2);
     axis = (xlabel = "Value", ylabel = "CDF")
 )
 
 # The two curves lie on top of each other, so we plot the residual to see the actual size of the quadrature error.
 
-residual_df = DataFrame(x = xs,
-    residual = cdf(d_numeric, collect(xs)) .- cdf(d_analytic, collect(xs)))
+residual_df = DataFrame(
+    x = xs,
+    residual = cdf(d_numeric, collect(xs)) .- cdf(d_analytic, collect(xs))
+)
 draw(
     data(residual_df) *
-    mapping(:x, :residual) *
-    visual(Lines, linewidth = 2);
-    axis = (xlabel = "Value",
-        ylabel = "Numeric CDF - analytic CDF")
+        mapping(:x, :residual) *
+        visual(Lines, linewidth = 2);
+    axis = (
+        xlabel = "Value",
+        ylabel = "Numeric CDF - analytic CDF",
+    )
 )
 
 # The largest absolute residual across the grid is a few parts in a billion, the size of the fixed-node quadrature error.

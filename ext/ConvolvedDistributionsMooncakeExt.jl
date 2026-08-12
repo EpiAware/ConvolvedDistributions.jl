@@ -1,8 +1,7 @@
 module ConvolvedDistributionsMooncakeExt
 
 using ConvolvedDistributions: _window_quantile, _lattice_quantile,
-                              _accepts_kwargs,
-                              AbstractSolverMethod, _resolve_closed_form
+    _accepts_kwargs, AbstractSolverMethod, _resolve_closed_form
 using Distributions: UnivariateDistribution
 using Mooncake: Mooncake
 
@@ -29,7 +28,8 @@ using Mooncake: Mooncake
 # `@from_chainrules` lift that used to live here now ships in
 # EpiAwareADTools' Mooncake extension.
 Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
-    typeof(_window_quantile), UnivariateDistribution, Real}
+    typeof(_window_quantile), UnivariateDistribution, Real,
+}
 
 # `_lattice_quantile` returns an `Int` lattice point via a summation
 # scan: a step function computed on AD-stripped (primal) bounds, so it
@@ -38,14 +38,16 @@ Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
 # argument is untyped in its declaration (`Convolved`/`Difference`/
 # `Product` share one method), so the registered tuple type is `Any`.
 Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
-    typeof(_lattice_quantile), Any, Real}
+    typeof(_lattice_quantile), Any, Real,
+}
 
 # `_accepts_kwargs` asks the method table whether a delay's
 # `convolve_series` declares a keyword. The answer depends only on
 # argument types, and the lookup underneath is the same reflection
 # primitive Mooncake cannot trace, so shield it too.
 Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
-    typeof(_accepts_kwargs), Any, Any, Any}
+    typeof(_accepts_kwargs), Any, Any, Any,
+}
 
 # `_resolve_closed_form(components, method)` answers, once at
 # construction, which quantities resolve to a closed form for
@@ -56,6 +58,7 @@ Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
 # `invoke_default_compiler` foreigncall, which Mooncake cannot rrule.
 # Mark it zero-derivative so construction stays off the tape.
 Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
-    typeof(_resolve_closed_form), Tuple, AbstractSolverMethod}
+    typeof(_resolve_closed_form), Tuple, AbstractSolverMethod,
+}
 
 end

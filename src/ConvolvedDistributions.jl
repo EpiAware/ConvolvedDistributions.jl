@@ -42,17 +42,17 @@ using Random: AbstractRNG
 
 # Functions extended with new methods.
 import Distributions: params, components, insupport, pdf, logpdf, cdf, logcdf,
-                      ccdf, logccdf, mean, var, std, sampler, quantile
+    ccdf, logccdf, mean, var, std, sampler, quantile
 import Base: minimum, maximum
 
 # Types, constructors, and helpers used without method extension.
 using Distributions: Distributions, UnivariateDistribution,
-                     DiscreteUnivariateDistribution, DiscreteNonParametric,
-                     Continuous, Discrete, BetaPrime, Cauchy, Chisq,
-                     Exponential, FDist, Gamma, LogNormal, Normal, Poisson,
-                     Bernoulli, Binomial, Geometric, NegativeBinomial,
-                     Uniform, Weibull, succprob, scale, shape, meanlogx,
-                     stdlogx, quantile, support, probs, partype
+    DiscreteUnivariateDistribution, DiscreteNonParametric,
+    Continuous, Discrete, BetaPrime, Cauchy, Chisq,
+    Exponential, FDist, Gamma, LogNormal, Normal, Poisson,
+    Bernoulli, Binomial, Geometric, NegativeBinomial,
+    Uniform, Weibull, succprob, scale, shape, meanlogx,
+    stdlogx, quantile, support, probs, partype
 
 using LogExpFunctions: log1mexp, logsubexp
 
@@ -66,8 +66,8 @@ using LogExpFunctions: log1mexp, logsubexp
 # (src/uniform_window.jl), so their shape-parameter derivatives carry the
 # same per-backend rules as the rest of the package.
 using EpiAwareADTools: primal, primal_distribution, pdf_ad_safe,
-                       cdf_ad_safe, ccdf_ad_safe, logcdf_ad_safe,
-                       logccdf_ad_safe, _gamma_cdf
+    cdf_ad_safe, ccdf_ad_safe, logcdf_ad_safe,
+    logccdf_ad_safe, _gamma_cdf
 
 import FastGaussQuadrature  # Gauss-Legendre nodes for the default solver
 import SpecialFunctions     # gamma() for the native analytic-pair closed forms
@@ -76,7 +76,7 @@ import SpecialFunctions     # gamma() for the native analytic-pair closed forms
 # src/docstrings.jl (all module-scope using/import live in this file,
 # kit #105).
 using DocStringExtensions: @template, DOCSTRING, EXPORTS, IMPORTS, TYPEDEF,
-                           TYPEDFIELDS, TYPEDSIGNATURES
+    TYPEDFIELDS, TYPEDSIGNATURES
 
 # Register the standard EpiAware docstring conventions before any docstrings
 # are defined (see src/docstrings.jl).
@@ -87,7 +87,7 @@ include("docstrings.jl")
 # exported, to avoid clashing with Distributions' deprecated `Product`),
 # and the quotient ratio constructor.
 export convolved, convolve_series, Difference, difference, product,
-       Ratio, ratio
+    Ratio, ratio
 
 # Solver methods for choosing the analytic-vs-numeric backend.
 export AnalyticalSolver, NumericSolver
@@ -108,21 +108,25 @@ include("Convolved.jl")
 # clamp, and before solver_dispatch.jl since the `difference_*` generics
 # there dispatch on the `Difference` type itself.
 include("Difference.jl")
-# Solver-method dispatch: the per-quantity generics `Convolved` and
-# `Difference` call into (any number of components for `Convolved`, a
-# fixed X/Y pair for `Difference`), and the native uniform-window forms
-# hosted on them. After Convolved.jl and Difference.jl, whose numeric
-# quadrature helpers and structs the `NumericSolver` arms reuse.
-include("solver_dispatch.jl")
-include("uniform_window.jl")
 # Product (Z = X * Y), the Mellin-convolution member for non-negative
-# components. Also after Convolved.jl for `_window_quantile` /
-# `_CONVOLVED_TAIL` / `_max2` / `_min2`.
+# components. After Convolved.jl for `_window_quantile` /
+# `_CONVOLVED_TAIL` / `_max2` / `_min2`, and before solver_dispatch.jl
+# since the `product_*` generics there dispatch on the `Product` type
+# itself.
 include("Product.jl")
 # Ratio (Z = X / Y), the quotient member. After Convolved.jl for
 # `_window_quantile` / `_CONVOLVED_TAIL` / `_max2` / `_min2` /
-# `_panel_integrate`.
+# `_panel_integrate`, and before solver_dispatch.jl since the `ratio_*`
+# generics there dispatch on the `Ratio` type itself.
 include("Ratio.jl")
+# Solver-method dispatch: the per-quantity generics `Convolved`,
+# `Difference`, `Product`, and `Ratio` call into (any number of
+# components for `Convolved`, a fixed X/Y pair for the other three),
+# and the native uniform-window forms hosted on them. After Convolved.jl,
+# Difference.jl, Product.jl, and Ratio.jl, whose numeric quadrature
+# helpers and structs the `NumericSolver` arms reuse.
+include("solver_dispatch.jl")
+include("uniform_window.jl")
 # The probability generating function primitive (#90): closed forms for
 # the standard count families, a truncated-series fallback for any other
 # `DiscreteUnivariateDistribution`, and the structural `Convolved` product.

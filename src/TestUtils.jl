@@ -26,11 +26,11 @@ using Test: Test, @test, @testset
 using Random: Random
 
 using Distributions: Distributions, Discrete, cdf, insupport, logcdf, logpdf,
-                     params, pdf
+    params, pdf
 
 using ..ConvolvedDistributions: AbstractConvolvedDistribution, Convolved,
-                                Difference, Product, Ratio, _maybe_analytic,
-                                is_exact
+    Difference, Product, Ratio, _maybe_analytic,
+    is_exact
 
 @doc "
 
@@ -45,7 +45,8 @@ non-empty `show`. Use for [`Convolved`](@ref), [`Difference`](@ref),
 Returns the `@testset` object.
 "
 function test_convolved_interface(
-        d; name::AbstractString = string(nameof(typeof(d))), x::Real = 1.0)
+        d; name::AbstractString = string(nameof(typeof(d))), x::Real = 1.0
+    )
     return @testset "convolved interface: $name" begin
         @test d isa AbstractConvolvedDistribution
         @test params(d) isa Tuple
@@ -78,7 +79,8 @@ for that case — use [`test_discrete_pmf`](@ref) instead. Returns the
   combination.
 "
 function test_analytic_skips_quadrature(
-        d; name::AbstractString = string(nameof(typeof(d))), x::Real = 1.0)
+        d; name::AbstractString = string(nameof(typeof(d))), x::Real = 1.0
+    )
     return @testset "analytic path skips quadrature: $name" begin
         analytic = _maybe_analytic(d)
         if analytic !== nothing
@@ -115,9 +117,11 @@ the sum-to-one check to be meaningful (the full support for a bounded
 combination, a wide enough range for an unbounded one). Returns the
 `@testset` object.
 "
-function test_discrete_pmf(d; support::AbstractVector{<:Integer},
+function test_discrete_pmf(
+        d; support::AbstractVector{<:Integer},
         name::AbstractString = string(nameof(typeof(d))),
-        atol::Real = 1e-8)
+        atol::Real = 1.0e-8
+    )
     return @testset "discrete pmf: $name" begin
         @test Distributions.value_support(typeof(d)) === Discrete
 

@@ -20,7 +20,7 @@ const HEAVY_TUTORIALS = [
     "difference-distributions.jl",
     "product-distributions.jl",
     "timeseries-convolution.jl",
-    "ad-backends.jl"
+    "ad-backends.jl",
 ]
 
 # Where the tutorial `.jl` sources and rendered `.md` pages live, relative to
@@ -36,7 +36,7 @@ const TUTORIAL_STUBS = [
     "difference-distributions.md" => "# [The difference of two delays](@id difference-distributions)",
     "product-distributions.md" => "# [The product of two delays](@id product-distributions)",
     "timeseries-convolution.md" => "# [Convolving a timeseries](@id timeseries-convolution)",
-    "ad-backends.md" => "# [Automatic differentiation backends](@id ad-backends)"
+    "ad-backends.md" => "# [Automatic differentiation backends](@id ad-backends)",
 ]
 
 # Heavy tutorials that always render from their `TUTORIAL_STUBS` heading and
@@ -52,7 +52,7 @@ const FORCE_STUB_TUTORIALS = String[]
 # - The stable docs URL 404s until the first tagged release deploys; drop
 #   the ignore after that.
 const LINKCHECK_IGNORE = [
-    r"convolveddistributions\.epiaware\.org/stable"
+    r"convolveddistributions\.epiaware\.org/stable",
 ]
 
 # README -> index.md link rewrites: `from => to` pairs applied line by line,
@@ -96,37 +96,44 @@ const BENCHMARK_PAGE = true
 import Documenter
 import DocumenterVitepress
 
-function DocumenterVitepress.render(io::IO, mime::MIME"text/plain",
+function DocumenterVitepress.render(
+        io::IO, mime::MIME"text/plain",
         node::Documenter.MarkdownAST.Node, header::Documenter.AnchoredHeader,
-        page, doc; kwargs...)
+        page, doc; kwargs...
+    )
     anchor = header.anchor
-    id = replace(DocumenterVitepress.sanitized_anchor_label(anchor),
-        " " => "-")
+    id = replace(
+        DocumenterVitepress.sanitized_anchor_label(anchor),
+        " " => "-"
+    )
     heading = first(node.children)
     println(io)
     print(io, "#"^(heading.element.level), " ")
     heading_iob = IOBuffer()
-    DocumenterVitepress.render(heading_iob, mime, node, heading.children,
-        page, doc; kwargs...)
+    DocumenterVitepress.render(
+        heading_iob, mime, node, heading.children,
+        page, doc; kwargs...
+    )
     heading_text = rstrip(String(take!(heading_iob)))
     print(io, heading_text)
     print(io, " {#$(id)}")
     if haskey(kwargs, :inventory)
         if isempty(anchor.id)
-            @warn "Skipping inventory entry: anchored header has an empty "*
-            "anchor id" page=page.source heading=heading_text
+            @warn "Skipping inventory entry: anchored header has an empty " *
+                "anchor id" page = page.source heading = heading_text
         else
             item = DocumenterVitepress.InventoryItem(
                 name = anchor.id,
                 domain = "std",
                 role = "label",
                 dispname = DocumenterVitepress._get_inventory_dispname(
-                    anchor.id, Documenter.MDFlatten.mdflatten(anchor.node)),
+                    anchor.id, Documenter.MDFlatten.mdflatten(anchor.node)
+                ),
                 priority = -1,
                 uri = DocumenterVitepress._get_inventory_uri(doc, page, id)
             )
             push!(kwargs[:inventory], item)
         end
     end
-    println(io)
+    return println(io)
 end

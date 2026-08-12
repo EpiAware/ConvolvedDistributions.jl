@@ -13,6 +13,12 @@ const QA_CONFIG = (
     # Path to the isolated JET environment (see test/jet/Project.toml).
     jet_env = joinpath(@__DIR__, "..", "jet"),
 
+    # Path to the isolated formatter environment (see
+    # test/formatter/Project.toml). Runs the formatting check in a subprocess
+    # pinned to the exact Runic version, rather than whatever version the
+    # shared test environment resolves on the CI Julia in use.
+    formatter_env = joinpath(@__DIR__, "..", "formatter"),
+
     # Per-check Aqua relaxations, e.g. (; ambiguities = false). Empty = all on.
     aqua = (;),
 
@@ -32,12 +38,12 @@ const QA_CONFIG = (
     # Extra docstring-format options, e.g.
     # (; exported_only_examples = true, require_field_docs = true).
     # `require_arg_sections`/`require_examples` off: the solver-method
-    # dispatch family (#77, #80, src/solver_dispatch.jl) is eight public
-    # functions sharing the same self-evident argument names
-    # (`d`/`components`/`x`/`p`/`method`) and one worked example on
-    # `convolved_cdf`, per the S7 prose-budget rule that a name
-    # already saying what it is does not also need an `# Arguments`
-    # section repeated on every sibling.
+    # dispatch family (src/solver_dispatch.jl) is many public functions,
+    # one per quantity per combination type, sharing the same
+    # self-evident argument names (`d`/`components`/`x`/`p`/`method`) and
+    # one worked example on `convolved_cdf`, per the S7 prose-budget rule
+    # that a name already saying what it is does not also need an
+    # `# Arguments` section repeated on every sibling.
     docstring = (; require_arg_sections = false, require_examples = false),
 
     # README section-structure check. `path` is the package root (its
@@ -57,11 +63,15 @@ const QA_CONFIG = (
     # Enzyme/Mooncake/ReverseDiff extensions are exercised by the dedicated
     # AD harness (test/ad), which proves gradient correctness directly.
     extensions = (
-        (; name = :ConvolvedDistributionsIntegralsExt,
+        (;
+            name = :ConvolvedDistributionsIntegralsExt,
             triggers = ("Integrals",),
-            prefixes = ("ConvolvedDistributions", "Integrals")),
-        (; name = :ConvolvedDistributionsOptimizationExt,
+            prefixes = ("ConvolvedDistributions", "Integrals"),
+        ),
+        (;
+            name = :ConvolvedDistributionsOptimizationExt,
             triggers = ("Optimization", "OptimizationOptimJL"),
-            prefixes = ("ConvolvedDistributions",))
-    )
+            prefixes = ("ConvolvedDistributions",),
+        ),
+    ),
 )

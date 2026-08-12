@@ -88,9 +88,11 @@ the closed form\", not \"run Gauss-Legendre\".
 - [`Convolved`](@ref): The sum ``X + Y``
 - [`Difference`](@ref): The signed gap ``X - Y``
 "
-struct Product{X <: UnivariateDistribution, Y <: UnivariateDistribution,
-    M <: AbstractSolverMethod, S <: Distributions.ValueSupport} <:
-       AbstractConvolvedDistribution{Distributions.Univariate, S}
+struct Product{
+        X <: UnivariateDistribution, Y <: UnivariateDistribution,
+        M <: AbstractSolverMethod, S <: Distributions.ValueSupport,
+    } <:
+    AbstractConvolvedDistribution{Distributions.Univariate, S}
     "The multiplicand component (the `X` in `Z = X * Y`)."
     x::X
     "The multiplier component (the `Y` in `Z = X * Y`)."
@@ -98,17 +100,23 @@ struct Product{X <: UnivariateDistribution, Y <: UnivariateDistribution,
     "Solver method choosing the analytic vs numeric quadrature backend."
     method::M
 
-    function Product(x::X, y::Y;
-            method::AbstractSolverMethod = AnalyticalSolver()) where {
-            X <: UnivariateDistribution, Y <: UnivariateDistribution}
+    function Product(
+            x::X, y::Y;
+            method::AbstractSolverMethod = AnalyticalSolver()
+        ) where {
+            X <: UnivariateDistribution, Y <: UnivariateDistribution,
+        }
         (minimum(x) >= 0 && minimum(y) >= 0) ||
-            throw(ArgumentError(
+            throw(
+            ArgumentError(
                 "product requires components with non-negative support " *
-                "(minimum(d) >= 0 for both); sign-crossing supports are " *
-                "future work"))
+                    "(minimum(d) >= 0 for both); sign-crossing supports are " *
+                    "future work"
+            )
+        )
         _check_mixed_atom_at_zero(x, y)
         S = _components_support((x, y))
-        new{X, Y, typeof(method), S}(x, y, method)
+        return new{X, Y, typeof(method), S}(x, y, method)
     end
 end
 
@@ -125,19 +133,24 @@ end
 # mirroring `_lattice_range`): the atom-or-not answer is a structural
 # property of the discrete component's parameters, not a differentiated
 # quantity, so it must resolve identically under every AD backend.
-function _check_mixed_atom_at_zero(x::UnivariateDistribution,
-        y::UnivariateDistribution)
+function _check_mixed_atom_at_zero(
+        x::UnivariateDistribution,
+        y::UnivariateDistribution
+    )
     slot = _mixed_slot(_component_support(typeof(x)), _component_support(typeof(y)))
     discrete_comp = _mixed_discrete_component(slot, x, y)
     discrete_comp === nothing && return nothing
     mass_at_zero = Float64(primal(pdf_ad_safe(discrete_comp, 0)))
     mass_at_zero > 0 &&
-        throw(ArgumentError(
+        throw(
+        ArgumentError(
             "product(...) of a discrete component ($(nameof(typeof(discrete_comp)))) " *
-            "with mass at 0 and a continuous component puts an atom at " *
-            "0 in the product -- a mixed measure `pdf` cannot represent. " *
-            "Exclude the mass at 0 from the discrete component (e.g. a " *
-            "shifted or truncated distribution) to use `product`"))
+                "with mass at 0 and a continuous component puts an atom at " *
+                "0 in the product -- a mixed measure `pdf` cannot represent. " *
+                "Exclude the mass at 0 from the discrete component (e.g. a " *
+                "shifted or truncated distribution) to use `product`"
+        )
+    )
     return nothing
 end
 
@@ -146,7 +159,8 @@ end
 # `src/interface.jl`). Used to dispatch to the exact divisor fold.
 const _DiscreteProduct = Product{
     <:UnivariateDistribution, <:UnivariateDistribution,
-    <:AbstractSolverMethod, Discrete}
+    <:AbstractSolverMethod, Discrete,
+}
 
 # Continuous-typed alias (#115): matches every `Product` with no closed
 # form, both the genuinely mixed pairs (one integer-lattice discrete
@@ -158,14 +172,17 @@ const _DiscreteProduct = Product{
 # path.
 const _MixedableProduct = Product{
     <:UnivariateDistribution, <:UnivariateDistribution,
-    <:AbstractSolverMethod, Continuous}
+    <:AbstractSolverMethod, Continuous,
+}
 
 # `_has_mixed_fold` (interface.jl): true exactly when one of `x`/`y` is
 # integer-lattice discrete and the other is not. `Product` always has
 # exactly two components, so no arity guard is needed.
 function _has_mixed_fold(d::Product)
-    return _mixed_slot(_component_support(typeof(d.x)),
-        _component_support(typeof(d.y))) !== nothing
+    return _mixed_slot(
+        _component_support(typeof(d.x)),
+        _component_support(typeof(d.y))
+    ) !== nothing
 end
 
 @doc "
@@ -216,8 +233,10 @@ mean(d)
 - [`difference`](@ref): The signed gap ``X - Y``
 - [`evaluation_path`](@ref): Check the route without asserting it.
 "
-function product(x::UnivariateDistribution, y::UnivariateDistribution;
-        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
+function product(
+        x::UnivariateDistribution, y::UnivariateDistribution;
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
+    )
     return _check_strict(Product(x, y; method = method), strict)
 end
 
@@ -387,19 +406,10 @@ std(d::Product) = sqrt(var(d))
 # Analytical fast path for LogNormal * LogNormal
 # ---------------------------------------------------------------------------
 
-# `_try_product` returns the analytic product distribution when a closed
-# form exists, otherwise `nothing`. Dispatch (rather than `try`/`catch`)
-# selects the analytic pair so the path stays differentiable under every
-# AD backend. Only LogNormal * LogNormal is enabled: on the log scale the
-# product is a sum of two independent normals, so the log-parameters add
-# and the log-variances sum.
-_try_product(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
-
-function _try_product(x::LogNormal, y::LogNormal)
-    μx, σx = params(x)
-    μy, σy = params(y)
-    return LogNormal(μx + μy, sqrt(σx^2 + σy^2))
-end
+# `_try_product` (solver_dispatch.jl) is the analytic-pair hook: only
+# LogNormal * LogNormal is enabled, since on the log scale the product
+# is a sum of two independent normals, so the log-parameters add and the
+# log-variances sum.
 
 # The analytic product to use for `d`, or `nothing` when none exists or
 # when `d.method` is a `NumericSolver` requesting the numeric path.
@@ -476,7 +486,7 @@ function _product_mass_window(d::Product)
     ymax = maximum(d.y)
     lo = ymin > 0 ? float(ymin) : _window_quantile(d.y, _CONVOLVED_TAIL)
     hi = isfinite(ymax) ? float(ymax) :
-         _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
+        _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
     return lo, hi
 end
 
@@ -517,7 +527,7 @@ function _product_cdf_window(d::Product, z::Real)
     ymax = maximum(d.y)
     upper_exact = _min2(ymax, z / minimum(d.x))
     upper = isfinite(upper_exact) ? upper_exact :
-            _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
+        _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
     lower = _max2(ymin, z / maximum(d.x))
     return lower, upper
 end
@@ -534,9 +544,11 @@ function _product_numeric_pdf(d::Product, z::Real)
     lower, upper = _product_pdf_window(d, z)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = _solver_integrate(d,
+    result = _solver_integrate(
+        d,
         y -> pdf_ad_safe(d.x, z / y) * pdf_ad_safe(d.y, y) / y,
-        lower, upper, d.y)
+        lower, upper, d.y
+    )
     return max(result, zero(result))
 end
 
@@ -559,9 +571,11 @@ function _product_numeric_cdf(d::Product, z::Real)
     upper <= lower && return clamp(base, zero(base), one(base))
 
     result = base -
-             _solver_integrate(d,
+        _solver_integrate(
+        d,
         y -> ccdf_ad_safe(d.x, z / y) * pdf_ad_safe(d.y, y),
-        lower, upper, d.y)
+        lower, upper, d.y
+    )
     return clamp(result, zero(result), one(result))
 end
 
@@ -661,7 +675,8 @@ function _product_mixed_pdf(::Val{1}, d::Product, z::Real)
     t0, t1 = _mixed_positive_window(D)
     t1 < t0 && return zero(float(typeof(z)))
     return _lattice_sum(
-        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, z / k) / k, t0, t1)
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, z / k) / k, t0, t1
+    )
 end
 function _product_mixed_pdf(::Val{2}, d::Product, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
@@ -670,7 +685,8 @@ function _product_mixed_pdf(::Val{2}, d::Product, z::Real)
     t0, t1 = _mixed_positive_window(D)
     t1 < t0 && return zero(float(typeof(z)))
     return _lattice_sum(
-        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z / k) / k, t0, t1)
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z / k) / k, t0, t1
+    )
 end
 _product_mixed_pdf(::Nothing, d::Product, z::Real) = _product_numeric_pdf(d, z)
 
@@ -682,7 +698,8 @@ function _product_mixed_cdf(::Val{1}, d::Product, z::Real)
     t0, t1 = _mixed_positive_window(D)
     t1 < t0 && return zero(float(typeof(z)))
     result = _lattice_sum(
-        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.y, z / k), t0, t1)
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.y, z / k), t0, t1
+    )
     return clamp(result, zero(result), one(result))
 end
 function _product_mixed_cdf(::Val{2}, d::Product, z::Real)
@@ -693,7 +710,8 @@ function _product_mixed_cdf(::Val{2}, d::Product, z::Real)
     t0, t1 = _mixed_positive_window(D)
     t1 < t0 && return zero(float(typeof(z)))
     result = _lattice_sum(
-        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.x, z / k), t0, t1)
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.x, z / k), t0, t1
+    )
     return clamp(result, zero(result), one(result))
 end
 _product_mixed_cdf(::Nothing, d::Product, z::Real) = _product_numeric_cdf(d, z)
@@ -711,13 +729,19 @@ _product_cdf_route(d::_DiscreteProduct, z::Real) = _product_lattice_cdf(d, z)
 # above, so it wins for any `Continuous`-typed pair.
 function _product_pdf_route(d::_MixedableProduct, z::Real)
     return _product_mixed_pdf(
-        _mixed_slot(_component_support(typeof(d.x)),
-            _component_support(typeof(d.y))), d, z)
+        _mixed_slot(
+            _component_support(typeof(d.x)),
+            _component_support(typeof(d.y))
+        ), d, z
+    )
 end
 function _product_cdf_route(d::_MixedableProduct, z::Real)
     return _product_mixed_cdf(
-        _mixed_slot(_component_support(typeof(d.x)),
-            _component_support(typeof(d.y))), d, z)
+        _mixed_slot(
+            _component_support(typeof(d.x)),
+            _component_support(typeof(d.y))
+        ), d, z
+    )
 end
 
 # ---------------------------------------------------------------------------
@@ -737,11 +761,7 @@ accurate when `Y`'s density diverges at zero (shape below one).
 See also: [`logcdf`](@ref)
 "
 function cdf(d::Product, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return cdf(analytic, z)
-    end
-    return _product_cdf_route(d, z)
+    return product_cdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
@@ -751,26 +771,15 @@ Compute the log cumulative distribution function.
 See also: [`cdf`](@ref)
 "
 function logcdf(d::Product, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return logcdf(analytic, z)
-    end
-    c = _product_cdf_route(d, z)
-    return c <= 0 ? oftype(float(c), -Inf) : log(c)
+    return product_logcdf(d, (d.x, d.y), z, d.method)
 end
 
 function ccdf(d::Product, z::Real)
-    return 1 - cdf(d, z)
+    return product_ccdf(d, (d.x, d.y), z, d.method)
 end
 
 function logccdf(d::Product, z::Real)
-    logcdf_val = logcdf(d, z)
-    if logcdf_val == -Inf
-        return zero(logcdf_val)
-    elseif logcdf_val >= 0
-        return oftype(logcdf_val, -Inf)
-    end
-    return log1mexp(logcdf_val)
+    return product_logccdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
@@ -784,11 +793,7 @@ applies, otherwise the AD-safe numeric Mellin convolution
 See also: [`logpdf`](@ref)
 "
 function pdf(d::Product, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return pdf(analytic, z)
-    end
-    return _product_pdf_route(d, z)
+    return product_pdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "
@@ -798,15 +803,7 @@ Compute the log probability density function.
 See also: [`pdf`](@ref), [`logcdf`](@ref)
 "
 function logpdf(d::Product, z::Real)
-    analytic = _maybe_analytic(d)
-    if analytic !== nothing
-        return logpdf(analytic, z)
-    end
-    if !insupport(d, z)
-        return oftype(float(z), -Inf)
-    end
-    p = _product_pdf_route(d, z)
-    return p <= 0 ? oftype(float(z), -Inf) : log(p)
+    return product_logpdf(d, (d.x, d.y), z, d.method)
 end
 
 @doc "

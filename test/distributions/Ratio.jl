@@ -64,11 +64,11 @@ end
     ref = Cauchy(0.0, 4.0)
 
     for z in (-10.0, -1.0, 0.0, 1.0, 5.0)
-        @test cdf(d, z) ≈ cdf(ref, z) atol=1e-10
-        @test pdf(d, z) ≈ pdf(ref, z) atol=1e-10
-        @test logpdf(d, z) ≈ logpdf(ref, z) atol=1e-8
-        @test logcdf(d, z) ≈ logcdf(ref, z) atol=1e-8
-        @test ccdf(d, z) ≈ ccdf(ref, z) atol=1e-10
+        @test cdf(d, z) ≈ cdf(ref, z) atol = 1.0e-10
+        @test pdf(d, z) ≈ pdf(ref, z) atol = 1.0e-10
+        @test logpdf(d, z) ≈ logpdf(ref, z) atol = 1.0e-8
+        @test logcdf(d, z) ≈ logcdf(ref, z) atol = 1.0e-8
+        @test ccdf(d, z) ≈ ccdf(ref, z) atol = 1.0e-10
     end
 end
 
@@ -81,11 +81,11 @@ end
     ref = 3.0 * BetaPrime(2.0, 3.0)
 
     for z in (0.1, 1.0, 5.0, 10.0)
-        @test cdf(d, z) ≈ cdf(ref, z) atol=1e-10
-        @test pdf(d, z) ≈ pdf(ref, z) atol=1e-10
-        @test logpdf(d, z) ≈ logpdf(ref, z) atol=1e-8
-        @test logcdf(d, z) ≈ logcdf(ref, z) atol=1e-8
-        @test ccdf(d, z) ≈ ccdf(ref, z) atol=1e-10
+        @test cdf(d, z) ≈ cdf(ref, z) atol = 1.0e-10
+        @test pdf(d, z) ≈ pdf(ref, z) atol = 1.0e-10
+        @test logpdf(d, z) ≈ logpdf(ref, z) atol = 1.0e-8
+        @test logcdf(d, z) ≈ logcdf(ref, z) atol = 1.0e-8
+        @test ccdf(d, z) ≈ ccdf(ref, z) atol = 1.0e-10
     end
 end
 
@@ -98,11 +98,11 @@ end
     ref = (4 / 6) * FDist(4, 6)
 
     for z in (0.1, 1.0, 3.0, 8.0)
-        @test cdf(d, z) ≈ cdf(ref, z) atol=1e-10
-        @test pdf(d, z) ≈ pdf(ref, z) atol=1e-10
-        @test logpdf(d, z) ≈ logpdf(ref, z) atol=1e-8
-        @test logcdf(d, z) ≈ logcdf(ref, z) atol=1e-8
-        @test ccdf(d, z) ≈ ccdf(ref, z) atol=1e-10
+        @test cdf(d, z) ≈ cdf(ref, z) atol = 1.0e-10
+        @test pdf(d, z) ≈ pdf(ref, z) atol = 1.0e-10
+        @test logpdf(d, z) ≈ logpdf(ref, z) atol = 1.0e-8
+        @test logcdf(d, z) ≈ logcdf(ref, z) atol = 1.0e-8
+        @test ccdf(d, z) ≈ ccdf(ref, z) atol = 1.0e-10
     end
 end
 
@@ -125,11 +125,11 @@ end
     samples = [rand(rng, x) / rand(rng, y) for _ in 1:n]
 
     for z in (0.5, 1.0, 3.0, 10.0)
-        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+        @test cdf(d, z) ≈ mean(samples .<= z) atol = 5.0e-3
     end
 
     @test pdf(d, 2.0) > 0
-    @test logpdf(d, 2.0) ≈ log(pdf(d, 2.0)) atol=1e-8
+    @test logpdf(d, 2.0) ≈ log(pdf(d, 2.0)) atol = 1.0e-8
 end
 
 @testitem "Ratio NumericSolver reproduces the Gamma/Gamma closed form" begin
@@ -142,8 +142,8 @@ end
 
     @test ConvolvedDistributions._maybe_analytic(dn) === nothing
     for z in (0.5, 1.0, 3.0, 8.0)
-        @test cdf(dn, z) ≈ cdf(ref, z) atol=1e-6
-        @test pdf(dn, z) ≈ pdf(ref, z) atol=1e-6
+        @test cdf(dn, z) ≈ cdf(ref, z) atol = 1.0e-6
+        @test pdf(dn, z) ≈ pdf(ref, z) atol = 1.0e-6
     end
 end
 
@@ -152,7 +152,7 @@ end
 
     dn = ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
     grid = collect(0.01:0.02:40.0)
-    @test sum(pdf(dn, z) for z in grid) * 0.02 ≈ 1.0 atol=5e-3
+    @test sum(pdf(dn, z) for z in grid) * 0.02 ≈ 1.0 atol = 5.0e-3
 end
 
 @testitem "Ratio cdf is monotone and in [0, 1]" begin
@@ -162,11 +162,11 @@ end
     zs = collect(0.0:0.5:40.0)
     cs = [cdf(dn, z) for z in zs]
     @test all(0.0 .<= cs .<= 1.0)
-    @test all(diff(cs) .>= -1e-10)
+    @test all(diff(cs) .>= -1.0e-10)
 
     @test cdf(dn, 0.0) == 0.0
     @test cdf(dn, -1.0) == 0.0
-    @test cdf(dn, 1e4) ≈ 1.0 atol=1e-6
+    @test cdf(dn, 1.0e4) ≈ 1.0 atol = 1.0e-6
 end
 
 @testitem "Ratio logpdf outside support is -Inf" begin
@@ -192,14 +192,14 @@ end
 
     da = ratio(Normal(0.0, 2.0), Normal(0.0, 0.5))
     refa = Cauchy(0.0, 4.0)
-    @test logcdf(da, 2.0) ≈ logcdf(refa, 2.0) atol=1e-10
-    @test ccdf(da, 2.0) ≈ ccdf(refa, 2.0) atol=1e-10
-    @test logccdf(da, 2.0) ≈ logccdf(refa, 2.0) atol=1e-8
+    @test logcdf(da, 2.0) ≈ logcdf(refa, 2.0) atol = 1.0e-10
+    @test ccdf(da, 2.0) ≈ ccdf(refa, 2.0) atol = 1.0e-10
+    @test logccdf(da, 2.0) ≈ logccdf(refa, 2.0) atol = 1.0e-8
 
     dn = ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
-    @test logcdf(dn, 3.0) ≈ log(cdf(dn, 3.0)) atol=1e-10
-    @test ccdf(dn, 3.0) ≈ 1 - cdf(dn, 3.0) atol=1e-10
-    @test logccdf(dn, 3.0) ≈ log1p(-cdf(dn, 3.0)) atol=1e-6
+    @test logcdf(dn, 3.0) ≈ log(cdf(dn, 3.0)) atol = 1.0e-10
+    @test ccdf(dn, 3.0) ≈ 1 - cdf(dn, 3.0) atol = 1.0e-10
+    @test logccdf(dn, 3.0) ≈ log1p(-cdf(dn, 3.0)) atol = 1.0e-6
 
     db = ratio(Uniform(1.0, 2.0), Uniform(3.0, 4.0))
     @test logccdf(db, 0.2) == 0.0
@@ -226,8 +226,8 @@ end
     d = ratio(Normal(0.0, 2.0), Normal(0.0, 0.5); method = NumericSolver())
     ref = Cauchy(0.0, 4.0)
     for z in (-20.0, -5.0, -1.0, 0.0, 1.0, 5.0, 20.0)
-        @test cdf(d, z) ≈ cdf(ref, z) atol=1e-6
-        @test pdf(d, z) ≈ pdf(ref, z) atol=1e-6
+        @test cdf(d, z) ≈ cdf(ref, z) atol = 1.0e-6
+        @test pdf(d, z) ≈ pdf(ref, z) atol = 1.0e-6
     end
 end
 
@@ -242,7 +242,7 @@ end
     n = 400_000
     samples = [rand(rng, x) / rand(rng, y) for _ in 1:n]
     for z in (0.5, 1.0, 3.0, 10.0)
-        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+        @test cdf(d, z) ≈ mean(samples .<= z) atol = 5.0e-3
     end
 end
 
@@ -256,7 +256,7 @@ end
         d = ratio(x, y)
         samples = [rand(rng, x) / rand(rng, y) for _ in 1:400_000]
         for z in (-2.0, 0.5, 2.0, 5.0)
-            @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+            @test cdf(d, z) ≈ mean(samples .<= z) atol = 5.0e-3
         end
     end
 end
@@ -266,8 +266,8 @@ end
 
     d = ratio(Gamma(2.0, 1.0), Gamma(3.0, 1.0); method = NumericSolver())
     ref = BetaPrime(2.0, 3.0)
-    for z in (1e-3, 1e-2, 1e2, 1e3)
-        @test cdf(d, z) ≈ cdf(ref, z) atol=1e-6
+    for z in (1.0e-3, 1.0e-2, 1.0e2, 1.0e3)
+        @test cdf(d, z) ≈ cdf(ref, z) atol = 1.0e-6
     end
 end
 
@@ -277,7 +277,8 @@ end
     @test_throws ArgumentError ratio(Normal(0.0, 1.0), Poisson(2.0))
     @test_throws ArgumentError ratio(Normal(0.0, 1.0), Dirac(0.0))
     @test_throws ArgumentError ratio(
-        Normal(0.0, 1.0), DiscreteUniform(-1, 1))
+        Normal(0.0, 1.0), DiscreteUniform(-1, 1)
+    )
     err = try
         ratio(Normal(0.0, 1.0), Poisson(2.0))
     catch e
@@ -326,13 +327,15 @@ end
     # A bounded-away-from-zero denominator also nests, as a narrower
     # instance of the same non-negative regime.
     ok2 = convolved(
-        Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), Uniform(1.0, 2.0)))
+        Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), Uniform(1.0, 2.0))
+    )
     @test isfinite(cdf(ok2, 2.0))
 
     # The workhorse numeric (non-analytic) pair nests too: the guard is
     # about sign, not about whether an analytic pair applies.
     ok3 = convolved(
-        Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), LogNormal(0.0, 1.0)))
+        Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), LogNormal(0.0, 1.0))
+    )
     @test isfinite(cdf(ok3, 2.0))
 
     # `_window_quantile(::Ratio, p)` is only reached when the Ratio is
@@ -342,7 +345,8 @@ end
     # sign-crossing Ratio in that position has no cheap effective-support
     # bound and throws, naming its components.
     bad = convolved(
-        Normal(0.0, 1.0), ratio(Normal(0.0, 1.0), Normal(0.0, 1.0)))
+        Normal(0.0, 1.0), ratio(Normal(0.0, 1.0), Normal(0.0, 1.0))
+    )
     err = try
         cdf(bad, 2.0)
     catch e
@@ -355,7 +359,8 @@ end
     # numerator: `Y` must be confined to `[0, Inf)`, not just avoid an
     # atom at zero.
     bad2 = convolved(
-        Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), Uniform(-1.0, 2.0)))
+        Normal(0.0, 1.0), ratio(Gamma(2.0, 1.0), Uniform(-1.0, 2.0))
+    )
     err2 = try
         cdf(bad2, 2.0)
     catch e

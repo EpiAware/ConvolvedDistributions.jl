@@ -10,49 +10,51 @@
 
     # Analytic pairs.
     @test evaluation_path(convolved(Normal(1.0, 2.0), Normal(-0.5, 1.5))) ===
-          :analytic
+        :analytic
     @test evaluation_path(convolved(Exponential(2.0), Exponential(2.0))) ===
-          :analytic
+        :analytic
     @test evaluation_path(convolved(Gamma(2.0, 1.5), Gamma(3.0, 1.5))) ===
-          :analytic
+        :analytic
     @test evaluation_path(difference(Normal(5.0, 1.0), Normal(2.0, 1.0))) ===
-          :analytic
+        :analytic
     @test evaluation_path(product(LogNormal(0.5, 0.4), LogNormal(1.0, 0.3))) ===
-          :analytic
+        :analytic
     @test evaluation_path(ratio(Normal(0.0, 1.0), Normal(0.0, 1.0))) ===
-          :analytic
+        :analytic
     @test evaluation_path(ratio(Gamma(2.0, 1.5), Gamma(3.0, 0.5))) === :analytic
     @test evaluation_path(ratio(Chisq(4), Chisq(6))) === :analytic
     @test has_closed_form(convolved(Normal(1.0, 2.0), Normal(-0.5, 1.5)))
 
     # No matching closed form.
     @test evaluation_path(convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))) ===
-          :numeric
+        :numeric
     @test evaluation_path(difference(Gamma(3.0, 1.0), Gamma(2.0, 1.0))) ===
-          :numeric
+        :numeric
     @test evaluation_path(product(Gamma(2.0, 1.0), Weibull(1.5, 1.0))) ===
-          :numeric
+        :numeric
     @test evaluation_path(ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))) ===
-          :numeric
+        :numeric
     @test evaluation_path(ratio(Normal(1.0, 2.0), Normal(0.0, 0.5))) ===
-          :numeric
+        :numeric
     @test !has_closed_form(convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
 
     # An analytic pair mismatched on parameters (unequal-scale Gamma,
     # unequal-rate Exponential) falls through the same way a genuinely
     # non-analytic family pair does.
     @test evaluation_path(convolved(Gamma(2.0, 1.0), Gamma(3.0, 2.0))) ===
-          :numeric
+        :numeric
     @test evaluation_path(convolved(Exponential(2.0), Exponential(3.0))) ===
-          :numeric
+        :numeric
 
     # Forcing NumericSolver on an otherwise-analytic pair reports :numeric.
     forced_numeric = convolved(
-        Normal(0.0, 1.0), Normal(1.0, 2.0); method = NumericSolver())
+        Normal(0.0, 1.0), Normal(1.0, 2.0); method = NumericSolver()
+    )
     @test evaluation_path(forced_numeric) === :numeric
     @test evaluation_path(
-        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0); method = NumericSolver())) ===
-          :numeric
+        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0); method = NumericSolver())
+    ) ===
+        :numeric
 end
 
 @testitem "evaluation_path recurses through nested combinations" begin
@@ -68,14 +70,17 @@ end
     # match), which is exactly the point: nesting anything non-leaf forces
     # the outer numeric, whether or not the inner itself is analytic.
     @test evaluation_path(convolved(numeric_inner, Normal(0.0, 1.0))) ===
-          :numeric
+        :numeric
     @test evaluation_path(convolved(analytic_inner, Normal(0.0, 1.0))) ===
-          :numeric
+        :numeric
     @test evaluation_path(difference(numeric_inner, Gamma(1.0, 1.0))) ===
-          :numeric
+        :numeric
     @test evaluation_path(
-        product(convolved(Gamma(2.0, 1.0), Exponential(1.0)),
-        Weibull(1.5, 1.0))) === :numeric
+        product(
+            convolved(Gamma(2.0, 1.0), Exponential(1.0)),
+            Weibull(1.5, 1.0)
+        )
+    ) === :numeric
     @test evaluation_path(ratio(numeric_inner, Gamma(1.0, 1.0))) === :numeric
     @test evaluation_path(ratio(analytic_inner, Gamma(1.0, 1.0))) === :numeric
 end
@@ -86,39 +91,48 @@ end
 
     # Analytic pairs succeed under strict = true.
     @test evaluation_path(
-        convolved(Normal(1.0, 1.0), Normal(2.0, 1.0); strict = true)) ===
-          :analytic
+        convolved(Normal(1.0, 1.0), Normal(2.0, 1.0); strict = true)
+    ) ===
+        :analytic
     @test evaluation_path(
-        difference(Normal(1.0, 1.0), Normal(0.0, 1.0); strict = true)) ===
-          :analytic
+        difference(Normal(1.0, 1.0), Normal(0.0, 1.0); strict = true)
+    ) ===
+        :analytic
     @test evaluation_path(
-        product(LogNormal(0.0, 0.3), LogNormal(0.2, 0.5); strict = true)) ===
-          :analytic
+        product(LogNormal(0.0, 0.3), LogNormal(0.2, 0.5); strict = true)
+    ) ===
+        :analytic
     @test evaluation_path(
-        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0); strict = true)) === :analytic
+        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0); strict = true)
+    ) === :analytic
 
     # No closed form: errors, naming the families.
     err = @test_throws ArgumentError convolved(
-        Gamma(2.0, 1.0), LogNormal(0.5, 0.4); strict = true)
+        Gamma(2.0, 1.0), LogNormal(0.5, 0.4); strict = true
+    )
     @test occursin("Gamma", err.value.msg)
     @test occursin("LogNormal", err.value.msg)
 
     @test_throws ArgumentError difference(
-        Gamma(3.0, 1.0), Gamma(2.0, 1.0); strict = true)
+        Gamma(3.0, 1.0), Gamma(2.0, 1.0); strict = true
+    )
     @test_throws ArgumentError product(
-        Gamma(2.0, 1.0), Weibull(1.5, 1.0); strict = true)
+        Gamma(2.0, 1.0), Weibull(1.5, 1.0); strict = true
+    )
     @test_throws ArgumentError ratio(
-        Gamma(3.0, 1.0), LogNormal(0.5, 0.4); strict = true)
+        Gamma(3.0, 1.0), LogNormal(0.5, 0.4); strict = true
+    )
 
     # An explicit NumericSolver breaks the strict = true guarantee just as
     # much as a mismatched family pair does.
     @test_throws ArgumentError convolved(
         Normal(0.0, 1.0), Normal(1.0, 2.0);
-        method = NumericSolver(), strict = true)
+        method = NumericSolver(), strict = true
+    )
 
     # strict = false (the default) never errors for this reason.
     @test convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)) isa
-          ConvolvedDistributions.Convolved
+        ConvolvedDistributions.Convolved
 end
 
 @testitem "non-default solver payloads are accepted for the numeric path" begin
@@ -141,21 +155,28 @@ end
     using Distributions
 
     test_analytic_skips_quadrature(
-        convolved(Normal(1.0, 2.0), Normal(-0.5, 1.5)); x = 1.0)
+        convolved(Normal(1.0, 2.0), Normal(-0.5, 1.5)); x = 1.0
+    )
     test_analytic_skips_quadrature(
-        convolved(Gamma(2.0, 1.5), Gamma(3.0, 1.5)); x = 4.0)
+        convolved(Gamma(2.0, 1.5), Gamma(3.0, 1.5)); x = 4.0
+    )
     test_analytic_skips_quadrature(
-        difference(Normal(5.0, 1.0), Normal(2.0, 1.0)); x = 2.0)
+        difference(Normal(5.0, 1.0), Normal(2.0, 1.0)); x = 2.0
+    )
     test_analytic_skips_quadrature(
-        product(LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)); x = 3.0)
+        product(LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)); x = 3.0
+    )
     test_analytic_skips_quadrature(
-        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0)); x = 0.5)
+        ratio(Normal(0.0, 1.0), Normal(0.0, 1.0)); x = 0.5
+    )
 
     # A no-op (nothing asserted, no failure) for a numeric-only case.
     test_analytic_skips_quadrature(
-        convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)); x = 3.0)
+        convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)); x = 3.0
+    )
     test_analytic_skips_quadrature(
-        ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)); x = 1.0)
+        ratio(Gamma(3.0, 1.0), LogNormal(0.5, 0.4)); x = 1.0
+    )
 end
 
 @testitem "is_exact: orthogonal to evaluation_path (#85, #89)" begin
@@ -200,9 +221,10 @@ end
     # `strict = true` accepts the exact discrete route (no closed form,
     # but no quadrature either), unlike a genuinely inexact pair.
     @test convolved(Poisson(1.0), Geometric(0.3); strict = true) isa
-          ConvolvedDistributions.Convolved
+        ConvolvedDistributions.Convolved
     @test_throws ArgumentError convolved(
-        Gamma(2.0, 1.0), LogNormal(0.5, 0.4); strict = true)
+        Gamma(2.0, 1.0), LogNormal(0.5, 0.4); strict = true
+    )
 
     # Route-vs-execution guard: whenever `is_exact` reports true via the
     # discrete or mixed route (no closed form), `pdf` actually took that
@@ -211,7 +233,7 @@ end
     @test pdf(dl, 2) === ConvolvedDistributions._convolved_lattice_pdf(dl, 2)
     @test is_exact(dmixed) && !has_closed_form(dmixed)
     @test pdf(dmixed, 2.0) ===
-          ConvolvedDistributions._convolved_mixed_pdf(Val(1), dmixed, 2.0)
+        ConvolvedDistributions._convolved_mixed_pdf(Val(1), dmixed, 2.0)
     @test !is_exact(dnum)
 end
 

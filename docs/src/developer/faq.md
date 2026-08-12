@@ -142,12 +142,12 @@ task test-quality  # Aqua, ExplicitImports, docstring format, doctest, ...
 **A:** Format the tree, then re-run the check:
 
 ```bash
-task format           # apply JuliaFormatter to src/test/docs/benchmark
+task format           # apply Runic to src/test/docs/benchmark
 task test-formatting  # verify without modifying files
 ```
 
-The formatter runs from the isolated `test/formatter` environment, which pins `JuliaFormatter` to an exact version (`=2.10.1`) so the check is reproducible across the CI Julia matrix.
-Keep that pin in step with the `.pre-commit-config.yaml` JuliaFormatter `rev`, or `test (lts)` and `pre-commit` will disagree about formatting.
+The formatter runs from the isolated `test/formatter` environment, which pins `Runic` to an exact version (`=1.7.0`) so the check is reproducible across the CI Julia matrix.
+Keep that pin in step with the `.pre-commit-config.yaml` Runic `additional_dependencies` pin, or `test (lts)` and `pre-commit` will disagree about formatting.
 
 ### Q: How do I check for type stability?
 

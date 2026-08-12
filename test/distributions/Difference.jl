@@ -55,11 +55,11 @@ end
     @test std(d) ≈ std(ref)
 
     for z in -6.0:1.0:10.0
-        @test cdf(d, z) ≈ cdf(ref, z) atol=1e-10
-        @test pdf(d, z) ≈ pdf(ref, z) atol=1e-10
-        @test logpdf(d, z) ≈ logpdf(ref, z) atol=1e-8
-        @test logcdf(d, z) ≈ logcdf(ref, z) atol=1e-8
-        @test ccdf(d, z) ≈ ccdf(ref, z) atol=1e-10
+        @test cdf(d, z) ≈ cdf(ref, z) atol = 1.0e-10
+        @test pdf(d, z) ≈ pdf(ref, z) atol = 1.0e-10
+        @test logpdf(d, z) ≈ logpdf(ref, z) atol = 1.0e-8
+        @test logcdf(d, z) ≈ logcdf(ref, z) atol = 1.0e-8
+        @test ccdf(d, z) ≈ ccdf(ref, z) atol = 1.0e-10
     end
 end
 
@@ -75,8 +75,8 @@ end
     @test ConvolvedDistributions._maybe_analytic(difference(x, y)) !== nothing
 
     for z in range(-4.0, 10.0; length = 12)
-        @test cdf(dn, z) ≈ cdf(ref, z) atol=1e-6
-        @test pdf(dn, z) ≈ pdf(ref, z) atol=1e-6
+        @test cdf(dn, z) ≈ cdf(ref, z) atol = 1.0e-6
+        @test pdf(dn, z) ≈ pdf(ref, z) atol = 1.0e-6
     end
 end
 
@@ -93,14 +93,14 @@ end
     samples = [rand(rng, x) - rand(rng, y) for _ in 1:n]
 
     for z in (-1.0, 0.5, 2.0, 4.0)
-        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+        @test cdf(d, z) ≈ mean(samples .<= z) atol = 5.0e-3
     end
 
     @test pdf(d, 2.0) > 0
-    @test logpdf(d, 2.0) ≈ log(pdf(d, 2.0)) atol=1e-8
+    @test logpdf(d, 2.0) ≈ log(pdf(d, 2.0)) atol = 1.0e-8
 
-    @test mean(samples) ≈ mean(x) - mean(y) atol=2e-2
-    @test var(samples) ≈ var(x) + var(y) atol=1e-1
+    @test mean(samples) ≈ mean(x) - mean(y) atol = 2.0e-2
+    @test var(samples) ≈ var(x) + var(y) atol = 1.0e-1
 end
 
 @testitem "Difference of Convolved components matches Monte Carlo" begin
@@ -122,10 +122,10 @@ end
     n = 400_000
     samples = [rand(rng, x) - rand(rng, y) for _ in 1:n]
     for z in (-2.0, 0.0, 1.5, 4.0)
-        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+        @test cdf(d, z) ≈ mean(samples .<= z) atol = 5.0e-3
     end
     @test pdf(d, 0.0) > 0
-    @test logcdf(d, 0.0) ≈ log(cdf(d, 0.0)) atol=1e-10
+    @test logcdf(d, 0.0) ≈ log(cdf(d, 0.0)) atol = 1.0e-10
 end
 
 @testitem "Difference with Difference subtrahend matches Monte Carlo" begin
@@ -142,7 +142,7 @@ end
     n = 400_000
     samples = [rand(rng, x) - rand(rng, w) for _ in 1:n]
     for z in (-3.0, -1.0, 0.5, 2.0)
-        @test cdf(d, z) ≈ mean(samples .<= z) atol=5e-3
+        @test cdf(d, z) ≈ mean(samples .<= z) atol = 5.0e-3
     end
     @test pdf(d, 0.0) > 0
 end
@@ -156,20 +156,22 @@ end
     f = θ -> cdf(
         difference(
             convolved(Gamma(θ[1], θ[2]), LogNormal(0.5, 0.4)),
-            convolved(Gamma(1.5, 1.0), Gamma(1.0, 2.0))),
-        0.0)
+            convolved(Gamma(1.5, 1.0), Gamma(1.0, 2.0))
+        ),
+        0.0
+    )
     θ = [2.0, 1.0]
     g = ForwardDiff.gradient(f, θ)
     @test all(isfinite, g)
 
-    h = 1e-6
+    h = 1.0e-6
     for i in eachindex(θ)
         θp = copy(θ)
         θm = copy(θ)
         θp[i] += h
         θm[i] -= h
         fd = (f(θp) - f(θm)) / (2h)
-        @test g[i] ≈ fd atol=1e-6
+        @test g[i] ≈ fd atol = 1.0e-6
     end
 end
 
@@ -178,11 +180,11 @@ end
 
     du = difference(Uniform(0.0, 2.0), Uniform(0.0, 3.0))
     grid = collect(-3.0:0.01:2.0)
-    @test sum(pdf(du, z) for z in grid) * 0.01 ≈ 1.0 atol=2e-3
+    @test sum(pdf(du, z) for z in grid) * 0.01 ≈ 1.0 atol = 2.0e-3
 
     dn = difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
     g = collect(-8.0:0.02:12.0)
-    @test sum(pdf(dn, z) for z in g) * 0.02 ≈ 1.0 atol=3e-3
+    @test sum(pdf(dn, z) for z in g) * 0.02 ≈ 1.0 atol = 3.0e-3
 end
 
 @testitem "Difference cdf is monotone and in [0, 1]" begin
@@ -192,10 +194,10 @@ end
     zs = collect(-6.0:0.5:10.0)
     cs = [cdf(dn, z) for z in zs]
     @test all(0.0 .<= cs .<= 1.0)
-    @test all(diff(cs) .>= -1e-10)        # non-decreasing
+    @test all(diff(cs) .>= -1.0e-10)        # non-decreasing
 
-    @test cdf(dn, -1e3) == 0.0
-    @test cdf(dn, 1e3) ≈ 1.0 atol=1e-6
+    @test cdf(dn, -1.0e3) == 0.0
+    @test cdf(dn, 1.0e3) ≈ 1.0 atol = 1.0e-6
 end
 
 @testitem "Difference symmetry: X-Y is the reflection of Y-X" begin
@@ -209,8 +211,8 @@ end
     dyx = difference(y, x)
 
     for z in (-2.0, -0.5, 1.0, 3.0)
-        @test cdf(dxy, z) ≈ ccdf(dyx, -z) atol=1e-5
-        @test pdf(dxy, z) ≈ pdf(dyx, -z) atol=1e-5
+        @test cdf(dxy, z) ≈ ccdf(dyx, -z) atol = 1.0e-5
+        @test pdf(dxy, z) ≈ pdf(dyx, -z) atol = 1.0e-5
     end
 
     @test minimum(dxy) == -maximum(dyx)
@@ -223,10 +225,10 @@ end
     rng = MersenneTwister(1)
     d = difference(Gamma(3.0, 1.0), Normal(2.0, 0.5))
     s = [rand(rng, d) for _ in 1:200_000]
-    @test mean(s) ≈ (3.0 - 2.0) atol=5e-2
-    @test var(s) ≈ (var(Gamma(3.0, 1.0)) + 0.25) atol=1e-1
-    @test mean(s) ≈ mean(d) atol=5e-2
-    @test var(s) ≈ var(d) atol=1e-1
+    @test mean(s) ≈ (3.0 - 2.0) atol = 5.0e-2
+    @test var(s) ≈ (var(Gamma(3.0, 1.0)) + 0.25) atol = 1.0e-1
+    @test mean(s) ≈ mean(d) atol = 5.0e-2
+    @test var(s) ≈ var(d) atol = 1.0e-1
 end
 
 @testitem "Difference logcdf/ccdf/logccdf branches" begin
@@ -235,15 +237,15 @@ end
     # Analytic path agrees with the reference Normal difference.
     da = difference(Normal(1.0, 2.0), Normal(0.0, 1.0))
     refa = Normal(1.0, sqrt(4.0 + 1.0))
-    @test logcdf(da, 2.0) ≈ logcdf(refa, 2.0) atol=1e-10
-    @test ccdf(da, 2.0) ≈ ccdf(refa, 2.0) atol=1e-10
-    @test logccdf(da, 2.0) ≈ logccdf(refa, 2.0) atol=1e-8
+    @test logcdf(da, 2.0) ≈ logcdf(refa, 2.0) atol = 1.0e-10
+    @test ccdf(da, 2.0) ≈ ccdf(refa, 2.0) atol = 1.0e-10
+    @test logccdf(da, 2.0) ≈ logccdf(refa, 2.0) atol = 1.0e-8
 
     # Numeric path: logcdf matches log(cdf) and ccdf = 1 - cdf.
     dn = difference(Gamma(3.0, 1.0), LogNormal(0.5, 0.4))
-    @test logcdf(dn, 1.0) ≈ log(cdf(dn, 1.0)) atol=1e-10
-    @test ccdf(dn, 1.0) ≈ 1 - cdf(dn, 1.0) atol=1e-10
-    @test logccdf(dn, 1.0) ≈ log1p(-cdf(dn, 1.0)) atol=1e-6
+    @test logcdf(dn, 1.0) ≈ log(cdf(dn, 1.0)) atol = 1.0e-10
+    @test ccdf(dn, 1.0) ≈ 1 - cdf(dn, 1.0) atol = 1.0e-10
+    @test logccdf(dn, 1.0) ≈ log1p(-cdf(dn, 1.0)) atol = 1.0e-6
 
     db = difference(Uniform(0.0, 2.0), Uniform(0.0, 3.0))
     @test logccdf(db, -3.0) == 0.0   # CDF = 0 -> logccdf = 0
@@ -331,10 +333,10 @@ end
     # clamp trims that much of Y's upper tail, where F_X(z + y) ≈ 1).
     d = difference(Gamma(2.0, 1.0), LogNormal(0.0, 1.5))
 
-    @test cdf(d, 0.0) ≈ 0.39674977955541 atol=5e-8
-    @test cdf(d, 1.0) ≈ 0.631761989136144 atol=5e-8
-    @test pdf(d, 0.0) ≈ 0.205525747410054 atol=1e-9
-    @test pdf(d, 1.0) ≈ 0.221923353983705 atol=1e-9
+    @test cdf(d, 0.0) ≈ 0.39674977955541 atol = 5.0e-8
+    @test cdf(d, 1.0) ≈ 0.631761989136144 atol = 5.0e-8
+    @test pdf(d, 0.0) ≈ 0.205525747410054 atol = 1.0e-9
+    @test pdf(d, 1.0) ≈ 0.221923353983705 atol = 1.0e-9
 end
 
 @testitem "Difference of two discrete components is Discrete and exact (#85, #89)" begin
@@ -350,14 +352,16 @@ end
 
     # Agreement with brute force over a truncated Y range.
     for z in -5:5
-        bf = sum(pdf(Poisson(2.0), z + y) * pdf(Poisson(3.0), y)
-        for y in 0:200)
-        @test pdf(d, z) ≈ bf atol=1e-8
+        bf = sum(
+            pdf(Poisson(2.0), z + y) * pdf(Poisson(3.0), y)
+                for y in 0:200
+        )
+        @test pdf(d, z) ≈ bf atol = 1.0e-8
     end
 
     masses = [pdf(d, k) for k in -100:100]
     @test all(m -> m >= 0, masses)
-    @test isapprox(sum(masses), 1; atol = 1e-6)
+    @test isapprox(sum(masses), 1; atol = 1.0e-6)
 
     @test pdf(d, 2.5) == 0
     @test logpdf(d, 2.5) == -Inf
@@ -365,7 +369,7 @@ end
 
     running_sums = cumsum(masses)
     for (k, running) in zip(-100:100, running_sums)
-        @test cdf(d, k) ≈ running atol=1e-6
+        @test cdf(d, k) ≈ running atol = 1.0e-6
     end
 
     # A mixed pair stays Continuous (`_components_support` only reports

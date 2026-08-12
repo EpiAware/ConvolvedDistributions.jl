@@ -1,7 +1,7 @@
 module ConvolvedDistributionsEnzymeExt
 
 using ConvolvedDistributions: _window_quantile, _lattice_quantile,
-                              _accepts_kwargs
+    _accepts_kwargs
 using Enzyme: Enzyme
 using Enzyme.EnzymeRules: EnzymeRules
 

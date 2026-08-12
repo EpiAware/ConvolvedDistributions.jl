@@ -76,9 +76,11 @@ Gauss-Legendre\".
 - [`difference`](@ref): Constructor function
 - [`Convolved`](@ref): The dual sum ``X + Y``
 "
-struct Difference{X <: UnivariateDistribution, Y <: UnivariateDistribution,
-    M <: AbstractSolverMethod, S <: Distributions.ValueSupport} <:
-       AbstractConvolvedDistribution{Distributions.Univariate, S}
+struct Difference{
+        X <: UnivariateDistribution, Y <: UnivariateDistribution,
+        M <: AbstractSolverMethod, S <: Distributions.ValueSupport,
+    } <:
+    AbstractConvolvedDistribution{Distributions.Univariate, S}
     "The minuend component (the `X` in `Z = X - Y`)."
     x::X
     "The subtrahend component (the `Y` in `Z = X - Y`)."
@@ -86,11 +88,14 @@ struct Difference{X <: UnivariateDistribution, Y <: UnivariateDistribution,
     "Solver method choosing the analytic vs numeric quadrature backend."
     method::M
 
-    function Difference(x::X, y::Y;
-            method::AbstractSolverMethod = AnalyticalSolver()) where {
-            X <: UnivariateDistribution, Y <: UnivariateDistribution}
+    function Difference(
+            x::X, y::Y;
+            method::AbstractSolverMethod = AnalyticalSolver()
+        ) where {
+            X <: UnivariateDistribution, Y <: UnivariateDistribution,
+        }
         S = _components_support((x, y))
-        new{X, Y, typeof(method), S}(x, y, method)
+        return new{X, Y, typeof(method), S}(x, y, method)
     end
 end
 
@@ -99,7 +104,8 @@ end
 # `src/interface.jl`). Used to dispatch to the exact lattice fold.
 const _DiscreteDifference = Difference{
     <:UnivariateDistribution, <:UnivariateDistribution,
-    <:AbstractSolverMethod, Discrete}
+    <:AbstractSolverMethod, Discrete,
+}
 
 # Continuous-typed alias (#115): matches every `Difference` with no
 # closed form, both the genuinely mixed pairs (one integer-lattice
@@ -109,15 +115,18 @@ const _DiscreteDifference = Difference{
 # falls straight back to the existing quadrature path.
 const _MixedableDifference = Difference{
     <:UnivariateDistribution, <:UnivariateDistribution,
-    <:AbstractSolverMethod, Continuous}
+    <:AbstractSolverMethod, Continuous,
+}
 
 # `_has_mixed_fold` (interface.jl): true exactly when one of `x`/`y` is
 # integer-lattice discrete and the other is not. `Difference` always has
 # exactly two components (unlike `Convolved`), so no arity guard is
 # needed.
 function _has_mixed_fold(d::Difference)
-    return _mixed_slot(_component_support(typeof(d.x)),
-        _component_support(typeof(d.y))) !== nothing
+    return _mixed_slot(
+        _component_support(typeof(d.x)),
+        _component_support(typeof(d.y))
+    ) !== nothing
 end
 
 @doc "
@@ -164,8 +173,10 @@ mean(d)
 - [`convolved`](@ref): The dual sum ``X + Y``
 - [`evaluation_path`](@ref): Check the route without asserting it.
 "
-function difference(x::UnivariateDistribution, y::UnivariateDistribution;
-        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false)
+function difference(
+        x::UnivariateDistribution, y::UnivariateDistribution;
+        method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
+    )
     return _check_strict(Difference(x, y; method = method), strict)
 end
 
@@ -292,7 +303,7 @@ function _difference_window(d::Difference)
     ymax = maximum(d.y)
     lo = isfinite(ymin) ? float(ymin) : _window_quantile(d.y, _CONVOLVED_TAIL)
     hi = isfinite(ymax) ? float(ymax) :
-         _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
+        _window_quantile(d.y, 1 - _CONVOLVED_TAIL)
     return lo, hi
 end
 
@@ -308,9 +319,11 @@ function _difference_numeric_pdf(d::Difference, z::Real)
     lower, upper = _difference_window(d)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = _solver_integrate(d,
+    result = _solver_integrate(
+        d,
         y -> pdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y),
-        lower, upper, d.y)
+        lower, upper, d.y
+    )
     return max(result, zero(result))
 end
 
@@ -325,9 +338,11 @@ function _difference_numeric_cdf(d::Difference, z::Real)
     lower, upper = _difference_window(d)
     upper <= lower && return zero(float(typeof(z)))
 
-    result = _solver_integrate(d,
+    result = _solver_integrate(
+        d,
         y -> cdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y),
-        lower, upper, d.y)
+        lower, upper, d.y
+    )
     return clamp(result, zero(result), one(result))
 end
 
@@ -352,7 +367,8 @@ function _difference_lattice_pdf(d::Difference, z::Real)
     t1 < t0 && return zero(float(typeof(z)))
 
     return _lattice_sum(
-        y -> pdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y), t0, t1)
+        y -> pdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y), t0, t1
+    )
 end
 
 # F_Z(z) = Σ_{y ∈ lattice ∩ window} F_X(z + y) f_Y(y).
@@ -366,7 +382,8 @@ function _difference_lattice_cdf(d::Difference, z::Real)
     t1 < t0 && return zero(float(typeof(z)))
 
     result = _lattice_sum(
-        y -> cdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y), t0, t1)
+        y -> cdf_ad_safe(d.x, z + y) * pdf_ad_safe(d.y, y), t0, t1
+    )
     return clamp(result, zero(result), one(result))
 end
 
@@ -400,7 +417,8 @@ function _difference_mixed_pdf(::Val{1}, d::Difference, z::Real)
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
     t1 < t0 && return zero(float(typeof(z)))
     return _lattice_sum(
-        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, k - z), t0, t1)
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, k - z), t0, t1
+    )
 end
 function _difference_mixed_pdf(::Val{2}, d::Difference, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
@@ -409,7 +427,8 @@ function _difference_mixed_pdf(::Val{2}, d::Difference, z::Real)
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
     t1 < t0 && return zero(float(typeof(z)))
     return _lattice_sum(
-        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z + k), t0, t1)
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z + k), t0, t1
+    )
 end
 function _difference_mixed_pdf(::Nothing, d::Difference, z::Real)
     return _difference_numeric_pdf(d, z)
@@ -423,7 +442,8 @@ function _difference_mixed_cdf(::Val{1}, d::Difference, z::Real)
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
     t1 < t0 && return zero(float(typeof(z)))
     result = _lattice_sum(
-        k -> pdf_ad_safe(D, k) * ccdf_ad_safe(d.y, k - z), t0, t1)
+        k -> pdf_ad_safe(D, k) * ccdf_ad_safe(d.y, k - z), t0, t1
+    )
     return clamp(result, zero(result), one(result))
 end
 function _difference_mixed_cdf(::Val{2}, d::Difference, z::Real)
@@ -434,7 +454,8 @@ function _difference_mixed_cdf(::Val{2}, d::Difference, z::Real)
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
     t1 < t0 && return zero(float(typeof(z)))
     result = _lattice_sum(
-        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.x, z + k), t0, t1)
+        k -> pdf_ad_safe(D, k) * cdf_ad_safe(d.x, z + k), t0, t1
+    )
     return clamp(result, zero(result), one(result))
 end
 function _difference_mixed_cdf(::Nothing, d::Difference, z::Real)
@@ -454,13 +475,19 @@ _difference_cdf_route(d::_DiscreteDifference, z::Real) = _difference_lattice_cdf
 # above, so it wins for any `Continuous`-typed pair.
 function _difference_pdf_route(d::_MixedableDifference, z::Real)
     return _difference_mixed_pdf(
-        _mixed_slot(_component_support(typeof(d.x)),
-            _component_support(typeof(d.y))), d, z)
+        _mixed_slot(
+            _component_support(typeof(d.x)),
+            _component_support(typeof(d.y))
+        ), d, z
+    )
 end
 function _difference_cdf_route(d::_MixedableDifference, z::Real)
     return _difference_mixed_cdf(
-        _mixed_slot(_component_support(typeof(d.x)),
-            _component_support(typeof(d.y))), d, z)
+        _mixed_slot(
+            _component_support(typeof(d.x)),
+            _component_support(typeof(d.y))
+        ), d, z
+    )
 end
 
 # ---------------------------------------------------------------------------

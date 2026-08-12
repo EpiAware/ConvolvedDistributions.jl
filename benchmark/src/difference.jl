@@ -9,7 +9,7 @@ SUITE["Difference"] = BenchmarkGroup()
 
 const DIFFERENCE_VARIANTS = [
     "analytic" => difference(Normal(1.0, 0.5), Normal(0.5, 1.0)),
-    "numeric" => difference(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    "numeric" => difference(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
 ]
 
 for (name, d) in DIFFERENCE_VARIANTS
@@ -24,6 +24,8 @@ for (name, d) in DIFFERENCE_VARIANTS
 end
 
 SUITE["Difference"]["analytic"]["construction"] = @benchmarkable difference(
-    Normal(1.0, 0.5), Normal(0.5, 1.0))
+    Normal(1.0, 0.5), Normal(0.5, 1.0)
+)
 SUITE["Difference"]["numeric"]["construction"] = @benchmarkable difference(
-    Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
+    Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
+)

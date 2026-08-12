@@ -1,7 +1,7 @@
 module ConvolvedDistributionsChainRulesCoreExt
 
 using ConvolvedDistributions: _window_quantile, _lattice_quantile,
-                              _accepts_kwargs
+    _accepts_kwargs
 using ChainRulesCore: ChainRulesCore
 
 # The quadrature-window endpoint is a non-differentiable hyperparameter

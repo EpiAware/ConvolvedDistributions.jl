@@ -37,8 +37,10 @@ ConvolvedDistributions.uniform_window_cdf(
     component, Uniform(0.0, 2.0), 3.0, partial_expectation)
 ```
 "
-function uniform_window_cdf(component::UnivariateDistribution,
-        window::Uniform, x::Real, partial_expectation::F) where {F}
+function uniform_window_cdf(
+        component::UnivariateDistribution,
+        window::Uniform, x::Real, partial_expectation::F
+    ) where {F}
     a = minimum(window)
     w = maximum(window) - a
     dmin = minimum(component)
@@ -55,8 +57,10 @@ function uniform_window_cdf(component::UnivariateDistribution,
     F_h = cdf_ad_safe(component, h)
     M_h = partial_expectation(h)
     val = if l > dmin
-        (h * F_h - l * cdf_ad_safe(component, l) -
-         (M_h - partial_expectation(l))) / w
+        (
+            h * F_h - l * cdf_ad_safe(component, l) -
+                (M_h - partial_expectation(l))
+        ) / w
     else
         (h * F_h - M_h) / w
     end
@@ -105,7 +109,7 @@ function partial_expectation(component::Weibull)
     s = 1 + inv(k)
     Γs = SpecialFunctions.gamma(s)
     return t -> t <= 0 ? zero(float(t)) :
-                λ * Γs * _gamma_cdf(s, one(s), (t / λ)^k)
+        λ * Γs * _gamma_cdf(s, one(s), (t / λ)^k)
 end
 
 @doc "
@@ -148,36 +152,44 @@ function upper_partial_expectation(component::Weibull)
     s = 1 + inv(k)
     Γs = SpecialFunctions.gamma(s)
     return t -> t <= 0 ? λ * Γs :
-                λ * Γs * (1 - _gamma_cdf(s, one(s), (t / λ)^k))
+        λ * Γs * (1 - _gamma_cdf(s, one(s), (t / λ)^k))
 end
 
 const _WINDOW_FAMILIES = Union{Gamma, LogNormal, Weibull}
 
-function convolved_cdf(d::Convolved, components::Tuple{_WINDOW_FAMILIES, Uniform},
-        x::Real, ::AnalyticalSolver)
+function convolved_cdf(
+        d::Convolved, components::Tuple{_WINDOW_FAMILIES, Uniform},
+        x::Real, ::AnalyticalSolver
+    )
     component, window = components
     return uniform_window_cdf(component, window, x, partial_expectation(component))
 end
 
 # Mirrored component order (S1.5): dispatch, not a runtime route lookup,
 # picks the right side to call `uniform_window_cdf` on.
-function convolved_cdf(d::Convolved, components::Tuple{Uniform, _WINDOW_FAMILIES},
-        x::Real, m::AnalyticalSolver)
+function convolved_cdf(
+        d::Convolved, components::Tuple{Uniform, _WINDOW_FAMILIES},
+        x::Real, m::AnalyticalSolver
+    )
     return convolved_cdf(d, reverse(components), x, m)
 end
 
 # Vector-`x` form (S1.4): `partial_expectation` is built once and shared
 # across points, so `Convolved`'s batched `cdf` keeps the closed form's
 # speed instead of falling back to quadrature (solver_dispatch.jl).
-function convolved_cdf(d::Convolved, components::Tuple{_WINDOW_FAMILIES, Uniform},
-        x::AbstractVector{<:Real}, ::AnalyticalSolver)
+function convolved_cdf(
+        d::Convolved, components::Tuple{_WINDOW_FAMILIES, Uniform},
+        x::AbstractVector{<:Real}, ::AnalyticalSolver
+    )
     component, window = components
     pe = partial_expectation(component)
     return map(xi -> uniform_window_cdf(component, window, xi, pe), x)
 end
 
-function convolved_cdf(d::Convolved, components::Tuple{Uniform, _WINDOW_FAMILIES},
-        x::AbstractVector{<:Real}, m::AnalyticalSolver)
+function convolved_cdf(
+        d::Convolved, components::Tuple{Uniform, _WINDOW_FAMILIES},
+        x::AbstractVector{<:Real}, m::AnalyticalSolver
+    )
     return convolved_cdf(d, reverse(components), x, m)
 end
 
@@ -221,9 +233,11 @@ ConvolvedDistributions.uniform_window_ccdf(
     ConvolvedDistributions.upper_partial_expectation(component))
 ```
 "
-function uniform_window_ccdf(component::UnivariateDistribution,
+function uniform_window_ccdf(
+        component::UnivariateDistribution,
         window::Uniform, x::Real, partial_expectation::F,
-        upper_partial_expectation::G) where {F, G}
+        upper_partial_expectation::G
+    ) where {F, G}
     a = minimum(window)
     w = maximum(window) - a
     dmin = minimum(component)
@@ -237,8 +251,10 @@ function uniform_window_ccdf(component::UnivariateDistribution,
         p = uniform_window_cdf(component, window, x, partial_expectation)
         return convert(T, one(p) - p)::T
     end
-    val = (h * ccdf_ad_safe(component, h) - l * ccdf_ad_safe(component, l) +
-           (upper_partial_expectation(l) - upper_partial_expectation(h))) / w
+    val = (
+        h * ccdf_ad_safe(component, h) - l * ccdf_ad_safe(component, l) +
+            (upper_partial_expectation(l) - upper_partial_expectation(h))
+    ) / w
     return convert(T, clamp(val, zero(val), one(val)))::T
 end
 
@@ -249,51 +265,67 @@ end
 # quadrature (solver_dispatch.jl), which is accurate only to the
 # quadrature's own error and diverges from the closed-form `cdf` the
 # same distribution reports.
-function convolved_logcdf(d::Convolved,
+function convolved_logcdf(
+        d::Convolved,
         components::Tuple{_WINDOW_FAMILIES, Uniform}, x::Real,
-        ::AnalyticalSolver)
+        ::AnalyticalSolver
+    )
     component, window = components
-    p = uniform_window_cdf(component, window, x,
-        partial_expectation(component))
+    p = uniform_window_cdf(
+        component, window, x,
+        partial_expectation(component)
+    )
     return p <= 0 ? oftype(float(p), -Inf) : log(p)
 end
 
-function convolved_logcdf(d::Convolved,
+function convolved_logcdf(
+        d::Convolved,
         components::Tuple{Uniform, _WINDOW_FAMILIES}, x::Real,
-        m::AnalyticalSolver)
+        m::AnalyticalSolver
+    )
     return convolved_logcdf(d, reverse(components), x, m)
 end
 
 # Survival: the dedicated closed form, not `1 - cdf`, which cancels to
 # exactly zero once the survival drops below `eps`.
-function convolved_ccdf(d::Convolved,
+function convolved_ccdf(
+        d::Convolved,
         components::Tuple{_WINDOW_FAMILIES, Uniform}, x::Real,
-        ::AnalyticalSolver)
+        ::AnalyticalSolver
+    )
     component, window = components
-    return uniform_window_ccdf(component, window, x,
+    return uniform_window_ccdf(
+        component, window, x,
         partial_expectation(component),
-        upper_partial_expectation(component))
+        upper_partial_expectation(component)
+    )
 end
 
-function convolved_ccdf(d::Convolved,
+function convolved_ccdf(
+        d::Convolved,
         components::Tuple{Uniform, _WINDOW_FAMILIES}, x::Real,
-        m::AnalyticalSolver)
+        m::AnalyticalSolver
+    )
     return convolved_ccdf(d, reverse(components), x, m)
 end
 
 # Log survival: the log of the survival closed form above, never
 # `log1mexp` of a log CDF -- that route inherits the CDF's rounding
 # exactly where the survival is smallest.
-function convolved_logccdf(d::Convolved,
+function convolved_logccdf(
+        d::Convolved,
         components::Tuple{_WINDOW_FAMILIES, Uniform}, x::Real,
-        m::AnalyticalSolver)
+        m::AnalyticalSolver
+    )
     q = convolved_ccdf(d, components, x, m)
     return q <= 0 ? oftype(float(q), -Inf) : log(q)
 end
 
-function convolved_logccdf(d::Convolved,
+function convolved_logccdf(
+        d::Convolved,
         components::Tuple{Uniform, _WINDOW_FAMILIES}, x::Real,
-        m::AnalyticalSolver)
+        m::AnalyticalSolver
+    )
     return convolved_logccdf(d, reverse(components), x, m)
 end
 
@@ -312,26 +344,30 @@ function _uniform_window_pdf(component, window::Uniform, x::Real)
     hi, lo = x - a, x - b
     F_hi = cdf_ad_safe(component, hi)
     mass = F_hi > oftype(F_hi, 0.5) ?
-           ccdf_ad_safe(component, lo) - ccdf_ad_safe(component, hi) :
-           F_hi - cdf_ad_safe(component, lo)
+        ccdf_ad_safe(component, lo) - ccdf_ad_safe(component, hi) :
+        F_hi - cdf_ad_safe(component, lo)
     if lo > minimum(component) && mass < sqrt(eps(typeof(mass)))
         lg = F_hi > oftype(F_hi, 0.5) ?
-             logsubexp(
-            logccdf_ad_safe(component, lo), logccdf_ad_safe(component, hi)) :
-             logsubexp(
-            logcdf_ad_safe(component, hi), logcdf_ad_safe(component, lo))
+            logsubexp(
+                logccdf_ad_safe(component, lo), logccdf_ad_safe(component, hi)
+            ) :
+            logsubexp(
+                logcdf_ad_safe(component, hi), logcdf_ad_safe(component, lo)
+            )
         isfinite(lg) && return exp(lg) / w
         m = x - (a + b) / 2
         δ = w / (2 * sqrt(oftype(w, 3)))
         return (pdf_ad_safe(component, m - δ) + pdf_ad_safe(component, m + δ)) /
-               2
+            2
     end
     return max(mass, zero(mass)) / w
 end
 
-function convolved_pdf(d::Convolved,
+function convolved_pdf(
+        d::Convolved,
         components::Tuple{UnivariateDistribution, Uniform},
-        x::Real, ::AnalyticalSolver)
+        x::Real, ::AnalyticalSolver
+    )
     component, window = components
     return _uniform_window_pdf(component, window, x)
 end
@@ -340,35 +376,45 @@ end
 # `UnivariateDistribution`, including `Uniform` itself, so the mirror
 # collides with the method above at `(Uniform, Uniform)`; the tie-break
 # below resolves it (Aqua-clean, and the window is symmetric anyway).
-function convolved_pdf(d::Convolved,
+function convolved_pdf(
+        d::Convolved,
         components::Tuple{Uniform, UnivariateDistribution},
-        x::Real, m::AnalyticalSolver)
+        x::Real, m::AnalyticalSolver
+    )
     return convolved_pdf(d, reverse(components), x, m)
 end
 
-function convolved_pdf(d::Convolved, components::Tuple{Uniform, Uniform},
-        x::Real, ::AnalyticalSolver)
+function convolved_pdf(
+        d::Convolved, components::Tuple{Uniform, Uniform},
+        x::Real, ::AnalyticalSolver
+    )
     component, window = components
     return _uniform_window_pdf(component, window, x)
 end
 
 # Vector-`x` forms (S1.4), mirrored and tie-broken as the scalar methods
 # above -- see `convolved_cdf`'s vector form for the batching rationale.
-function convolved_pdf(d::Convolved,
+function convolved_pdf(
+        d::Convolved,
         components::Tuple{UnivariateDistribution, Uniform},
-        x::AbstractVector{<:Real}, ::AnalyticalSolver)
+        x::AbstractVector{<:Real}, ::AnalyticalSolver
+    )
     component, window = components
     return map(xi -> _uniform_window_pdf(component, window, xi), x)
 end
 
-function convolved_pdf(d::Convolved,
+function convolved_pdf(
+        d::Convolved,
         components::Tuple{Uniform, UnivariateDistribution},
-        x::AbstractVector{<:Real}, m::AnalyticalSolver)
+        x::AbstractVector{<:Real}, m::AnalyticalSolver
+    )
     return convolved_pdf(d, reverse(components), x, m)
 end
 
-function convolved_pdf(d::Convolved, components::Tuple{Uniform, Uniform},
-        x::AbstractVector{<:Real}, ::AnalyticalSolver)
+function convolved_pdf(
+        d::Convolved, components::Tuple{Uniform, Uniform},
+        x::AbstractVector{<:Real}, ::AnalyticalSolver
+    )
     component, window = components
     return map(xi -> _uniform_window_pdf(component, window, xi), x)
 end
@@ -386,53 +432,66 @@ function _uniform_window_logpdf(component, window::Uniform, x::Real)
     l_hi = logcdf_ad_safe(component, hi)
     l_hi == -Inf && return oftype(float(l_hi), -Inf)
     lg = l_hi > log(oftype(l_hi, 0.5)) ?
-         logsubexp(
-        logccdf_ad_safe(component, hi), logccdf_ad_safe(component, lo)) :
-         logsubexp(logcdf_ad_safe(component, lo), l_hi)
+        logsubexp(
+            logccdf_ad_safe(component, hi), logccdf_ad_safe(component, lo)
+        ) :
+        logsubexp(logcdf_ad_safe(component, lo), l_hi)
     result = lg - log(b - a)
     isfinite(result) && return result
     p = _uniform_window_pdf(component, window, x)
     return p <= 0 ? oftype(float(p), -Inf) : log(p)
 end
 
-function convolved_logpdf(d::Convolved,
+function convolved_logpdf(
+        d::Convolved,
         components::Tuple{UnivariateDistribution, Uniform},
-        x::Real, ::AnalyticalSolver)
+        x::Real, ::AnalyticalSolver
+    )
     component, window = components
     return _uniform_window_logpdf(component, window, x)
 end
 
 # Mirrored component order (S1.5), with the same `(Uniform, Uniform)`
 # tie-break as `convolved_pdf` above.
-function convolved_logpdf(d::Convolved,
+function convolved_logpdf(
+        d::Convolved,
         components::Tuple{Uniform, UnivariateDistribution},
-        x::Real, m::AnalyticalSolver)
+        x::Real, m::AnalyticalSolver
+    )
     return convolved_logpdf(d, reverse(components), x, m)
 end
 
-function convolved_logpdf(d::Convolved, components::Tuple{Uniform, Uniform},
-        x::Real, ::AnalyticalSolver)
+function convolved_logpdf(
+        d::Convolved, components::Tuple{Uniform, Uniform},
+        x::Real, ::AnalyticalSolver
+    )
     component, window = components
     return _uniform_window_logpdf(component, window, x)
 end
 
 # Vector-`x` forms (S1.4), mirrored and tie-broken as the scalar methods
 # above.
-function convolved_logpdf(d::Convolved,
+function convolved_logpdf(
+        d::Convolved,
         components::Tuple{UnivariateDistribution, Uniform},
-        x::AbstractVector{<:Real}, ::AnalyticalSolver)
+        x::AbstractVector{<:Real}, ::AnalyticalSolver
+    )
     component, window = components
     return map(xi -> _uniform_window_logpdf(component, window, xi), x)
 end
 
-function convolved_logpdf(d::Convolved,
+function convolved_logpdf(
+        d::Convolved,
         components::Tuple{Uniform, UnivariateDistribution},
-        x::AbstractVector{<:Real}, m::AnalyticalSolver)
+        x::AbstractVector{<:Real}, m::AnalyticalSolver
+    )
     return convolved_logpdf(d, reverse(components), x, m)
 end
 
-function convolved_logpdf(d::Convolved, components::Tuple{Uniform, Uniform},
-        x::AbstractVector{<:Real}, ::AnalyticalSolver)
+function convolved_logpdf(
+        d::Convolved, components::Tuple{Uniform, Uniform},
+        x::AbstractVector{<:Real}, ::AnalyticalSolver
+    )
     component, window = components
     return map(xi -> _uniform_window_logpdf(component, window, xi), x)
 end

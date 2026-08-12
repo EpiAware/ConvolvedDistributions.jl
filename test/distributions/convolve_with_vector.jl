@@ -31,8 +31,9 @@
     end
 end
 
-@testitem "discrete delay convolves via its own PMF" setup=[
-    ConvolveVectorRef] begin
+@testitem "discrete delay convolves via its own PMF" setup = [
+    ConvolveVectorRef,
+] begin
     using Distributions
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
 
@@ -68,10 +69,14 @@ end
     @test cdf_masses[1] ≈ pdf(d, 1)                  # the off-by-one trap
 
     out = convolve_series(d, series)
-    right = [sum(pdf_masses[k] * series[i - k + 1] for k in 1:min(4, i))
-             for i in 1:4]
-    wrong = [sum(cdf_masses[k] * series[i - k + 1] for k in 1:min(4, i))
-             for i in 1:4]
+    right = [
+        sum(pdf_masses[k] * series[i - k + 1] for k in 1:min(4, i))
+            for i in 1:4
+    ]
+    wrong = [
+        sum(cdf_masses[k] * series[i - k + 1] for k in 1:min(4, i))
+            for i in 1:4
+    ]
     @test out ≈ right
     @test !(out ≈ wrong)
 end
@@ -86,9 +91,11 @@ end
     # simply matches no method here: a `MethodError` naming what is
     # actually missing (#95), not a hand-rolled `ArgumentError`.
     series = [0.0, 1.0, 3.0, 6.0, 8.0]
-    delays = (Gamma(2.0, 1.0), Exponential(1.0), Normal(2.0, 1.0),
+    delays = (
+        Gamma(2.0, 1.0), Exponential(1.0), Normal(2.0, 1.0),
         LogNormal(0.5, 0.4),
-        convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
+        convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
+    )
     for delay in delays
         @test_throws MethodError convolve_series(delay, series)
     end
@@ -114,8 +121,8 @@ end
     @test out[1] ≈ smallmasses[1] * small[1]
     @test out[2] ≈ smallmasses[1] * small[2] + smallmasses[2] * small[1]
     @test out[3] ≈
-          smallmasses[1] * small[3] + smallmasses[2] * small[2] +
-          smallmasses[3] * small[1]
+        smallmasses[1] * small[3] + smallmasses[2] * small[2] +
+        smallmasses[3] * small[1]
 
     # A discrete three-component chain.
     d3 = convolved(Poisson(1.0), Binomial(3, 0.4), DiscreteUniform(0, 2))
@@ -149,18 +156,20 @@ end
     # Caller-owned CDF-difference masses (the interval-censored-secondary
     # scheme with an exact primary), built here only to exercise
     # convolve_series on a caller-supplied vector — not package machinery.
-    masses(delay) = [cdf(delay, k + 1.0) - cdf(delay, Float64(k))
-                     for k in 0:maxlag]
+    masses(delay) = [
+        cdf(delay, k + 1.0) - cdf(delay, Float64(k))
+            for k in 0:maxlag
+    ]
 
     # All mass in [0, 1): lag 0, identity up to a negligible tail.
     zero_lag = masses(LogNormal(log(0.5), 0.01))
-    @test convolve_series(zero_lag, series) ≈ series atol=1e-8
+    @test convolve_series(zero_lag, series) ≈ series atol = 1.0e-8
 
     # All mass in [2, 3): the series shifted forward by two steps.
     two_lag = masses(Normal(2.5, 0.01))
     shifted = convolve_series(two_lag, series)
-    @test shifted[1:2] ≈ zeros(2) atol=1e-8
-    @test shifted[3:end] ≈ series[1:(end - 2)] atol=1e-8
+    @test shifted[1:2] ≈ zeros(2) atol = 1.0e-8
+    @test shifted[3:end] ≈ series[1:(end - 2)] atol = 1.0e-8
 end
 
 @testitem "mass is conserved up to the truncated tail" begin
@@ -185,9 +194,9 @@ end
     # The numeric-vector second argument selects the discrete timeseries
     # method, including for integer series (promoted to float output).
     @test convolve_series(Poisson(2.0), [0.0, 1.0, 2.0]) isa
-          AbstractVector{Float64}
+        AbstractVector{Float64}
     @test convolve_series(Poisson(2.0), [0, 1, 2]) isa
-          AbstractVector{Float64}
+        AbstractVector{Float64}
 
     # The distribution-args forms still build a Convolved unambiguously.
     two = convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4))
@@ -205,8 +214,10 @@ end
     pmf = [0.5, 0.3, 0.2]
     series = [1.0, 2.0, 3.0, 4.0]
     out = convolve_series(pmf, series)
-    @test out ≈ [0.5, 0.5 * 2 + 0.3, 0.5 * 3 + 0.3 * 2 + 0.2,
-        0.5 * 4 + 0.3 * 3 + 0.2 * 2]
+    @test out ≈ [
+        0.5, 0.5 * 2 + 0.3, 0.5 * 3 + 0.3 * 2 + 0.2,
+        0.5 * 4 + 0.3 * 3 + 0.2 * 2,
+    ]
 
     # Sub-normalised masses stay sub-normalised: no silent rescale.
     half = [0.25, 0.25]
@@ -251,7 +262,7 @@ end
     weekly = DiscreteNonParametric([0.0, 7.0, 14.0], weekly_masses)
     weekly_series = [1.0, 2.0, 3.0]
     @test convolve_series(weekly, weekly_series) ≈
-          convolve_series(weekly_masses, weekly_series)
+        convolve_series(weekly_masses, weekly_series)
 end
 
 @testitem "DiscreteNonParametric convolve_series validates its grid" begin
@@ -299,9 +310,11 @@ end
     # analytic gamma-CDF derivative rule Gamma needs for this to
     # differentiate at all (plain `cdf` has no Dual method here).
     cdf_ad_safe = ConvolvedDistributions.cdf_ad_safe
-    masses(θ) = [cdf_ad_safe(Gamma(θ[1], θ[2]), k + 1.0) -
-                 cdf_ad_safe(Gamma(θ[1], θ[2]), Float64(k))
-                 for k in 0:maxlag]
+    masses(θ) = [
+        cdf_ad_safe(Gamma(θ[1], θ[2]), k + 1.0) -
+            cdf_ad_safe(Gamma(θ[1], θ[2]), Float64(k))
+            for k in 0:maxlag
+    ]
     discretised(θ) = sum(convolve_series(masses(θ), series))
 
     θ = [2.0, 1.0]
@@ -312,17 +325,19 @@ end
     # difference is ~1e-8 relative, so rtol = 1e-4 (here and for the
     # Poisson check below) is dominated by neither and flags any wrong
     # derivative rule outright.
-    ε = 1e-6
-    fd = [(discretised(θ + ε * e) - discretised(θ - ε * e)) / (2ε)
-          for e in ([1.0, 0.0], [0.0, 1.0])]
-    @test g ≈ fd rtol=1e-4
+    ε = 1.0e-6
+    fd = [
+        (discretised(θ + ε * e) - discretised(θ - ε * e)) / (2ε)
+            for e in ([1.0, 0.0], [0.0, 1.0])
+    ]
+    @test g ≈ fd rtol = 1.0e-4
 
     # Discrete delay: the direct-PMF path differentiates w.r.t. the rate.
     poisson(λ) = sum(convolve_series(Poisson(λ[1]), series))
     gp = ForwardDiff.gradient(poisson, [2.0])
     @test !all(iszero, gp)
     fdp = (poisson([2.0 + ε]) - poisson([2.0 - ε])) / (2ε)
-    @test gp[1] ≈ fdp rtol=1e-4
+    @test gp[1] ≈ fdp rtol = 1.0e-4
 end
 
 @testitem "PMF surfaces guard indexing and emptiness" begin
@@ -377,7 +392,7 @@ end
     @test out isa AbstractVector{Float64}
     @test length(out) == n
     @test convolve_series(pmf_matrix, [0, 1, 2, 3, 4, 5, 6]) isa
-          AbstractVector{Float64}
+        AbstractVector{Float64}
 end
 
 @testitem "primary and secondary indexing convolve the delay they name" begin
@@ -394,15 +409,19 @@ end
 
     # :primary — the cohort at time `s` spreads forward through its own PMF:
     # out[i] = Σ_s series[s] * pmf_s[i - s + 1].
-    primary = [series[1] * p1[1],
+    primary = [
+        series[1] * p1[1],
         series[1] * p1[2] + series[2] * p2[1],
-        series[1] * p1[3] + series[2] * p2[2] + series[3] * p3[1]]
+        series[1] * p1[3] + series[2] * p2[2] + series[3] * p3[1],
+    ]
 
     # :secondary — everything landing at time `i` is attributed through the
     # PMF of time `i`: out[i] = Σ_k pmf_i[k + 1] * series[i - k].
-    secondary = [p1[1] * series[1],
+    secondary = [
+        p1[1] * series[1],
         p2[1] * series[2] + p2[2] * series[1],
-        p3[1] * series[3] + p3[2] * series[2] + p3[3] * series[1]]
+        p3[1] * series[3] + p3[2] * series[2] + p3[3] * series[1],
+    ]
 
     @test convolve_series(pmfs, series) ≈ primary                  # default
     @test convolve_series(pmfs, series; indexed_by = :primary) ≈ primary
@@ -420,16 +439,16 @@ end
     delays = [DiscreteUniform(0, 2), Poisson(1.0), Geometric(0.4)]
     dist_masses = [pdf.(d, 0:2) for d in delays]
     @test convolve_series(delays, series) ≈
-          convolve_series(dist_masses, series)
+        convolve_series(dist_masses, series)
     @test convolve_series(delays, series; indexed_by = :secondary) ≈
-          convolve_series(dist_masses, series; indexed_by = :secondary)
+        convolve_series(dist_masses, series; indexed_by = :secondary)
 
     # An abstract element type reads the same way: nothing dispatches on
     # the element, so the concrete and abstract vectors agree.
     abstract_eltype = convert(Vector{UnivariateDistribution}, delays)
     for indexed_by in (:primary, :secondary)
         @test convolve_series(abstract_eltype, series; indexed_by) ≈
-              convolve_series(delays, series; indexed_by)
+            convolve_series(delays, series; indexed_by)
     end
 end
 
@@ -450,20 +469,26 @@ end
     series = [1.0, 2.0, 4.0, 3.0]
     static = convolve_series(masses, series)
     for indexed_by in (:primary, :secondary)
-        @test convolve_series(fill(GridDelay(), length(series)), series;
-            indexed_by) ≈ static
+        @test convolve_series(
+            fill(GridDelay(), length(series)), series;
+            indexed_by
+        ) ≈ static
     end
 
     # Mixed element types are fine: every delay is read through whichever
     # single-delay method it has, so a foreign type and a stock discrete
     # distribution sit side by side in one vector.
-    mixed = UnivariateDistribution[GridDelay(), Poisson(1.0),
-        GridDelay(), DiscreteUniform(0, 2)]
-    mixed_masses = [masses, pdf.(Poisson(1.0), 0:3), masses,
-        pdf.(DiscreteUniform(0, 2), 0:3)]
+    mixed = UnivariateDistribution[
+        GridDelay(), Poisson(1.0),
+        GridDelay(), DiscreteUniform(0, 2),
+    ]
+    mixed_masses = [
+        masses, pdf.(Poisson(1.0), 0:3), masses,
+        pdf.(DiscreteUniform(0, 2), 0:3),
+    ]
     for indexed_by in (:primary, :secondary)
         @test convolve_series(mixed, series; indexed_by) ≈
-              convolve_series(mixed_masses, series; indexed_by)
+            convolve_series(mixed_masses, series; indexed_by)
     end
 end
 
@@ -477,25 +502,31 @@ end
     # and bins the wrapped distribution's CDF over that width, so a
     # non-default `interval` genuinely changes the masses.
     struct BinnedDelay{D <: ContinuousUnivariateDistribution} <:
-           ContinuousUnivariateDistribution
+        ContinuousUnivariateDistribution
         dist::D
     end
 
     function binned_masses(d::BinnedDelay, n::Int, interval::Real)
-        [cdf(d.dist, interval * k) - cdf(d.dist, interval * (k - 1))
-         for k in 1:n]
+        [
+            cdf(d.dist, interval * k) - cdf(d.dist, interval * (k - 1))
+                for k in 1:n
+        ]
     end
 
     function convolve_series(
             d::BinnedDelay, series::AbstractVector{<:Real};
-            interval::Real = 1, kwargs...)
-        return convolve_series(binned_masses(d, length(series), interval),
-            series)
+            interval::Real = 1, kwargs...
+        )
+        return convolve_series(
+            binned_masses(d, length(series), interval),
+            series
+        )
     end
 end
 
-@testitem "vector convolve_series forwards discretisation keywords" setup=[
-    BinnedDelayFixture] begin
+@testitem "vector convolve_series forwards discretisation keywords" setup = [
+    BinnedDelayFixture,
+] begin
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
     delay = BinnedDelay(LogNormal(1.5, 0.5))
 
@@ -503,8 +534,10 @@ end
     # `interval`, read one at a time vs. as a time-varying vector, must
     # discretise identically and so convolve identically.
     scalar = convolve_series(delay, series; interval = 7)
-    vector = convolve_series(fill(delay, length(series)), series;
-        interval = 7)
+    vector = convolve_series(
+        fill(delay, length(series)), series;
+        interval = 7
+    )
     @test vector ≈ scalar
     @test !(vector ≈ convolve_series(delay, series))   # interval matters
 
@@ -512,12 +545,15 @@ end
     # `convolve_series` method builds internally, for any delay type with
     # no method of its own here: it is the extension point the vector
     # form calls through.
-    @test ConvolvedDistributions.delay_masses(delay, length(series);
-        interval = 7) ≈ binned_masses(delay, length(series), 7)
+    @test ConvolvedDistributions.delay_masses(
+        delay, length(series);
+        interval = 7
+    ) ≈ binned_masses(delay, length(series), 7)
 end
 
-@testitem "no-keyword discretisation is unchanged" setup=[
-    BinnedDelayFixture] begin
+@testitem "no-keyword discretisation is unchanged" setup = [
+    BinnedDelayFixture,
+] begin
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
     delay = BinnedDelay(LogNormal(1.5, 0.5))
 
@@ -532,12 +568,15 @@ end
     # completely unaffected by `delay_masses` now accepting keywords.
     discrete = [Poisson(λ) for λ in range(0.5, 3.0; length = length(series))]
     @test convolve_series(discrete, series) ≈
-          convolve_series([pdf.(d, 0:(length(series) - 1)) for d in discrete],
-        series)
+        convolve_series(
+        [pdf.(d, 0:(length(series) - 1)) for d in discrete],
+        series
+    )
 end
 
-@testitem "a keyword-less delay_masses override is bypassed for keywords" setup=[
-    BinnedDelayFixture] begin
+@testitem "a keyword-less delay_masses override is bypassed for keywords" setup = [
+    BinnedDelayFixture,
+] begin
     series = [0.0, 1.0, 3.0, 6.0, 8.0, 5.0, 2.0]
     delay = BinnedDelay(LogNormal(1.5, 0.5))
 
@@ -553,7 +592,7 @@ end
     # plain call still dispatches to it, unmodified and unaware that
     # keyword forwarding now exists.
     @test convolve_series(fill(delay, length(series)), series) ≈
-          convolve_series(delay, series; interval = 1)
+        convolve_series(delay, series; interval = 1)
 
     # A non-default `interval` requested: the override cannot accept it
     # (dispatch only considers keyword-accepting methods once keywords are
@@ -561,8 +600,10 @@ end
     # `interval` to the delay's own `convolve_series` method — restoring
     # agreement with the scalar path even though the override was never
     # touched.
-    @test convolve_series(fill(delay, length(series)), series;
-        interval = 7) ≈ convolve_series(delay, series; interval = 7)
+    @test convolve_series(
+        fill(delay, length(series)), series;
+        interval = 7
+    ) ≈ convolve_series(delay, series; interval = 7)
 end
 
 @testitem "keywords a delay can't honour raise a clear delay_masses error" begin
@@ -603,26 +644,33 @@ end
     # must match a per-time-point build.
     series = collect(range(1.0, 10.0, length = 9))
     d1, d2 = Poisson(1.0), Poisson(3.0)
-    arrangements = ([d1, d1, d1, d1, d2, d2, d2, d2, d2],
+    arrangements = (
+        [d1, d1, d1, d1, d2, d2, d2, d2, d2],
         [d1, d2, d1, d2, d1, d2, d1, d2, d1],
         [d1, d1, d2, d2, d2, d1, d1, d2, d2],
-        [Poisson(1.0) for _ in 1:9])
+        [Poisson(1.0) for _ in 1:9],
+    )
     for delays in arrangements, indexed_by in (:primary, :secondary)
 
         per_point = [pdf.(d, 0:(length(series) - 1)) for d in delays]
         @test convolve_series(delays, series; indexed_by) ≈
-              convolve_series(per_point, series; indexed_by)
+            convolve_series(per_point, series; indexed_by)
     end
 
     # Runs are found with `===`, so two duals that agree in value but not in
     # tangent are never merged and both parameters keep their gradient.
-    f(θ) = sum(convolve_series(
-        [Poisson(θ[1]), Poisson(θ[2]), Poisson(θ[1])], [1.0, 2.0, 3.0]))
+    f(θ) = sum(
+        convolve_series(
+            [Poisson(θ[1]), Poisson(θ[2]), Poisson(θ[1])], [1.0, 2.0, 3.0]
+        )
+    )
     g = ForwardDiff.gradient(f, [2.0, 2.0])
-    ε = 1e-6
-    fd = [(f([2.0 + ε, 2.0]) - f([2.0 - ε, 2.0])) / (2ε),
-        (f([2.0, 2.0 + ε]) - f([2.0, 2.0 - ε])) / (2ε)]
-    @test g ≈ fd rtol=1e-4
+    ε = 1.0e-6
+    fd = [
+        (f([2.0 + ε, 2.0]) - f([2.0 - ε, 2.0])) / (2ε),
+        (f([2.0, 2.0 + ε]) - f([2.0, 2.0 - ε])) / (2ε),
+    ]
+    @test g ≈ fd rtol = 1.0e-4
     @test all(!iszero, g)
 end
 
@@ -633,13 +681,13 @@ end
     d1, d2 = Poisson(3.0), Poisson(1.0)
     for indexed_by in (:primary, :secondary)
         @test convolve_series([d1 => 3, d2 => 4], series; indexed_by) ≈
-              convolve_series([d1, d1, d1, d2, d2, d2, d2], series; indexed_by)
+            convolve_series([d1, d1, d1, d2, d2, d2, d2], series; indexed_by)
     end
 
     # Mass vectors take run lengths the same way.
     p1, p2 = [0.5, 0.3, 0.2], [0.9, 0.1]
     @test convolve_series([p1 => 3, p2 => 4], series) ≈
-          convolve_series([p1, p1, p1, p2, p2, p2, p2], series)
+        convolve_series([p1, p1, p1, p2, p2, p2, p2], series)
 
     # Runs that do not cover the window, or are empty, are a bug.
     err = try
@@ -674,10 +722,12 @@ end
     @test shifted[2:end] ≈ series[1:(end - 1)]
 
     # A delay that switches partway — the case a single PMF cannot express.
-    switching = [DiscreteUniform(0, 0), DiscreteUniform(0, 0),
-        DiscreteUniform(1, 1), DiscreteUniform(1, 1), DiscreteUniform(1, 1)]
+    switching = [
+        DiscreteUniform(0, 0), DiscreteUniform(0, 0),
+        DiscreteUniform(1, 1), DiscreteUniform(1, 1), DiscreteUniform(1, 1),
+    ]
     @test convolve_series(switching, series) ≈
-          [series[1], series[2], 0.0, series[3], series[4]]
+        [series[1], series[2], 0.0, series[3], series[4]]
 end
 
 @testitem "time-varying PMFs are used exactly as given" begin
@@ -687,7 +737,7 @@ end
     half = fill(0.25, 2, 4)
     @test convolve_series(half, series) ≈ [0.25, 0.75, 1.25, 1.75]
     @test convolve_series(half, series; indexed_by = :secondary) ≈
-          [0.25, 0.75, 1.25, 1.75]
+        [0.25, 0.75, 1.25, 1.75]
 
     # PMFs longer than the window: the overhanging mass is truncated.
     long = repeat([0.5, 0.3, 0.1, 0.05, 0.05], 1, 2)
@@ -695,11 +745,13 @@ end
 
     # Ragged PMFs: each time point may carry its own number of lags.
     ragged = [[0.5, 0.3, 0.2], [0.5, 0.5], [1.0], [0.4, 0.4, 0.1, 0.1]]
-    padded = [[0.5, 0.3, 0.2, 0.0], [0.5, 0.5, 0.0, 0.0],
-        [1.0, 0.0, 0.0, 0.0], [0.4, 0.4, 0.1, 0.1]]
+    padded = [
+        [0.5, 0.3, 0.2, 0.0], [0.5, 0.5, 0.0, 0.0],
+        [1.0, 0.0, 0.0, 0.0], [0.4, 0.4, 0.1, 0.1],
+    ]
     for indexed_by in (:primary, :secondary)
         @test convolve_series(ragged, series; indexed_by) ≈
-              convolve_series(hcat(padded...), series; indexed_by)
+            convolve_series(hcat(padded...), series; indexed_by)
     end
 end
 
@@ -718,17 +770,25 @@ end
     @test err isa ArgumentError
     @test occursin("one delay PMF per time point", err.msg)
     @test_throws ArgumentError convolve_series(zeros(3, n + 1), series)
-    @test_throws ArgumentError convolve_series([[0.5, 0.5] for _ in 1:2],
-        series)
+    @test_throws ArgumentError convolve_series(
+        [[0.5, 0.5] for _ in 1:2],
+        series
+    )
 
     # The convention is a dispatch target, so an unnamed one has no method
     # rather than falling back to the default.
-    @test_throws MethodError convolve_series(fill(Poisson(1.0), n), series;
-        indexed_by = :target)
-    @test_throws MethodError convolve_series(zeros(3, n), series;
-        indexed_by = :target)
-    @test_throws MethodError convolve_series([[1.0] for _ in 1:n], series;
-        indexed_by = :target)
+    @test_throws MethodError convolve_series(
+        fill(Poisson(1.0), n), series;
+        indexed_by = :target
+    )
+    @test_throws MethodError convolve_series(
+        zeros(3, n), series;
+        indexed_by = :target
+    )
+    @test_throws MethodError convolve_series(
+        [[1.0] for _ in 1:n], series;
+        indexed_by = :target
+    )
 
     # Elements are never type-checked here: each kernel is built through the
     # element's own single-delay method, so a continuous element fails there
@@ -739,8 +799,10 @@ end
 
     # Empty PMFs are a construction bug, not a zero signal.
     @test_throws ArgumentError convolve_series(zeros(0, n), series)
-    @test_throws ArgumentError convolve_series([Float64[] for _ in 1:n],
-        series)
+    @test_throws ArgumentError convolve_series(
+        [Float64[] for _ in 1:n],
+        series
+    )
 end
 
 @testitem "time-varying surfaces guard indexing" begin
@@ -762,7 +824,8 @@ end
     offset_inner = Vector{Any}(pmfs)
     offset_inner[2] = ZeroBasedTV([0.5, 0.5])
     @test_throws ArgumentError convolve_series(
-        convert(Vector{AbstractVector{Float64}}, offset_inner), series)
+        convert(Vector{AbstractVector{Float64}}, offset_inner), series
+    )
 end
 
 @testitem "gradients flow through time-varying delays" begin
@@ -778,16 +841,22 @@ end
     θ = [2.0, 0.25]
     g = ForwardDiff.gradient(total, θ)
     @test !all(iszero, g)
-    ε = 1e-6
-    fd = [(total(θ + ε * e) - total(θ - ε * e)) / (2ε)
-          for e in ([1.0, 0.0], [0.0, 1.0])]
-    @test g ≈ fd rtol=1e-4
+    ε = 1.0e-6
+    fd = [
+        (total(θ + ε * e) - total(θ - ε * e)) / (2ε)
+            for e in ([1.0, 0.0], [0.0, 1.0])
+    ]
+    @test g ≈ fd rtol = 1.0e-4
 
     # Caller-supplied masses: the convolution is linear in the mass matrix,
     # so gradients flow through it under both indexing conventions.
     base = pdf.(Poisson(1.5), 0:(n - 1))
-    weighted(θ) = sum(convolve_series(θ[1] .* repeat(base, 1, n), series;
-        indexed_by = :secondary))
+    weighted(θ) = sum(
+        convolve_series(
+            θ[1] .* repeat(base, 1, n), series;
+            indexed_by = :secondary
+        )
+    )
     gw = ForwardDiff.gradient(weighted, [1.0])
     @test gw[1] ≈ sum(convolve_series(base, series))
 end
@@ -810,11 +879,17 @@ end
     # (caller vector, discrete delay, DiscreteNonParametric) agrees with
     # its own unmasked result at the requested positions, and holds zero
     # everywhere else.
-    for (full, masked) in ((convolve_series(pmf, series),
-        convolve_series(pmf, series; mask)),
-        (convolve_series(delay, series),
-        convolve_series(delay, series; mask)),
-        (convolve_series(dnp, series), convolve_series(dnp, series; mask)))
+    for (full, masked) in (
+            (
+                convolve_series(pmf, series),
+                convolve_series(pmf, series; mask),
+            ),
+            (
+                convolve_series(delay, series),
+                convolve_series(delay, series; mask),
+            ),
+            (convolve_series(dnp, series), convolve_series(dnp, series; mask)),
+        )
         @test masked[mask] ≈ full[mask]
         @test all(iszero, masked[.!mask])
         @test length(masked) == n
@@ -837,10 +912,10 @@ end
     for indexed_by in (:primary, :secondary)
         full = convolve_series(delays, series; indexed_by)
         for masked in (
-            convolve_series(delays, series; indexed_by, mask),
-            convolve_series(pmfs, series; indexed_by, mask),
-            convolve_series(matrix, series; indexed_by, mask)
-        )
+                convolve_series(delays, series; indexed_by, mask),
+                convolve_series(pmfs, series; indexed_by, mask),
+                convolve_series(matrix, series; indexed_by, mask),
+            )
             @test masked[mask] ≈ full[mask]
             @test all(iszero, masked[.!mask])
         end
@@ -862,10 +937,10 @@ end
     all_true = trues(n)
 
     @test convolve_series(pmf, series; mask = all_true) ==
-          convolve_series(pmf, series)
+        convolve_series(pmf, series)
     for indexed_by in (:primary, :secondary)
         @test convolve_series(delays, series; indexed_by, mask = all_true) ==
-              convolve_series(delays, series; indexed_by)
+            convolve_series(delays, series; indexed_by)
     end
 end
 
@@ -909,13 +984,15 @@ end
     @test err isa ArgumentError
     @test occursin("same length", err.msg)
     @test_throws ArgumentError convolve_series(
-        delays, series; mask = trues(length(series) + 1))
+        delays, series; mask = trues(length(series) + 1)
+    )
 
     # An empty series must still validate the mask length in the
     # time-varying form: nothing about an empty window excuses a
     # wrong-length mask.
     @test_throws ArgumentError convolve_series(
-        Vector{Float64}[], Float64[]; mask = trues(1))
+        Vector{Float64}[], Float64[]; mask = trues(1)
+    )
 end
 
 @testitem "masked positions genuinely skip computation" begin
@@ -997,7 +1074,8 @@ end
     rates(θ) = [θ[1] + θ[2] * (t - 1) for t in 1:n]
     full_tv(θ) = convolve_series([Poisson(λ) for λ in rates(θ)], series)
     masked_tv(θ) = convolve_series(
-        [Poisson(λ) for λ in rates(θ)], series; mask)
+        [Poisson(λ) for λ in rates(θ)], series; mask
+    )
     θtv = [2.0, 0.25]
     jfull_tv = ForwardDiff.jacobian(full_tv, θtv)
     jmasked_tv = ForwardDiff.jacobian(masked_tv, θtv)
@@ -1119,5 +1197,5 @@ end
     mask = falses(20)
     mask[3] = true
     @test convolve_series(pmf, series; mask)[mask] ≈
-          convolve_series(pmf, series)[mask]
+        convolve_series(pmf, series)[mask]
 end
