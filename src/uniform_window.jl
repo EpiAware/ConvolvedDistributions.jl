@@ -89,7 +89,7 @@ function partial_expectation(component::Gamma)
     inv_g = inv(SpecialFunctions.gamma(k + 1))
     return function (t)
         y = t / θ
-        return k * θ * (_gamma_cdf(k, θ, t) - y^k * exp(-y) * inv_g)
+        return k * θ * (cdf_ad_safe(component, t) - y^k * exp(-y) * inv_g)
     end
 end
 
@@ -103,13 +103,14 @@ function partial_expectation(component::LogNormal)
 end
 
 # g(t) = γ(1 + 1/k, (t/λ)^k), the lower incomplete gamma function via
-# its regularised form γ(a, z) = Γ(a) P(a, z).
+# its regularised form γ(a, z) = Γ(a) P(a, z), read off a unit-scale Gamma.
 function partial_expectation(component::Weibull)
     k, λ = shape(component), scale(component)
     s = 1 + inv(k)
     Γs = SpecialFunctions.gamma(s)
+    unit_gamma = Gamma(s, one(s))
     return t -> t <= 0 ? zero(float(t)) :
-        λ * Γs * _gamma_cdf(s, one(s), (t / λ)^k)
+        λ * Γs * cdf_ad_safe(unit_gamma, (t / λ)^k)
 end
 
 @doc "
@@ -151,8 +152,9 @@ function upper_partial_expectation(component::Weibull)
     k, λ = shape(component), scale(component)
     s = 1 + inv(k)
     Γs = SpecialFunctions.gamma(s)
+    unit_gamma = Gamma(s, one(s))
     return t -> t <= 0 ? λ * Γs :
-        λ * Γs * (1 - _gamma_cdf(s, one(s), (t / λ)^k))
+        λ * Γs * ccdf_ad_safe(unit_gamma, (t / λ)^k)
 end
 
 const _WINDOW_FAMILIES = Union{Gamma, LogNormal, Weibull}

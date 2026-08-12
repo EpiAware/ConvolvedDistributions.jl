@@ -25,11 +25,7 @@ const QA_CONFIG = (
     # ExplicitImports `ignore`: symbols an extension legitimately imports
     # non-publicly (kit-check order dependence; see EpiAwarePackageTools
     # issue on deterministic ExplicitImports scope).
-    # - _gamma_cdf: EpiAwareADTools-internal AD-safe gamma CDF helper the
-    #   native Gamma/Weibull uniform-window closed forms (#77,
-    #   src/uniform_window.jl) call directly so the per-backend AD rules
-    #   keyed on it fire, mirroring CensoredDistributions' own use of it.
-    ei_ignore = (:_gamma_cdf,),
+    ei_ignore = (),
 
     # Docstring `crossref_ignore`: upstream names docstrings link to via
     # `[`name`](@ref)`, e.g. (:pdf, :cdf, :logpdf).

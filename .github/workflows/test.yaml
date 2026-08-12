@@ -15,8 +15,7 @@ concurrency:
 jobs:
   test:
     uses: EpiAware/.github/.github/workflows/tests.yml@d024dc6927cc3523292a159dc0d4a45193c9c65d
-    # lts (1.10) excluded while the unregistered kit is pinned via [sources],
-    # which Pkg only understands on >= 1.11 (EpiAwarePackageTools#115).
+    # lts (1.10) excluded: the package floors julia at 1.11.
     with:
       julia_versions: '["1", "pre"]'
     secrets: inherit  # pragma: allowlist secret

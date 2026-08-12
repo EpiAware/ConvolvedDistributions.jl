@@ -1,7 +1,7 @@
 name = "ConvolvedDistributions"
 uuid = "f5b942c9-bc5b-4664-8486-7f531bb06742"
 authors = ["Sam Abbott", "EpiAware contributors"]
-version = "0.4.1"
+version = "0.4.2"
 
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
@@ -34,7 +34,10 @@ ChainRulesCore = "1"
 Distributions = "0.25"
 DocStringExtensions = "0.9"
 Enzyme = "0.13"
-EpiAwareADTools = "0.1.1"
+# Floored at 0.2: the first release whose `logccdf_ad_safe(::Gamma)` stays
+# accurate in the far right tail instead of collapsing to `-Inf`, which the
+# Gamma uniform-window survival depends on.
+EpiAwareADTools = "0.2"
 FastGaussQuadrature = "1"
 Integrals = "4, 5.1"
 LogExpFunctions = "0.3, 1.0"
@@ -45,7 +48,7 @@ Random = "1"
 SpecialFunctions = "2"
 Statistics = "1"
 Test = "1"
-julia = "1.10, 1.11, 1.12"
+julia = "1.11, 1.12"
 
 
 [workspace]
