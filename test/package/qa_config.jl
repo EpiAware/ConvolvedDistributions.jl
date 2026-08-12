@@ -38,12 +38,12 @@ const QA_CONFIG = (
     # Extra docstring-format options, e.g.
     # (; exported_only_examples = true, require_field_docs = true).
     # `require_arg_sections`/`require_examples` off: the solver-method
-    # dispatch family (#77, #80, src/solver_dispatch.jl) is eight public
-    # functions sharing the same self-evident argument names
-    # (`d`/`components`/`x`/`p`/`method`) and one worked example on
-    # `convolved_cdf`, per the S7 prose-budget rule that a name
-    # already saying what it is does not also need an `# Arguments`
-    # section repeated on every sibling.
+    # dispatch family (src/solver_dispatch.jl) is many public functions,
+    # one per quantity per combination type, sharing the same
+    # self-evident argument names (`d`/`components`/`x`/`p`/`method`) and
+    # one worked example on `convolved_cdf`, per the S7 prose-budget rule
+    # that a name already saying what it is does not also need an
+    # `# Arguments` section repeated on every sibling.
     docstring = (; require_arg_sections = false, require_examples = false),
 
     # README section-structure check. `path` is the package root (its

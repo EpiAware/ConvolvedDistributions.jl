@@ -108,21 +108,25 @@ include("Convolved.jl")
 # clamp, and before solver_dispatch.jl since the `difference_*` generics
 # there dispatch on the `Difference` type itself.
 include("Difference.jl")
-# Solver-method dispatch: the per-quantity generics `Convolved` and
-# `Difference` call into (any number of components for `Convolved`, a
-# fixed X/Y pair for `Difference`), and the native uniform-window forms
-# hosted on them. After Convolved.jl and Difference.jl, whose numeric
-# quadrature helpers and structs the `NumericSolver` arms reuse.
-include("solver_dispatch.jl")
-include("uniform_window.jl")
 # Product (Z = X * Y), the Mellin-convolution member for non-negative
-# components. Also after Convolved.jl for `_window_quantile` /
-# `_CONVOLVED_TAIL` / `_max2` / `_min2`.
+# components. After Convolved.jl for `_window_quantile` /
+# `_CONVOLVED_TAIL` / `_max2` / `_min2`, and before solver_dispatch.jl
+# since the `product_*` generics there dispatch on the `Product` type
+# itself.
 include("Product.jl")
 # Ratio (Z = X / Y), the quotient member. After Convolved.jl for
 # `_window_quantile` / `_CONVOLVED_TAIL` / `_max2` / `_min2` /
-# `_panel_integrate`.
+# `_panel_integrate`, and before solver_dispatch.jl since the `ratio_*`
+# generics there dispatch on the `Ratio` type itself.
 include("Ratio.jl")
+# Solver-method dispatch: the per-quantity generics `Convolved`,
+# `Difference`, `Product`, and `Ratio` call into (any number of
+# components for `Convolved`, a fixed X/Y pair for the other three),
+# and the native uniform-window forms hosted on them. After Convolved.jl,
+# Difference.jl, Product.jl, and Ratio.jl, whose numeric quadrature
+# helpers and structs the `NumericSolver` arms reuse.
+include("solver_dispatch.jl")
+include("uniform_window.jl")
 # The probability generating function primitive (#90): closed forms for
 # the standard count families, a truncated-series fallback for any other
 # `DiscreteUnivariateDistribution`, and the structural `Convolved` product.
