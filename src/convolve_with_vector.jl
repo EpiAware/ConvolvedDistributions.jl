@@ -532,9 +532,23 @@ Add a method when a delay's masses are NOT what its single-delay method
 would give — a discrete-support type whose lag masses are not
 `pdf(delay, k)`, say.
 
+Keyword arguments (e.g. a continuous delay's discretisation `interval`)
+are forwarded to the single-delay `convolve_series` call whenever any are
+given, so this default agrees with the scalar
+[`convolve_series(delay, series)`](@ref convolve_series) path under the
+same keywords.
+A call with no keywords dispatches exactly as a plain two-argument call
+would, so a delay type whose own `delay_masses` or `convolve_series`
+method takes no keywords at all keeps working unchanged as long as no
+keywords are asked of it. Asking such a delay for keywords it cannot
+honour raises an `ArgumentError` naming `delay_masses`, not a bare
+keyword-sorter `MethodError`.
+
 # Arguments
 - `delay`: the delay.
 - `n`: how many lags to return, from lag 0.
+- `kwargs...`: discretisation keywords, forwarded to the delay's
+  single-delay `convolve_series` method.
 
 # Returns
 - A vector of `n` probability masses.
@@ -547,7 +561,70 @@ ConvolvedDistributions.delay_masses(Poisson(2.0), 4)
 ```
 "
 delay_masses(d::DiscreteUnivariateDistribution, n::Int) = pdf.(d, 0:(n - 1))
-delay_masses(d, n::Int) = convolve_series(d, [i == 1 ? 1.0 : 0.0 for i in 1:n])
+
+# The kwargs-carrying default. Routing through the delay's own single-delay
+# `convolve_series` method is what makes this agree with the scalar path
+# under the same keywords: whatever `convolve_series(delay, series;
+# kwargs...)` does for one delay is exactly what each time point gets here.
+#
+# Keywords are forwarded only when given. An EMPTY splat (`; kwargs...`
+# with `kwargs` empty) dispatches identically to a plain call — Julia
+# resolves a keyword-free call by positional specificity alone, so a
+# two-argument-only downstream `delay_masses` specialisation (no keyword
+# support at all, e.g. CensoredDistributions.jl's interval-censored
+# continuous delays) is still selected and still runs unmodified when
+# nothing asks it for keywords.
+#
+# When keywords ARE given, `_accepts_kwargs` probes whether the delay's
+# `convolve_series` method declares the requested keywords by name or
+# through a catch-all, before calling it. A method that takes some other
+# keyword would otherwise pass a mere can-it-take-keywords test and fail
+# later in the keyword sorter; the probe turns that into an actionable
+# error naming `delay_masses` instead. This is
+# also why a two-argument-only downstream `delay_masses` override does
+# not shadow this default when keywords are given: Julia's keyword
+# dispatch only considers methods that accept keywords at all, so the
+# override (no keywords) is skipped in favour of this one, and the
+# keywords still reach the delay's `convolve_series` method if it can
+# take them, restoring agreement with the scalar path even though the
+# override itself was never touched.
+function delay_masses(d, n::Int; kwargs...)
+    impulse = [i == 1 ? 1.0 : 0.0 for i in 1:n]
+    isempty(kwargs) && return convolve_series(d, impulse)
+    _accepts_kwargs(d, impulse, keys(kwargs)) ||
+        throw(_delay_masses_kwargs_error(d, kwargs))
+    return convolve_series(d, impulse; kwargs...)
+end
+
+# Whether the `convolve_series` method for these positional arguments
+# declares every requested keyword, by name or through a catch-all.
+# `@noinline` and shielded from AD in the extension modules: the answer
+# depends only on the argument TYPES, never on parameter values, and the
+# method-table lookup underneath is a reflection primitive no AD backend
+# can trace (the same class of call that had to be shielded for
+# construction-time closed-form resolution).
+@noinline function _accepts_kwargs(d, impulse, requested)
+    types = Tuple{typeof(d), typeof(impulse)}
+    return all(requested) do name
+        hasmethod(convolve_series, types, (name,))
+    end
+end
+
+# Message factored out to keep the dispatch-check line above short; named
+# after `delay_masses` (not `convolve_series`) because that is the call
+# the caller made and the extension point they need to fix.
+function _delay_masses_kwargs_error(d, kwargs)
+    names = join(keys(kwargs), ", ")
+    return ArgumentError(
+        "convolve_series was given discretisation keyword argument(s) " *
+            "$names for a delay of type $(typeof(d)), but its " *
+            "convolve_series method does not accept them. Define " *
+            "delay_masses(::$(nameof(typeof(d))), ::Int; kwargs...) (or a " *
+            "convolve_series(::$(nameof(typeof(d))), series; kwargs...) " *
+            "method) that accepts `; kwargs...` so this delay type can " *
+            "take discretisation keywords."
+    )
+end
 
 @doc "
 
@@ -577,6 +654,12 @@ placeholder lag.
   landing at time `i` is read through `delays[i]` —
   `out[i] = Σ_k pmf_i[k + 1] * series[i - k]`. Not mass-conserving.
 
+Any other keyword is forwarded to each distinct delay's
+[`delay_masses`](@ref ConvolvedDistributions.delay_masses) call, so a
+vector of continuous delays needing a non-default discretisation (e.g.
+`interval`) agrees with the same keywords passed to the single-delay
+[`convolve_series(delay, series)`](@ref convolve_series) form.
+
 # Arguments
 - `delays`: one delay per time point, in `series` order.
 - `series`: the input timeseries (expected events at unit-spaced times
@@ -584,6 +667,9 @@ placeholder lag.
 - `indexed_by`: `:primary` (default) or `:secondary`.
 - `mask`: optional output-position mask, as in
   [`convolve_series(delay, series)`](@ref convolve_series).
+- `kwargs...`: discretisation keywords, forwarded to
+  [`delay_masses`](@ref ConvolvedDistributions.delay_masses) for each
+  distinct delay.
 
 # Returns
 - A numeric vector of expected downstream counts, the same length as
@@ -609,7 +695,7 @@ expected_counts = convolve_series(delays, infections)
 function convolve_series(
         delays::AbstractVector, series::AbstractVector{<:Real};
         indexed_by::Symbol = :primary,
-        mask::Union{Nothing, AbstractVector{Bool}} = nothing
+        mask::Union{Nothing, AbstractVector{Bool}} = nothing, kwargs...
     )
     Base.require_one_based_indexing(delays, series)
     _check_kernel_count(delays, series)
@@ -617,7 +703,7 @@ function convolve_series(
     mask === nothing || _check_mask(mask, n)
     lags = _kernel_lags(n, Val(indexed_by), mask)
     return convolve_series(
-        _distinct_masses(delays, lags), series; indexed_by, mask
+        _distinct_masses(delays, lags; kwargs...), series; indexed_by, mask
     )
 end
 
@@ -627,8 +713,9 @@ end
 # of its time points needs; the convolution clamps the rest. Delays are
 # matched with `===`, which is bitwise for immutables — so separately
 # constructed but identical delays do match, while two duals that agree in
-# value and differ in tangent do not, and never share masses.
-function _distinct_masses(delays, lags)
+# value and differ in tangent do not, and never share masses. Discretisation
+# keywords are forwarded to every `delay_masses` call unchanged.
+function _distinct_masses(delays, lags; kwargs...)
     index, firsts, needed = zeros(Int, length(lags)), Int[], Int[]
     @inbounds for j in eachindex(lags)
         slot = findfirst(f -> delays[j] === delays[f], firsts)
@@ -641,7 +728,10 @@ function _distinct_masses(delays, lags)
         end
         index[j] = slot
     end
-    masses = [delay_masses(delays[firsts[s]], needed[s]) for s in eachindex(firsts)]
+    masses = [
+        delay_masses(delays[firsts[s]], needed[s]; kwargs...)
+            for s in eachindex(firsts)
+    ]
     return masses[index]
 end
 

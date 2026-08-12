@@ -1,7 +1,7 @@
 module ConvolvedDistributionsMooncakeExt
 
 using ConvolvedDistributions: _window_quantile, _lattice_quantile,
-    AbstractSolverMethod, _resolve_closed_form
+    _accepts_kwargs, AbstractSolverMethod, _resolve_closed_form
 using Distributions: UnivariateDistribution
 using Mooncake: Mooncake
 
@@ -39,6 +39,14 @@ Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
 # `Product` share one method), so the registered tuple type is `Any`.
 Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
     typeof(_lattice_quantile), Any, Real,
+}
+
+# `_accepts_kwargs` asks the method table whether a delay's
+# `convolve_series` declares a keyword. The answer depends only on
+# argument types, and the lookup underneath is the same reflection
+# primitive Mooncake cannot trace, so shield it too.
+Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
+    typeof(_accepts_kwargs), Any, Any, Any,
 }
 
 # `_resolve_closed_form(components, method)` answers, once at
