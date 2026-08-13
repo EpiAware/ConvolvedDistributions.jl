@@ -61,13 +61,9 @@ using LogExpFunctions: log1mexp, logsubexp
 # AD-safe evaluation hooks are the sanctioned extension points wrapper
 # packages overload for their own component types (their Gamma methods carry
 # the analytic gamma-CDF derivative rules on every supported backend).
-# `_gamma_cdf` is the AD-safe regularised-lower-incomplete-gamma evaluator
-# the native Gamma/Weibull uniform-window closed forms route through
-# (src/uniform_window.jl), so their shape-parameter derivatives carry the
-# same per-backend rules as the rest of the package.
 using EpiAwareADTools: primal, primal_distribution, pdf_ad_safe,
     cdf_ad_safe, ccdf_ad_safe, logcdf_ad_safe,
-    logccdf_ad_safe, _gamma_cdf
+    logccdf_ad_safe
 
 import FastGaussQuadrature  # Gauss-Legendre nodes for the default solver
 import SpecialFunctions     # gamma() for the native analytic-pair closed forms

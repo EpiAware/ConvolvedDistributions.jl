@@ -147,7 +147,7 @@ task test-formatting  # verify without modifying files
 ```
 
 The formatter runs from the isolated `test/formatter` environment, which pins `Runic` to an exact version (`=1.7.0`) so the check is reproducible across the CI Julia matrix.
-Keep that pin in step with the `.pre-commit-config.yaml` Runic `additional_dependencies` pin, or `test (lts)` and `pre-commit` will disagree about formatting.
+Keep that pin in step with the `.pre-commit-config.yaml` Runic `additional_dependencies` pin, or `test` and `pre-commit` will disagree about formatting.
 
 ### Q: How do I check for type stability?
 
