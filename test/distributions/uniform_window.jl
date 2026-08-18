@@ -271,6 +271,30 @@ end
     @test ccdf(dw, 20.0) ≈ reference(cw, ww, 20.0) rtol = 1.0e-2
 end
 
+@testitem "Gamma uniform-window ccdf matches naive 1-cdf deep in the tail (#166)" begin
+    using Distributions
+
+    # Before #166's fix, `upper_partial_expectation(::Gamma)` built its
+    # survival term from linear-space `ccdf_ad_safe(::Gamma)` (`1 -
+    # _gamma_cdf(...)`), inheriting exactly the cancellation the
+    # recursion exists to avoid: up to ~30x relative error against a
+    # BigFloat reference at the 1-1e-12 quantile (measured in the
+    # issue), the opposite of LogNormal/Weibull, where the dedicated
+    # survival form is orders of magnitude MORE accurate than `1 -
+    # cdf`. Routing it through `logccdf_ad_safe(::Gamma)` (the direct,
+    # accurate survival computation `#47` added) instead should leave
+    # it no worse than the naive form anywhere.
+    dist = Gamma(2.0, 3.0)
+    primary = Uniform(0.0, 1.0)
+    d = convolved(primary, dist)
+    for k in 8:12
+        x = maximum(primary) + quantile(dist, 1 - 10.0^(-k))
+        naive = 1 - cdf(d, x)
+        dedicated = ccdf(d, x)
+        @test dedicated ≈ naive rtol = 1.0e-2
+    end
+end
+
 @testitem "Uniform-window cdf/ccdf are probabilities at the extremes" begin
     using Distributions
 
