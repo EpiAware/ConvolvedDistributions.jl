@@ -280,6 +280,37 @@ end
     end
 end
 
+@testitem "Convolved numeric path survives extreme component parameters (#175)" begin
+    # NUTS proposes parameters like these during warm-up, before it has
+    # found the typical set -- e.g. a Gamma shape of `1e32` from a weakly
+    # informative prior. `quantile` on such a component throws a
+    # `DomainError` deep inside `SpecialFunctions`/`StatsFuns`, which
+    # `_window_quantile` used to propagate straight out of `pdf`/`cdf`,
+    # ending the chain instead of letting the sampler reject the
+    # proposal on its own terms. `NumericSolver` is forced here so the
+    # window/panel-break machinery `_window_quantile` feeds is actually
+    # exercised (`Gamma` + `Uniform` is itself an analytic pair, and a
+    # NaN from its closed form for these same extreme shapes is a
+    # separate, unrelated bug -- #202).
+    using Distributions
+
+    for comp in (
+            Gamma(1.0097410503568854e32, 1.009741050356885e32),
+            Gamma(5.363748528908569e195, 1.0),
+        )
+        d = convolved(Uniform(0.0, 1.0), comp; method = NumericSolver())
+        for x in (0.5, 1.0, 5.0, 100.0, 1.0e10)
+            # `pdf`/`cdf` at these `x` are legitimately (near-)zero, deep
+            # in the component's extreme left tail, so `logpdf` is `-Inf`
+            # there -- exactly the "sampler can reject" contract #175
+            # wants. `!isnan`, not `isfinite`, is the right pin.
+            @test !isnan(cdf(d, x))
+            @test !isnan(pdf(d, x))
+            @test !isnan(logpdf(d, x))
+        end
+    end
+end
+
 @testitem "Convolved pdf matches analytic and Monte Carlo" begin
     using Distributions, Random, Statistics
 
