@@ -321,6 +321,23 @@ not \"no approximation whatsoever\"; window clamping is a separate,
 documented approximation that applies equally on both routes, so it does
 not flip `is_exact` to `false`.
 
+Same-family collapse (`convolve_pair`, e.g. `Gamma`+`Gamma` or
+`Exponential`+`Exponential`) is a third documented approximation this
+predicate also treats as exact (#163). The match test is `≈`, not `==`
+(`scale(a) ≈ scale(b)`, `succprob(a) ≈ succprob(b)`), so
+`convolved(Gamma(2, 1.0), Gamma(3, 1.00000001))` collapses to a single
+analytic `Gamma` at `≈`'s default relative tolerance (about `1.5e-8`),
+`is_exact` reports `true`, and the resulting answer differs from a true
+quadrature evaluation by about the same order, `1e-7` relative at worst
+on `pdf` — not amplified. Collapsing at that tolerance is roughly 140x
+faster on `pdf` and 78x faster on `cdf` than quadrature, which is why the
+tolerance is wanted rather than tightened to `==`. It does mean the
+collapse is not quite commutative right at the tolerance boundary: the
+result keeps the FIRST component's parameter exactly
+(`convolved(Gamma(2, 1.0), Gamma(3, 1.00000001))` becomes `Gamma(5,
+1.0)`), so swapping the argument order can shift the answer by around
+the tolerance itself when the two parameters are close but not equal.
+
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
