@@ -2,8 +2,9 @@
 # The documentation environment: Documenter + DocumenterVitepress (the org docs
 # standard). Add doc-only deps (e.g. plotting, DocumenterCitations) here as the
 # docs grow. The package itself is pinned by path via `[sources]`. The
-# AD-backends tutorial reads the package's `test/ADFixtures` registry, pinned
-# by path below, and imports the plotting/table deps it needs.
+# AD-comparison benchmark page reads the package's `test/ADFixtures`
+# registry, pinned by path below, and imports the plotting/table deps it
+# needs.
 [deps]
 ADFixtures = "58840592-22e4-44fc-b7f9-00f38b89c7a5"
 AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"

@@ -16,7 +16,6 @@ pages = [
             "The difference of two delays" => "getting-started/tutorials/difference-distributions.md",
             "The product of two delays" => "getting-started/tutorials/product-distributions.md",
             "Convolving a timeseries" => "getting-started/tutorials/timeseries-convolution.md",
-            "AD backends" => "getting-started/tutorials/ad-backends.md",
         ],
         "FAQ" => "getting-started/faq.md",
     ],
@@ -24,7 +23,10 @@ pages = [
         "Public API" => "lib/public.md",
         "Internal API" => "lib/internals.md",
     ],
-    "Benchmarks" => "benchmarks.md",
+    "Benchmarks" => [
+        "Performance over time" => "benchmarks/over-time.md",
+        "AD comparison" => "benchmarks/ad-comparison.md",
+    ],
     "Development" => [
         "Overview" => "developer/index.md",
         "Contributing" => "developer/contributing.md",
