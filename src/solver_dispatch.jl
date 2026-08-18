@@ -603,16 +603,40 @@ end
 # registered pair-specific closed form rather than the collapse-or-numeric
 # fallback itself. Called only from `_resolve_closed_form`, at
 # construction.
+#
+# Type-keyed cache, not a per-call `which()` probe (#174): the answer is
+# entirely a function of `typeof(generic)`/`typeof(components)`/
+# `typeof(method)`, so it is computed once per distinct type combination
+# and reused after that. `which()` itself cannot move into a `@generated`
+# function's staging body -- Julia raises "code reflection cannot be used
+# from generated functions" -- so the cache is the mechanism instead. A
+# `Convolved` rebuilt on every gradient evaluation inside a Turing model
+# (the construction-time cost this answer feeds `Convolved._closed_form`,
+# #92) then only ever does a `Dict` lookup, not a `which()` call, which is
+# what was landing in the AD tape as a `foreigncall` Mooncake forward mode
+# has no `frule!!` for. The lock guards concurrent first-touch writes from
+# a multi-threaded sampler (e.g. parallel NUTS chains); a `Dict` read/write
+# race, unlike a stale answer, would corrupt the cache outright.
+const _MORE_SPECIFIC_PAIR_CACHE = Dict{Tuple{DataType, DataType, DataType}, Bool}()
+const _MORE_SPECIFIC_PAIR_LOCK = ReentrantLock()
+
 function _more_specific_pair_method(
         generic::F, components::Tuple,
         method::AnalyticalSolver
     ) where {F}
-    fallback = which(generic, Tuple{Convolved, Tuple, Real, AnalyticalSolver})
-    resolved = which(
-        generic,
-        Tuple{Convolved, typeof(components), Real, typeof(method)}
-    )
-    return resolved !== fallback
+    key = (F, typeof(components), typeof(method))
+    return lock(_MORE_SPECIFIC_PAIR_LOCK) do
+        get!(_MORE_SPECIFIC_PAIR_CACHE, key) do
+            fallback = which(
+                generic, Tuple{Convolved, Tuple, Real, AnalyticalSolver}
+            )
+            resolved = which(
+                generic,
+                Tuple{Convolved, typeof(components), Real, typeof(method)}
+            )
+            resolved !== fallback
+        end
+    end
 end
 
 const _CONVOLVED_QUANTITY_KEYS = (
