@@ -476,6 +476,7 @@ end
 # exact when the components are degenerate and a good guess otherwise.
 # A downstream package overrides this per type.
 function quantile_initial_guess(d::Convolved, p::Real)
+    _validate_quantile_p(p)
     return [sum(c -> float(quantile(c, p)), d.components)]
 end
 

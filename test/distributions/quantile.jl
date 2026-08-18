@@ -367,6 +367,36 @@ end
     end
 end
 
+@testitem "quantile_initial_guess validates p before the component quantile call (#155)" begin
+    # `Uniform`'s own `quantile` never throws for an out-of-range `p` (it
+    # just extrapolates linearly), so the boundary tests above -- which
+    # all use Uniform components -- pass even without #155's fix: the
+    # ArgumentError they see comes from `quantile_by_optimization`'s own
+    # check, reached only because `quantile_initial_guess` happened not to
+    # error first. `Gamma`'s own `quantile` DOES throw (a `log` domain
+    # error, or an internal `p + q must equal one` check for `NaN`) before
+    # that check is ever reached, which is what #155 is about: the guess
+    # helpers need their own guard so the same clean `ArgumentError`
+    # surfaces regardless of which family builds the guess.
+    using Distributions, Optimization, OptimizationOptimJL
+
+    dc = convolved(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
+    dd = difference(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
+    dp = product(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
+    dr = ratio(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
+
+    for d in (dc, dd, dp, dr), bad in (-0.1, 1.1, NaN)
+        err = try
+            quantile(d, bad)
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError
+        @test contains(sprint(showerror, err), "p must be in [0, 1]")
+    end
+end
+
 @testitem "Truncated Convolved/Difference sample via quantile" begin
     using Distributions, Optimization, OptimizationOptimJL
     using Random, Statistics

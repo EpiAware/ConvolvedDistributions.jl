@@ -93,3 +93,18 @@ ConvolvedDistributions.quantile_initial_guess(d, 0.3)
 See also: [`quantile_by_optimization`](@ref)
 "
 function quantile_initial_guess end
+
+# Shared `p` validation for `quantile_initial_guess` methods (#155). Each
+# builds its guess from a component's own `quantile(comp, p)` (or `1 - p`),
+# which throws its own family-specific error for an out-of-range or `NaN`
+# `p` -- e.g. a bare `DomainError` from deep inside `Gamma`'s quantile --
+# before `quantile_by_optimization`'s own `ArgumentError` check ever runs:
+# `quantile_initial_guess(d, p)` is a call argument, evaluated before
+# `quantile_by_optimization`'s body. Validating here first means the clean
+# `ArgumentError` is what a caller sees, regardless of which family the
+# guess routes through.
+function _validate_quantile_p(p::Real)
+    (isnan(p) || p < 0 || p > 1) &&
+        throw(ArgumentError("p must be in [0, 1], got $p"))
+    return nothing
+end
