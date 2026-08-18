@@ -4,9 +4,8 @@
 # EpiAwarePackageTools benchmark harness; the AD-backend deps drive the
 # gradient suite (`benchmark/src/ad_gradients.jl`) and
 # Optimization/OptimizationOptimJL load the quantile extension the
-# `quantile` benchmarks exercise. EpiAwarePackageTools is pinned by git via
-# `[sources]` until it is registered (mirror the test env's pin if you
-# switch to a path).
+# `quantile` benchmarks exercise. EpiAwarePackageTools is a registered
+# release (`[compat]` below).
 [deps]
 ADFixtures = "58840592-22e4-44fc-b7f9-00f38b89c7a5"
 ADTypes = "47edcb42-4c32-4615-8424-f2b9edc5f35b"
@@ -28,8 +27,8 @@ ReverseDiff = "37e2e3b7-166d-5795-8a7a-e32c996b4267"
 [sources]
 ADFixtures = {path = "../test/ADFixtures"}
 ConvolvedDistributions = {path = ".."}
-EpiAwarePackageTools = {url = "https://github.com/EpiAware/EpiAwarePackageTools.jl", rev = "main"}
 
 [compat]
 BenchmarkTools = "1"
 Distributions = "0.25"
+EpiAwarePackageTools = "0.3, 0.4"

@@ -22,4 +22,6 @@ ConvolvedDistributions = "f5b942c9-bc5b-4664-8486-7f531bb06742"
 [sources]
 ADFixtures = {path = "../ADFixtures"}
 ConvolvedDistributions = {path = "../.."}
-EpiAwarePackageTools = {url = "https://github.com/EpiAware/EpiAwarePackageTools.jl", rev = "main"}
+
+[compat]
+EpiAwarePackageTools = "0.3, 0.4"
