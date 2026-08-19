@@ -84,6 +84,47 @@ end
     end
 end
 
+@testitem "Gamma partial_expectation/upper_partial_expectation survive extreme shape" begin
+    # `Γ(k+1)` overflows to `Inf` for an extreme shape (e.g. k ~ 1e32),
+    # and `y^k` also overflows for `y = t/θ` not tiny, so the remainder
+    # term computed as `y^k * exp(-y) / Γ(k+1)` would be an `Inf * 0`
+    # indeterminate returning `NaN`, even though the term is genuinely
+    # negligible there. The log-space form must underflow to `0`
+    # correctly instead. Both components below have `θ = 1`, so `y = t`
+    # is never tiny for the tested `t` and the overflow is genuinely
+    # exercised (a large `θ` alongside a large `k` keeps `y` small enough
+    # that `y^k` underflows cleanly on its own, without needing the fix).
+    using ConvolvedDistributions: partial_expectation, upper_partial_expectation
+    using Distributions
+
+    for component in (
+            Gamma(1.0097410503568854e32, 1.0),
+            Gamma(5.363748528908569e195, 1.0),
+        )
+        pe = partial_expectation(component)
+        upe = upper_partial_expectation(component)
+        for t in (1.0, 4.0, 100.0)
+            @test !isnan(pe(t))
+            @test !isnan(upe(t))
+            # Both terms are negligible in the extreme left tail of a
+            # distribution centred at an astronomically large mean, so
+            # the lower partial expectation is ~0 and the upper one is
+            # ~the whole mean.
+            @test pe(t) ≈ 0.0 atol = 1.0e-6
+            @test upe(t) ≈ mean(component) rtol = 1.0e-6
+        end
+    end
+
+    # Ordinary shapes must still round-trip: pe(t) + upe(t) == mean.
+    for component in (Gamma(2.0, 1.5), Gamma(0.5, 3.0), Gamma(10.0, 0.2))
+        pe = partial_expectation(component)
+        upe = upper_partial_expectation(component)
+        for t in (0.5, 2.0, 8.0)
+            @test pe(t) + upe(t) ≈ mean(component) rtol = 1.0e-10
+        end
+    end
+end
+
 @testitem "Weibull upper_partial_expectation guard: non-positive input" begin
     using ConvolvedDistributions: upper_partial_expectation
     using Distributions
@@ -286,6 +327,27 @@ end
         naive = 1 - cdf(d, x)
         dedicated = ccdf(d, x)
         @test dedicated ≈ naive rtol = 1.0e-2
+    end
+end
+
+@testitem "Uniform-window Gamma pair survives extreme shape on the analytic path" begin
+    # Gamma + Uniform is a registered analytic pair, so `convolved`'s
+    # default `AnalyticalSolver` routes through `partial_expectation`/
+    # `upper_partial_expectation(::Gamma)` directly, rather than through
+    # `_window_quantile`'s numeric quadrature path (which the same
+    # extreme-shape class of parameter also affects, for a component
+    # with no registered analytic pair).
+    using Distributions
+
+    for shape_param in (
+            1.0097410503568854e32, 5.363748528908569e195,
+        )
+        d = convolved(Uniform(0.0, 1.0), Gamma(shape_param, 1.0))
+        for x in (0.5, 1.0, 5.0, 100.0)
+            @test !isnan(cdf(d, x))
+            @test !isnan(pdf(d, x))
+            @test !isnan(logpdf(d, x))
+        end
     end
 end
 

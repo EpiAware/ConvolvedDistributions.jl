@@ -83,13 +83,22 @@ survival-side companion, [`upper_partial_expectation`](@ref), too.
 function partial_expectation end
 
 # Recursion P(k+1, y) = P(k, y) - y^k e^{-y}/Γ(k+1) keeps this to one
-# regularised-incomplete-gamma call per endpoint rather than two.
+# regularised-incomplete-gamma call per endpoint rather than two. The
+# remainder term is computed in log space, `exp(k*log(y) - y -
+# loggamma(k+1))`, not as `y^k * exp(-y) * inv(gamma(k+1))`: for an
+# extreme shape (e.g. k ~ 1e32), `gamma(k+1)` overflows to `Inf` while
+# `y^k` also overflows, so the linear-space product is an `Inf * 0`
+# indeterminate and returns `NaN` even though the true remainder is
+# vanishingly small there. `loggamma` stays finite across this range, so
+# the log-space exponent evaluates to a large negative number and `exp`
+# of it correctly underflows to `0` instead.
 function partial_expectation(component::Gamma)
     k, θ = shape(component), scale(component)
-    inv_g = inv(SpecialFunctions.gamma(k + 1))
+    log_g = SpecialFunctions.loggamma(k + 1)
     return function (t)
         y = t / θ
-        return k * θ * (cdf_ad_safe(component, t) - y^k * exp(-y) * inv_g)
+        rem = exp(k * log(y) - y - log_g)
+        return k * θ * (cdf_ad_safe(component, t) - rem)
     end
 end
 
@@ -133,14 +142,16 @@ function upper_partial_expectation end
 # `ccdf_ad_safe(::Gamma)` is `1 - _gamma_cdf(...)`, which loses accuracy
 # in exactly the far right tail this recursion exists to stay accurate
 # in, while `logccdf_ad_safe(::Gamma)` computes the survival directly and
-# stays accurate there.
+# stays accurate there. The remainder term is the same log-space
+# computation as `partial_expectation(::Gamma)`, for the same reason.
 function upper_partial_expectation(component::Gamma)
     k, θ = shape(component), scale(component)
-    inv_g = inv(SpecialFunctions.gamma(k + 1))
+    log_g = SpecialFunctions.loggamma(k + 1)
     return function (t)
         t <= 0 && return k * θ * one(float(t))
         y = t / θ
-        return k * θ * (exp(logccdf_ad_safe(component, t)) + y^k * exp(-y) * inv_g)
+        rem = exp(k * log(y) - y - log_g)
+        return k * θ * (exp(logccdf_ad_safe(component, t)) + rem)
     end
 end
 
