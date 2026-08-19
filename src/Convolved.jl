@@ -456,22 +456,24 @@ end
 @noinline function _window_quantile(comp::UnivariateDistribution, p::Real)
     q = try
         float(quantile(primal_distribution(comp), p))
-    catch
-        NaN
+    catch e
+        e isa DomainError ? NaN : rethrow()
     end
     isfinite(q) && return q
-    # `quantile` threw or returned a non-finite bound (#175): an extreme
-    # parameter a sampler proposes during warm-up -- e.g. a Gamma shape
-    # of `1e32` -- can push the inversion past what `SpecialFunctions`/
-    # `StatsFuns` can compute. A window/panel-break bound only needs to
-    # be finite and on the right side of the distribution, not exact, so
-    # fall back to a very wide but finite sentinel in the right tail
-    # direction instead of propagating the failure. `_panel_breaks`'s
-    # own `lo < b < hi` filter already excludes an out-of-window break
-    # correctly on its own; a `_finite_window`-style caller gets a
-    # usable (if extreme) endpoint instead of an unbounded or `NaN` one.
-    # Either way `pdf`/`cdf` stays finite, so a sampler can reject the
-    # proposal on its own terms instead of the chain ending outright.
+    # An extreme parameter a sampler proposes during warm-up -- e.g. a
+    # Gamma shape of `1e32` -- can push the inversion past what
+    # `SpecialFunctions`/`StatsFuns` can compute, raising a `DomainError`
+    # (not returning a non-finite value; the non-finite check above is
+    # for a family whose `quantile` saturates instead of throwing). A
+    # window/panel-break bound only needs to be finite and on the right
+    # side of the distribution, not exact, so fall back to a very wide
+    # but finite sentinel in the right tail direction instead of
+    # propagating the failure. `_panel_breaks`'s own `lo < b < hi` filter
+    # already excludes an out-of-window break correctly on its own; a
+    # `_finite_window`-style caller gets a usable (if extreme) endpoint
+    # instead of an unbounded or `NaN` one. Either way `pdf`/`cdf` stays
+    # finite, so a sampler can reject the proposal on its own terms
+    # instead of the chain ending outright.
     return p < 0.5 ? -1.0e100 : 1.0e100
 end
 

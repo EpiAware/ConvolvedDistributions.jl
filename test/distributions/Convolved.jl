@@ -280,18 +280,27 @@ end
     end
 end
 
-@testitem "Convolved numeric path survives extreme component parameters (#175)" begin
-    # NUTS proposes parameters like these during warm-up, before it has
-    # found the typical set -- e.g. a Gamma shape of `1e32` from a weakly
-    # informative prior. `quantile` on such a component throws a
-    # `DomainError` deep inside `SpecialFunctions`/`StatsFuns`, which
-    # `_window_quantile` used to propagate straight out of `pdf`/`cdf`,
-    # ending the chain instead of letting the sampler reject the
-    # proposal on its own terms. `NumericSolver` is forced here so the
-    # window/panel-break machinery `_window_quantile` feeds is actually
-    # exercised (`Gamma` + `Uniform` is itself an analytic pair, and a
-    # NaN from its closed form for these same extreme shapes is a
-    # separate, unrelated bug -- #202).
+@testitem "_window_quantile falls back to a finite sentinel on DomainError, both tail directions" begin
+    # An extreme parameter (e.g. a Gamma shape of `1e32`, the kind a
+    # sampler can propose during warm-up before it has found the typical
+    # set) makes `quantile` throw a `DomainError` deep inside
+    # `SpecialFunctions`/`StatsFuns`, for `p` on either side of 0.5.
+    using ConvolvedDistributions: _window_quantile
+    using Distributions
+
+    comp = Gamma(1.0097410503568854e32, 1.009741050356885e32)
+    @test_throws DomainError quantile(comp, 0.3)
+    @test_throws DomainError quantile(comp, 0.7)
+
+    @test _window_quantile(comp, 0.3) == -1.0e100
+    @test _window_quantile(comp, 0.7) == 1.0e100
+
+    # A non-`DomainError` failure is not silently converted to a
+    # sentinel; it propagates.
+    @test_throws ArgumentError _window_quantile(Gamma(2.0, 1.5), NaN)
+end
+
+@testitem "Convolved numeric path survives extreme component parameters" begin
     using Distributions
 
     for comp in (
@@ -302,8 +311,8 @@ end
         for x in (0.5, 1.0, 5.0, 100.0, 1.0e10)
             # `pdf`/`cdf` at these `x` are legitimately (near-)zero, deep
             # in the component's extreme left tail, so `logpdf` is `-Inf`
-            # there -- exactly the "sampler can reject" contract #175
-            # wants. `!isnan`, not `isfinite`, is the right pin.
+            # there -- exactly the "sampler can reject" contract this
+            # test wants. `!isnan`, not `isfinite`, is the right pin.
             @test !isnan(cdf(d, x))
             @test !isnan(pdf(d, x))
             @test !isnan(logpdf(d, x))
