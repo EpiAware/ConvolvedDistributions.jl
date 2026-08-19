@@ -83,15 +83,10 @@ survival-side companion, [`upper_partial_expectation`](@ref), too.
 function partial_expectation end
 
 # Recursion P(k+1, y) = P(k, y) - y^k e^{-y}/Γ(k+1) keeps this to one
-# regularised-incomplete-gamma call per endpoint rather than two. The
-# remainder term is computed in log space, `exp(k*log(y) - y -
-# loggamma(k+1))`, not as `y^k * exp(-y) * inv(gamma(k+1))`: for an
-# extreme shape (e.g. k ~ 1e32), `gamma(k+1)` overflows to `Inf` while
-# `y^k` also overflows, so the linear-space product is an `Inf * 0`
-# indeterminate and returns `NaN` even though the true remainder is
-# vanishingly small there. `loggamma` stays finite across this range, so
-# the log-space exponent evaluates to a large negative number and `exp`
-# of it correctly underflows to `0` instead.
+# regularised-incomplete-gamma call per endpoint rather than two.
+# Computed in log space: `gamma(k+1)` overflows before `loggamma(k+1)`
+# does, so this stays finite (and correctly underflows to `0`) for
+# shapes where the linear-space product would hit `Inf * 0`.
 function partial_expectation(component::Gamma)
     k, θ = shape(component), scale(component)
     log_g = SpecialFunctions.loggamma(k + 1)
