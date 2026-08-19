@@ -324,18 +324,16 @@ not flip `is_exact` to `false`.
 Same-family collapse (`convolve_pair`, e.g. `Gamma`+`Gamma` or
 `Exponential`+`Exponential`) is a third documented approximation this
 predicate also treats as exact. The match test is `≈`, not `==`
-(`scale(a) ≈ scale(b)`, `succprob(a) ≈ succprob(b)`), so
-`convolved(Gamma(2, 1.0), Gamma(3, 1.00000001))` collapses to a single
-analytic `Gamma` at `≈`'s default relative tolerance (about `1.5e-8`),
-`is_exact` reports `true`, and the resulting answer differs from a true
-quadrature evaluation by about the same order as that tolerance, not
-amplified. Collapsing skips quadrature entirely, which is why the
-tolerance is wanted rather than tightened to `==`. It does mean the
-collapse is not quite commutative right at the tolerance boundary: the
-result keeps the FIRST component's parameter exactly
-(`convolved(Gamma(2, 1.0), Gamma(3, 1.00000001))` becomes `Gamma(5,
-1.0)`), so swapping the argument order can shift the answer by around
-the tolerance itself when the two parameters are close but not equal.
+(`scale(a) ≈ scale(b)`, `succprob(a) ≈ succprob(b)`), at `≈`'s default
+relative tolerance (about `1.5e-8`), so a near-but-not-exactly-matching
+pair still collapses and the answer differs from a true quadrature
+evaluation by about that same order, not amplified. Collapsing skips
+quadrature entirely, which is why the tolerance is wanted rather than
+tightened to `==`. The collapse is also not quite commutative right at
+the tolerance boundary: the result keeps the FIRST component's
+parameter exactly, so swapping the argument order can shift the answer
+by around the tolerance itself when the two parameters are close but
+not equal.
 
 # Examples
 ```@example
@@ -350,6 +348,10 @@ is_exact(convolved(Poisson(1.0), Geometric(0.3)))
 
 # No closed form and a continuous component: Gauss-Legendre, inexact.
 is_exact(convolved(Gamma(2.0, 1.0), LogNormal(1.5, 0.5)))
+
+# Same-family collapse within tolerance: exact, and order-dependent —
+# the result keeps the first argument's scale.
+is_exact(convolved(Gamma(2, 1.0), Gamma(3, 1.00000001)))
 ```
 
 # See also
