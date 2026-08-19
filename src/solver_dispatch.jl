@@ -607,26 +607,25 @@ end
 # Type-keyed cache, not a per-call `which()` probe: the answer is
 # entirely a function of `typeof(generic)`/`typeof(components)`/
 # `typeof(method)`, so it is computed once per distinct type combination
-# and reused after that. `which()` itself cannot move into a `@generated`
-# function's staging body -- Julia raises "code reflection cannot be used
-# from generated functions" -- so the cache is the mechanism instead. A
-# `Convolved` rebuilt on every gradient evaluation inside a Turing model
-# then only ever does a `Dict` lookup, not a `which()` call, which is what
-# was landing in the AD tape as a `foreigncall` Mooncake forward mode has
-# no `frule!!` for. The lock guards concurrent first-touch writes from a
-# multi-threaded sampler (e.g. parallel NUTS chains); a `Dict` read/write
-# race, unlike a stale answer, would corrupt the cache outright.
+# and reused after that. A `Convolved` rebuilt on every gradient
+# evaluation inside a Turing model then only ever does a `Dict` lookup
+# and a cheap `Base.get_world_counter()` read, not a `which()` call --
+# `which()` is what was landing in the AD tape as a `foreigncall`
+# Mooncake forward mode has no `frule!!` for; `get_world_counter()`
+# traces through it cleanly. The lock guards concurrent first-touch
+# writes from a multi-threaded sampler (e.g. parallel NUTS chains); a
+# `Dict` read/write race, unlike a stale answer, would corrupt the cache
+# outright.
 #
-# The cache is never invalidated: if a downstream package defines a new
-# pair-specific method for a type combination this process has already
-# cached an answer for, that new method is invisible to this cache for
-# the rest of the session. This mirrors `Convolved._closed_form`'s own
-# existing per-instance caching, resolved once at construction and never
-# revisited either -- both assume the extension points
-# (`convolve_pair`/`convolved_pdf`/etc.) are fully registered by the time
-# any `Convolved` of that type combination is first evaluated, i.e.
-# defined at package load time rather than added interactively mid-session.
-const _MORE_SPECIFIC_PAIR_CACHE = Dict{Tuple{DataType, DataType, DataType}, Bool}()
+# Each entry is stamped with the world it was resolved in and
+# recomputed once the world has moved on, so a pair-specific method
+# defined after a type combination was first cached (e.g. a downstream
+# package loaded mid-session, or a new method added interactively) is
+# picked up on the next construction rather than staying invisible for
+# the rest of the process.
+const _MORE_SPECIFIC_PAIR_CACHE = Dict{
+    Tuple{DataType, DataType, DataType}, Tuple{UInt, Bool},
+}()
 const _MORE_SPECIFIC_PAIR_LOCK = ReentrantLock()
 
 function _more_specific_pair_method(
@@ -634,17 +633,20 @@ function _more_specific_pair_method(
         method::AnalyticalSolver
     ) where {F}
     key = (F, typeof(components), typeof(method))
+    world = Base.get_world_counter()
     return lock(_MORE_SPECIFIC_PAIR_LOCK) do
-        get!(_MORE_SPECIFIC_PAIR_CACHE, key) do
-            fallback = which(
-                generic, Tuple{Convolved, Tuple, Real, AnalyticalSolver}
-            )
-            resolved = which(
-                generic,
-                Tuple{Convolved, typeof(components), Real, typeof(method)}
-            )
-            resolved !== fallback
-        end
+        cached = get(_MORE_SPECIFIC_PAIR_CACHE, key, nothing)
+        cached !== nothing && cached[1] == world && return cached[2]
+        fallback = which(
+            generic, Tuple{Convolved, Tuple, Real, AnalyticalSolver}
+        )
+        resolved = which(
+            generic,
+            Tuple{Convolved, typeof(components), Real, typeof(method)}
+        )
+        answer = resolved !== fallback
+        _MORE_SPECIFIC_PAIR_CACHE[key] = (world, answer)
+        return answer
     end
 end
 

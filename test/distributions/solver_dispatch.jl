@@ -228,6 +228,37 @@ end
     @test r3 == false
 end
 
+@testitem "_more_specific_pair_method picks up a method defined after first cache" begin
+    # The cache is keyed on the world it was resolved in, not just on
+    # type: a pair-specific method registered for a type combination
+    # after that combination's answer was already cached must be picked
+    # up on the next call, not stay invisible for the rest of the
+    # session.
+    using ConvolvedDistributions:
+        _more_specific_pair_method, convolved_pdf, Convolved
+    using Distributions
+
+    struct _WorldInvalidationProbe <: Distributions.ContinuousUnivariateDistribution end
+
+    m = AnalyticalSolver()
+    before = _more_specific_pair_method(
+        convolved_pdf, (Normal(0.0, 1.0), _WorldInvalidationProbe()), m
+    )
+    @test before == false
+
+    function ConvolvedDistributions.convolved_pdf(
+            ::Convolved, ::Tuple{Normal, _WorldInvalidationProbe},
+            x::Real, ::AnalyticalSolver
+        )
+        return 0.0
+    end
+
+    after = _more_specific_pair_method(
+        convolved_pdf, (Normal(0.0, 1.0), _WorldInvalidationProbe()), m
+    )
+    @test after == true
+end
+
 @testitem "Convolved quantile dispatch: analytic without Optimization.jl" begin
     using ConvolvedDistributions
     using Distributions
