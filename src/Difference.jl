@@ -284,6 +284,7 @@ end
 # quantiles, since reflecting Y flips its tail. A downstream package
 # overrides this per type.
 function quantile_initial_guess(d::Difference, p::Real)
+    _validate_quantile_p(p)
     return [float(quantile(d.x, p)) - float(quantile(d.y, 1 - p))]
 end
 

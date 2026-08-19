@@ -558,6 +558,7 @@ end
 # last resort (symmetric numerator and denominator both about zero). A
 # downstream package overrides this per type.
 function quantile_initial_guess(d::Ratio, p::Real)
+    _validate_quantile_p(p)
     g = float(quantile(d.x, p)) / float(quantile(d.y, 1 - p))
     isfinite(g) && return [g]
     m = float(quantile(d.x, 0.5)) / float(quantile(d.y, 0.5))

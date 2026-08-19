@@ -467,6 +467,7 @@ end
 # at `p`, exact on the log scale for degenerate components. A
 # downstream package overrides this per type.
 function quantile_initial_guess(d::Product, p::Real)
+    _validate_quantile_p(p)
     return [float(quantile(d.x, p)) * float(quantile(d.y, p))]
 end
 
