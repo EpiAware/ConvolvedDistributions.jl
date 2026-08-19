@@ -17,7 +17,7 @@ module ConvolvedDistributionsOptimizationExt
 # see #116 for a dedicated lattice-scan quantile.
 
 using ConvolvedDistributions: ConvolvedDistributions, Convolved, Difference,
-    Product, Ratio, NumericSolver, _maybe_analytic
+    Product, Ratio, NumericSolver, _maybe_analytic, _validate_quantile_p
 import ConvolvedDistributions: quantile_by_optimization,
     quantile_initial_guess
 import Distributions
@@ -44,12 +44,7 @@ function quantile_by_optimization(
         postprocess = identity, check_nan::Bool = true,
         solver = NelderMead(), solve_kwargs...
     )
-    if check_nan && isnan(p)
-        throw(ArgumentError("p must be in [0, 1], got $p"))
-    end
-    if p < 0 || p > 1
-        throw(ArgumentError("p must be in [0, 1], got $p"))
-    end
+    _validate_quantile_p(p; check_nan)
 
     # Boundary cases are exact: the support ends.
     p == 0 && return postprocess(minimum(d))

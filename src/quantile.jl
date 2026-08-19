@@ -78,6 +78,9 @@ machinery. The override needs the concrete parametrised component type
 and an explicit `p::Real`: `Convolved`'s type parameters are invariant,
 and an untyped `p` is ambiguous with the generic fallback.
 
+Validates `p` and throws `ArgumentError` for an out-of-range or `NaN` `p`
+before building any guess; an override should preserve that behaviour.
+
 # Examples
 ```@example
 using ConvolvedDistributions, Distributions
@@ -94,17 +97,19 @@ See also: [`quantile_by_optimization`](@ref)
 "
 function quantile_initial_guess end
 
-# Shared `p` validation for `quantile_initial_guess` methods (#155). Each
-# builds its guess from a component's own `quantile(comp, p)` (or `1 - p`),
-# which throws its own family-specific error for an out-of-range or `NaN`
-# `p` -- e.g. a bare `DomainError` from deep inside `Gamma`'s quantile --
-# before `quantile_by_optimization`'s own `ArgumentError` check ever runs:
 # `quantile_initial_guess(d, p)` is a call argument, evaluated before
-# `quantile_by_optimization`'s body. Validating here first means the clean
-# `ArgumentError` is what a caller sees, regardless of which family the
-# guess routes through.
-function _validate_quantile_p(p::Real)
-    (isnan(p) || p < 0 || p > 1) &&
+# `quantile_by_optimization`'s body -- so its own `p`-range check never
+# gets a chance to run first. Each `quantile_initial_guess` method builds
+# its guess from a component's own `quantile(comp, p)` (or `1 - p`),
+# which throws its own family-specific error for an out-of-range or `NaN`
+# `p` (e.g. a bare `DomainError` from deep inside `Gamma`'s quantile), so
+# each needs this same guard to surface the clean `ArgumentError` instead.
+# Shared with `quantile_by_optimization`'s own check (the
+# `ConvolvedDistributionsOptimizationExt` extension), so the condition and
+# message live in one place.
+function _validate_quantile_p(p::Real; check_nan::Bool = true)
+    check_nan && isnan(p) &&
         throw(ArgumentError("p must be in [0, 1], got $p"))
+    (p < 0 || p > 1) && throw(ArgumentError("p must be in [0, 1], got $p"))
     return nothing
 end
