@@ -1,12 +1,11 @@
-# Bespoke construction-time AD item (#174). The scenario suite
-# differentiates evaluations of an already-built `Convolved`; this pins
-# differentiating through FRESH construction on every call -- the pattern
-# a Turing model body uses (the distribution is rebuilt on every gradient
-# evaluation) that broke Mooncake forward mode when `Convolved`'s
-# `_closed_form` resolution ran a `which()` method-table probe on the
-# construction-time hot path.
+# Bespoke construction-time AD item. The scenario suite differentiates
+# evaluations of an already-built `Convolved`; this pins differentiating
+# through FRESH construction on every call -- the pattern a Turing model
+# body uses, rebuilding the distribution on every gradient evaluation, so
+# its construction-time closed-form resolution is itself part of what
+# Mooncake must derive a forward rule for.
 
-@testitem "Mooncake forward AD through fresh Convolved construction (#174)" tags = [
+@testitem "Mooncake forward AD through fresh Convolved construction" tags = [
     :ad, :mooncake, :mooncake_forward,
 ] begin
     using ConvolvedDistributions

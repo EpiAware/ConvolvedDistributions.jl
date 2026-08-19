@@ -199,11 +199,8 @@ end
     end
 end
 
-@testitem "_more_specific_pair_method caches by type, not component values (#174)" begin
-    # #174: the runtime `which()` probe moved into a type-keyed cache so
-    # construction no longer runs it on every call (the construction-time
-    # cost that landed inside a Turing model's AD tape). The answer must
-    # still depend only on TYPES, never on the component's runtime
+@testitem "_more_specific_pair_method caches by type, not component values" begin
+    # The answer depends only on TYPES, never on the component's runtime
     # parameter values -- two `Gamma`/`Uniform` pairs with different
     # parameters must resolve identically, and a cache warmed by one pair
     # must not leak into an unrelated type combination.
@@ -220,7 +217,7 @@ end
     @test r1 == r2 == true
 
     # `Poisson + Uniform` is NOT a fair "no specific method" case here:
-    # the mixed discrete/continuous lattice fold (#115) registers its own
+    # the mixed discrete/continuous lattice fold registers its own
     # `AnalyticalSolver` method for any discrete-component pair, so it is
     # more specific than the generic `Tuple` fallback too, just not a
     # closed form in the collapse sense `has_closed_form` reports.
