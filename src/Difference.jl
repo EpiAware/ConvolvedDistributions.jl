@@ -280,12 +280,19 @@ end
     return _window_quantile(d.x, p) - _window_quantile(d.y, 1 - p)
 end
 
-# Default `quantile_initial_guess`: difference of opposing component
-# quantiles, since reflecting Y flips its tail. A downstream package
-# overrides this per type.
+# Default `quantile_initial_guess`: a Normal-approximation guess from
+# `d`'s own total mean/variance, `mean(d) + std(d) * quantile(Normal(),
+# p)`. This tracks the root well for a heavy-tailed or very
+# differently-shaped/scaled pair, unlike a guess built from the
+# components' own quantiles at opposing tails, which can land far enough
+# off that Nelder-Mead's simplex barely moves from it -- most visibly
+# for a discrete `Difference` unbounded on both sides (so it falls
+# through the exact lattice quantile's boundary condition, see
+# `quantile(::_DiscreteDifference, p)`, to this guess-driven solve for
+# every interior `p`). A downstream package overrides this per type.
 function quantile_initial_guess(d::Difference, p::Real)
     _validate_quantile_p(p)
-    return [float(quantile(d.x, p)) - float(quantile(d.y, 1 - p))]
+    return [_discrete_guess(d, mean(d) + std(d) * quantile(Normal(), p))]
 end
 
 # Integration window over Y. Both the density and CDF integrands carry the

@@ -74,9 +74,7 @@ end
 # counterparts) and fall back to the numeric route instead of calling
 # this function.
 @noinline function _lattice_quantile(d, p::Real)
-    if isnan(p) || p < 0 || p > 1
-        throw(ArgumentError("p must be in [0, 1], got $p"))
-    end
+    _validate_quantile_p(p)
 
     dmin = Float64(primal(minimum(d)))
     if p == 0
