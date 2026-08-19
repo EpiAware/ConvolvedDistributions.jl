@@ -603,16 +603,51 @@ end
 # registered pair-specific closed form rather than the collapse-or-numeric
 # fallback itself. Called only from `_resolve_closed_form`, at
 # construction.
+#
+# Type-keyed cache, not a per-call `which()` probe: the answer is
+# entirely a function of `typeof(generic)`/`typeof(components)`/
+# `typeof(method)`, so it is computed once per distinct type combination
+# and reused after that. A `Convolved` rebuilt on every gradient
+# evaluation inside a Turing model then only ever does a `Dict` lookup
+# and a cheap `Base.get_world_counter()` read, not a `which()` call --
+# `which()` is what was landing in the AD tape as a `foreigncall`
+# Mooncake forward mode has no `frule!!` for; `get_world_counter()`
+# traces through it cleanly. The lock guards concurrent first-touch
+# writes from a multi-threaded sampler (e.g. parallel NUTS chains); a
+# `Dict` read/write race, unlike a stale answer, would corrupt the cache
+# outright.
+#
+# Each entry is stamped with the world it was resolved in and
+# recomputed once the world has moved on, so a pair-specific method
+# defined after a type combination was first cached (e.g. a downstream
+# package loaded mid-session, or a new method added interactively) is
+# picked up on the next construction rather than staying invisible for
+# the rest of the process.
+const _MORE_SPECIFIC_PAIR_CACHE = Dict{
+    Tuple{DataType, DataType, DataType}, Tuple{UInt, Bool},
+}()
+const _MORE_SPECIFIC_PAIR_LOCK = ReentrantLock()
+
 function _more_specific_pair_method(
         generic::F, components::Tuple,
         method::AnalyticalSolver
     ) where {F}
-    fallback = which(generic, Tuple{Convolved, Tuple, Real, AnalyticalSolver})
-    resolved = which(
-        generic,
-        Tuple{Convolved, typeof(components), Real, typeof(method)}
-    )
-    return resolved !== fallback
+    key = (F, typeof(components), typeof(method))
+    world = Base.get_world_counter()
+    return lock(_MORE_SPECIFIC_PAIR_LOCK) do
+        cached = get(_MORE_SPECIFIC_PAIR_CACHE, key, nothing)
+        cached !== nothing && cached[1] == world && return cached[2]
+        fallback = which(
+            generic, Tuple{Convolved, Tuple, Real, AnalyticalSolver}
+        )
+        resolved = which(
+            generic,
+            Tuple{Convolved, typeof(components), Real, typeof(method)}
+        )
+        answer = resolved !== fallback
+        _MORE_SPECIFIC_PAIR_CACHE[key] = (world, answer)
+        return answer
+    end
 end
 
 const _CONVOLVED_QUANTITY_KEYS = (

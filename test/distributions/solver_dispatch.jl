@@ -199,6 +199,66 @@ end
     end
 end
 
+@testitem "_more_specific_pair_method caches by type, not component values" begin
+    # The answer depends only on TYPES, never on the component's runtime
+    # parameter values -- two `Gamma`/`Uniform` pairs with different
+    # parameters must resolve identically, and a cache warmed by one pair
+    # must not leak into an unrelated type combination.
+    using ConvolvedDistributions: _more_specific_pair_method, convolved_pdf
+    using Distributions
+
+    m = AnalyticalSolver()
+    r1 = _more_specific_pair_method(
+        convolved_pdf, (Gamma(2.0, 1.5), Uniform(0.0, 2.0)), m
+    )
+    r2 = _more_specific_pair_method(
+        convolved_pdf, (Gamma(5.0, 0.3), Uniform(-1.0, 4.0)), m
+    )
+    @test r1 == r2 == true
+
+    # `Poisson + Uniform` is NOT a fair "no specific method" case here:
+    # the mixed discrete/continuous lattice fold registers its own
+    # `AnalyticalSolver` method for any discrete-component pair, so it is
+    # more specific than the generic `Tuple` fallback too, just not a
+    # closed form in the collapse sense `has_closed_form` reports.
+    # `Cauchy + Weibull` has no registered pair method at all.
+    r3 = _more_specific_pair_method(
+        convolved_pdf, (Cauchy(0.0, 1.0), Weibull(2.0, 1.0)), m
+    )
+    @test r3 == false
+end
+
+@testitem "_more_specific_pair_method picks up a method defined after first cache" begin
+    # The cache is keyed on the world it was resolved in, not just on
+    # type: a pair-specific method registered for a type combination
+    # after that combination's answer was already cached must be picked
+    # up on the next call, not stay invisible for the rest of the
+    # session.
+    using ConvolvedDistributions:
+        _more_specific_pair_method, convolved_pdf, Convolved
+    using Distributions
+
+    struct _WorldInvalidationProbe <: Distributions.ContinuousUnivariateDistribution end
+
+    m = AnalyticalSolver()
+    before = _more_specific_pair_method(
+        convolved_pdf, (Normal(0.0, 1.0), _WorldInvalidationProbe()), m
+    )
+    @test before == false
+
+    function ConvolvedDistributions.convolved_pdf(
+            ::Convolved, ::Tuple{Normal, _WorldInvalidationProbe},
+            x::Real, ::AnalyticalSolver
+        )
+        return 0.0
+    end
+
+    after = _more_specific_pair_method(
+        convolved_pdf, (Normal(0.0, 1.0), _WorldInvalidationProbe()), m
+    )
+    @test after == true
+end
+
 @testitem "Convolved quantile dispatch: analytic without Optimization.jl" begin
     using ConvolvedDistributions
     using Distributions
