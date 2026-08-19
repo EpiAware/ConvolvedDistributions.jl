@@ -76,6 +76,15 @@ end
 _component_support(::Type{Discrete}, ::Type{<:Integer}) = Discrete
 _component_support(::Type{<:Distributions.ValueSupport}, ::Type) = Continuous
 
+# A duck-typed component (implements the interface below `convolved`
+# calls on it, without subtyping `UnivariateDistribution`) has no
+# `Distributions.value_support` to read. Support is derived from
+# `eltype` alone, the same integer-lattice rule the two-argument method
+# above applies once a value support is known.
+_component_support(::Type{D}) where {D} = _duck_component_support(Base.eltype(D))
+_duck_component_support(::Type{<:Integer}) = Discrete
+_duck_component_support(::Type) = Continuous
+
 # Any continuous (or non-integer-lattice discrete) component makes the
 # combination continuous.
 _combine_support(::Type{Discrete}, ::Type{Discrete}) = Discrete

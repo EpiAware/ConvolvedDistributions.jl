@@ -818,6 +818,54 @@ end
     @test_throws ErrorException @inferred convolved(LogNormal(0.5, 0.4), 3)
 end
 
+@testitem "convolved accepts a duck-typed component" begin
+    using Distributions, Random
+
+    # Implements exactly what this testitem exercises -- `logpdf`,
+    # `pdf`, `mean`, `var`, `minimum`, `maximum`, `rand` -- without
+    # subtyping `UnivariateDistribution`.
+    struct DuckUniform
+        a::Float64
+        b::Float64
+    end
+    Distributions.logpdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? -log(d.b - d.a) : -Inf
+    Distributions.pdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? 1 / (d.b - d.a) : 0.0
+    Distributions.minimum(d::DuckUniform) = d.a
+    Distributions.maximum(d::DuckUniform) = d.b
+    Distributions.mean(d::DuckUniform) = (d.a + d.b) / 2
+    Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
+    Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
+
+    duck = DuckUniform(0.0, 1.0)
+    g = Gamma(2.0, 1.0)
+
+    # A plain `Any` element type, matching the reported failure
+    # (`convolved(::Vector{Any})`) rather than a narrower inferred one.
+    d_vec = convolved(Any[duck, g])
+    @test d_vec isa ConvolvedDistributions.Convolved
+    d_pos = convolved(duck, g)
+    @test d_pos isa ConvolvedDistributions.Convolved
+
+    @test mean(d_vec) == mean(duck) + mean(g)
+    @test var(d_vec) == var(duck) + var(g)
+    @test minimum(d_vec) == minimum(duck) + minimum(g)
+    @test maximum(d_vec) == maximum(duck) + maximum(g)
+
+    rng = MersenneTwister(1)
+    @test rand(rng, d_vec) isa Real
+
+    # `pdf` reaches the duck component's own `pdf` when it is not the
+    # fold's last (integration-variable) component.
+    @test pdf(d_pos, 3.0) > 0
+
+    # A component missing even `logpdf` is still rejected up front,
+    # the same construction-time guard a plain non-distribution value
+    # (e.g. a bare number) already got before duck typing was accepted.
+    @test_throws ArgumentError convolved(duck, 1.0)
+end
+
 # The AD-safety of the Convolved moments and densities (gradients flowing
 # through the component parameters) is covered by the multi-backend AD suite in
 # `test/ADFixtures`, which has the AD backends as dependencies; the main test
