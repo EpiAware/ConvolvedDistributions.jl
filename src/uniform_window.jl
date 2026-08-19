@@ -128,14 +128,19 @@ function upper_partial_expectation end
 
 # Q(k + 1, y) = Q(k, y) + y^k e^{-y}/Γ(k+1), the survival mirror of the
 # recursion `partial_expectation(::Gamma)` uses. A sum of non-negative
-# terms, so the thinning tail never cancels against the mean.
+# terms, so the thinning tail never cancels against the mean. Built from
+# `exp(logccdf_ad_safe(...))`, not linear-space `ccdf_ad_safe(...)`:
+# `ccdf_ad_safe(::Gamma)` is `1 - _gamma_cdf(...)`, which loses accuracy
+# in exactly the far right tail this recursion exists to stay accurate
+# in, while `logccdf_ad_safe(::Gamma)` computes the survival directly and
+# stays accurate there.
 function upper_partial_expectation(component::Gamma)
     k, θ = shape(component), scale(component)
     inv_g = inv(SpecialFunctions.gamma(k + 1))
     return function (t)
         t <= 0 && return k * θ * one(float(t))
         y = t / θ
-        return k * θ * (ccdf_ad_safe(component, t) + y^k * exp(-y) * inv_g)
+        return k * θ * (exp(logccdf_ad_safe(component, t)) + y^k * exp(-y) * inv_g)
     end
 end
 

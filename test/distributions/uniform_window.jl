@@ -271,6 +271,24 @@ end
     @test ccdf(dw, 20.0) ≈ reference(cw, ww, 20.0) rtol = 1.0e-2
 end
 
+@testitem "Gamma uniform-window ccdf matches naive 1-cdf deep in the tail" begin
+    using Distributions
+
+    # `Gamma`'s dedicated survival form should stay no worse than the
+    # naive `1 - cdf` anywhere, matching the pattern for LogNormal/
+    # Weibull uniform-window pairs, where the dedicated form is orders
+    # of magnitude MORE accurate than `1 - cdf` in the far tail.
+    dist = Gamma(2.0, 3.0)
+    primary = Uniform(0.0, 1.0)
+    d = convolved(primary, dist)
+    for k in 8:12
+        x = maximum(primary) + quantile(dist, 1 - 10.0^(-k))
+        naive = 1 - cdf(d, x)
+        dedicated = ccdf(d, x)
+        @test dedicated ≈ naive rtol = 1.0e-2
+    end
+end
+
 @testitem "Uniform-window cdf/ccdf are probabilities at the extremes" begin
     using Distributions
 
