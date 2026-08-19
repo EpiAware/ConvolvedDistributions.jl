@@ -90,10 +90,11 @@ const README_EXECUTE = true
 # keep the whole README — content tables and all.
 const INDEX_STRIP_SECTIONS = String[]
 
-# Whether the build generates the benchmark page (`src/benchmarks.md`): the
-# package-owned `docs/benchmarks.md` prose hook plus the rendered performance
-# history (the timeline published to the repo's `benchmarks` branch). Defaults
-# to the `benchmarks` flag the package was scaffolded with; `false` drops the
+# Whether the build generates the benchmark page
+# (`src/benchmarks/over-time.md`): the package-owned `docs/benchmarks.md`
+# prose hook plus the rendered performance history (the timeline
+# published to the repo's `benchmarks` branch). Defaults to the
+# `benchmarks` flag the package was scaffolded with; `false` drops the
 # page and `make.jl` also omits its `pages.jl` nav entry.
 const BENCHMARK_PAGE = true
 
@@ -103,7 +104,8 @@ const BENCHMARK_PAGE = true
 # fixed the benchmark-embed empty-anchor cause, but DocumenterVitepress's
 # inventory writer still crashes the whole build with
 # `ArgumentError: `name` must have non-zero length` when an anchored header
-# resolves to an empty anchor id (here `src/benchmarks.md`'s empty-id header).
+# resolves to an empty anchor id (here `src/benchmarks/over-time.md`'s
+# empty-id header).
 # Overwrite that one writer method with a copy whose inventory push is guarded:
 # an empty id logs the page and heading (so the culprit is identifiable in the
 # build log) and skips the entry. Remove once the kit-level guard lands
