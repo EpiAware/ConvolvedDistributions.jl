@@ -14,13 +14,15 @@
 const LIGHT_TUTORIALS = String[]
 
 # Heavy tutorials (live MCMC fits, multi-backend AD, plotting) are each
-# executed once in a fresh subprocess so native/memory state cannot accumulate.
+# executed once in a fresh subprocess so native/memory state cannot
+# accumulate. The AD-backends tutorial was retired: its content now lives
+# on the AD-comparison benchmark page (`HEAVY_BENCHMARKS` below), which
+# carries the `ad-backends` anchor so existing `@ref` links keep resolving.
 const HEAVY_TUTORIALS = [
     "convolving-distributions.jl",
     "difference-distributions.jl",
     "product-distributions.jl",
     "timeseries-convolution.jl",
-    "ad-backends.jl",
 ]
 
 # Where the tutorial `.jl` sources and rendered `.md` pages live, relative to
@@ -36,7 +38,6 @@ const TUTORIAL_STUBS = [
     "difference-distributions.md" => "# [The difference of two delays](@id difference-distributions)",
     "product-distributions.md" => "# [The product of two delays](@id product-distributions)",
     "timeseries-convolution.md" => "# [Convolving a timeseries](@id timeseries-convolution)",
-    "ad-backends.md" => "# [Automatic differentiation backends](@id ad-backends)",
 ]
 
 # Heavy tutorials that always render from their `TUTORIAL_STUBS` heading and
@@ -46,6 +47,21 @@ const TUTORIAL_STUBS = [
 # running for real. Leave empty; every heavy tutorial with no such problem
 # should execute.
 const FORCE_STUB_TUTORIALS = String[]
+
+# The `docs/src/benchmarks/` Literate pipeline: its own heavy list and
+# stubs, mirroring `HEAVY_TUTORIALS`/`TUTORIAL_STUBS` above but rooted at
+# `docs/src/benchmarks`, so the AD-comparison report gets its own
+# top-level "Benchmarks" nav group. The page itself is kit-managed; only
+# this registration is package-owned.
+const HEAVY_BENCHMARKS = ["ad-comparison.jl"]
+
+# Fast-build stubs for `HEAVY_BENCHMARKS`, same convention as
+# `TUTORIAL_STUBS`. Carries both the page's own `ad-comparison` anchor
+# and the retired tutorial's `ad-backends` anchor, so an existing `@ref
+# ad-backends` link still resolves.
+const BENCHMARK_STUBS = [
+    "ad-comparison.md" => "# [AD backend comparison](@id ad-comparison)\n\n## [Choosing a backend](@id ad-backends)",
+]
 
 # Regexes for URLs to skip during the (full-build) linkcheck, e.g. a page
 # published by a separate workflow that is not yet live.
@@ -74,10 +90,11 @@ const README_EXECUTE = true
 # keep the whole README — content tables and all.
 const INDEX_STRIP_SECTIONS = String[]
 
-# Whether the build generates the benchmark page (`src/benchmarks.md`): the
-# package-owned `docs/benchmarks.md` prose hook plus the rendered performance
-# history (the timeline published to the repo's `benchmarks` branch). Defaults
-# to the `benchmarks` flag the package was scaffolded with; `false` drops the
+# Whether the build generates the benchmark page
+# (`src/benchmarks/over-time.md`): the package-owned `docs/benchmarks.md`
+# prose hook plus the rendered performance history (the timeline
+# published to the repo's `benchmarks` branch). Defaults to the
+# `benchmarks` flag the package was scaffolded with; `false` drops the
 # page and `make.jl` also omits its `pages.jl` nav entry.
 const BENCHMARK_PAGE = true
 
@@ -87,7 +104,8 @@ const BENCHMARK_PAGE = true
 # fixed the benchmark-embed empty-anchor cause, but DocumenterVitepress's
 # inventory writer still crashes the whole build with
 # `ArgumentError: `name` must have non-zero length` when an anchored header
-# resolves to an empty anchor id (here `src/benchmarks.md`'s empty-id header).
+# resolves to an empty anchor id (here `src/benchmarks/over-time.md`'s
+# empty-id header).
 # Overwrite that one writer method with a copy whose inventory push is guarded:
 # an empty id logs the page and heading (so the culprit is identifiable in the
 # build log) and skips the entry. Remove once the kit-level guard lands
