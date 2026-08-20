@@ -798,11 +798,17 @@ end
     Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
     Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
 
+    # Implements `logpdf` only: below the interface the density path
+    # needs from every component.
+    struct LogpdfOnlyDuck end
+    Distributions.logpdf(::LogpdfOnlyDuck, x::Real) =
+        logpdf(Normal(0.0, 1.0), x)
+
     duck = DuckUniform(0.0, 1.0)
     g = Gamma(2.0, 1.0)
 
-    # A plain `Any` element type, matching the reported failure
-    # (`convolved(::Vector{Any})`) rather than a narrower inferred one.
+    # Uses `Any[...]` rather than a narrower inferred element type: a
+    # mixed duck/`UnivariateDistribution` vector infers as `Vector{Any}`.
     d_vec = convolved(Any[duck, g])
     @test d_vec isa ConvolvedDistributions.Convolved
     d_pos = convolved(duck, g)
@@ -820,10 +826,22 @@ end
     # fold's last (integration-variable) component.
     @test pdf(d_pos, 3.0) > 0
 
-    # A component missing even `logpdf` is still rejected up front,
-    # the same construction-time guard a plain non-distribution value
-    # (e.g. a bare number) already got before duck typing was accepted.
+    # A component missing the required interface is rejected at
+    # construction, the same as a bare non-distribution value.
     @test_throws ArgumentError convolved(duck, 1.0)
+
+    # `logpdf` alone is not enough: without `pdf`, `minimum` and
+    # `maximum` the density path would fail deep inside quadrature
+    # instead, so the guard rejects it up front.
+    @test_throws ArgumentError convolved(LogpdfOnlyDuck(), g)
+
+    # The last component is the quadrature's integration variable and
+    # routes through `primal_distribution`, which only accepts a
+    # `UnivariateDistribution`, so a duck-typed leaf is rejected there
+    # rather than failing inside quadrature. Argument order is what
+    # decides this: the same pair the other way round constructs.
+    @test_throws ArgumentError convolved(g, duck)
+    @test convolved(duck, g) isa ConvolvedDistributions.Convolved
 end
 
 # The AD-safety of the Convolved moments and densities (gradients flowing
