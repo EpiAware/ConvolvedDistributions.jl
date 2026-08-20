@@ -49,7 +49,7 @@ end
 
 See also: [`convolve_power`](@ref)
 "
-convolve_pair(a::UnivariateDistribution, b::UnivariateDistribution) = nothing
+convolve_pair(a, b) = nothing
 
 convolve_pair(a::Normal, b::Normal) = Distributions.convolve(a, b)
 

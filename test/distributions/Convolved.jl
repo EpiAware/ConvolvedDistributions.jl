@@ -778,6 +778,72 @@ end
     @test_throws ErrorException @inferred convolved(LogNormal(0.5, 0.4), 3)
 end
 
+@testitem "convolved accepts a duck-typed component" begin
+    using Distributions, Random
+
+    # Implements exactly what this testitem exercises -- `logpdf`,
+    # `pdf`, `mean`, `var`, `minimum`, `maximum`, `rand` -- without
+    # subtyping `UnivariateDistribution`.
+    struct DuckUniform
+        a::Float64
+        b::Float64
+    end
+    Distributions.logpdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? -log(d.b - d.a) : -Inf
+    Distributions.pdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? 1 / (d.b - d.a) : 0.0
+    Distributions.minimum(d::DuckUniform) = d.a
+    Distributions.maximum(d::DuckUniform) = d.b
+    Distributions.mean(d::DuckUniform) = (d.a + d.b) / 2
+    Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
+    Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
+
+    # Implements `logpdf` only: below the interface the density path
+    # needs from every component.
+    struct LogpdfOnlyDuck end
+    Distributions.logpdf(::LogpdfOnlyDuck, x::Real) =
+        logpdf(Normal(0.0, 1.0), x)
+
+    duck = DuckUniform(0.0, 1.0)
+    g = Gamma(2.0, 1.0)
+
+    # Uses `Any[...]` rather than a narrower inferred element type: a
+    # mixed duck/`UnivariateDistribution` vector infers as `Vector{Any}`.
+    d_vec = convolved(Any[duck, g])
+    @test d_vec isa ConvolvedDistributions.Convolved
+    d_pos = convolved(duck, g)
+    @test d_pos isa ConvolvedDistributions.Convolved
+
+    @test mean(d_vec) == mean(duck) + mean(g)
+    @test var(d_vec) == var(duck) + var(g)
+    @test minimum(d_vec) == minimum(duck) + minimum(g)
+    @test maximum(d_vec) == maximum(duck) + maximum(g)
+
+    rng = MersenneTwister(1)
+    @test rand(rng, d_vec) isa Real
+
+    # `pdf` reaches the duck component's own `pdf` when it is not the
+    # fold's last (integration-variable) component.
+    @test pdf(d_pos, 3.0) > 0
+
+    # A component missing the required interface is rejected at
+    # construction, the same as a bare non-distribution value.
+    @test_throws ArgumentError convolved(duck, 1.0)
+
+    # `logpdf` alone is not enough: without `pdf`, `minimum` and
+    # `maximum` the density path would fail deep inside quadrature
+    # instead, so the guard rejects it up front.
+    @test_throws ArgumentError convolved(LogpdfOnlyDuck(), g)
+
+    # The last component is the quadrature's integration variable and
+    # routes through `primal_distribution`, which only accepts a
+    # `UnivariateDistribution`, so a duck-typed leaf is rejected there
+    # rather than failing inside quadrature. Argument order is what
+    # decides this: the same pair the other way round constructs.
+    @test_throws ArgumentError convolved(g, duck)
+    @test convolved(duck, g) isa ConvolvedDistributions.Convolved
+end
+
 # The AD-safety of the Convolved moments and densities (gradients flowing
 # through the component parameters) is covered by the multi-backend AD suite in
 # `test/ADFixtures`, which has the AD backends as dependencies; the main test
