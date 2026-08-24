@@ -463,12 +463,20 @@ end
     return _window_quantile(d.x, p) * _window_quantile(d.y, p)
 end
 
-# Default `quantile_initial_guess`: product of the component quantiles
-# at `p`, exact on the log scale for degenerate components. A
-# downstream package overrides this per type.
+# Default `quantile_initial_guess`: a Normal-approximation guess from
+# `d`'s own total mean/variance, `mean(d) + std(d) * quantile(Normal(),
+# p)`, clamped above `d`'s own lower support bound when that bound is
+# finite (the common non-negative-product case, where an unclamped guess
+# can land negative in the left tail). See
+# `quantile_initial_guess(::Difference, p)` for why the mean/variance
+# form is used rather than the components' own quantiles at a shared
+# `p`. A downstream package overrides this per type.
 function quantile_initial_guess(d::Product, p::Real)
     _validate_quantile_p(p)
-    return [float(quantile(d.x, p)) * float(quantile(d.y, p))]
+    guess = mean(d) + std(d) * quantile(Normal(), p)
+    dmin = minimum(d)
+    clamped = isfinite(dmin) ? max(guess, nextfloat(float(dmin))) : guess
+    return [_discrete_guess(d, clamped)]
 end
 
 # The effective mass window of Y for the multiplicative quadrature. Both

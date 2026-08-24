@@ -153,6 +153,29 @@ end
     @test_throws ArgumentError quantile(dd, NaN)
 end
 
+@testitem "Difference quantile_initial_guess accuracy on an unbounded discrete pair" begin
+    # `difference(Poisson, Poisson)` is unbounded on BOTH sides
+    # (`minimum(dd) == -Inf`), so it falls through `_lattice_quantile`'s
+    # boundary condition to the generic Nelder-Mead path for every
+    # interior `p` -- unlike "Difference discrete quantile is exact"
+    # above, whose unbounded case only ever exercises `p = 0`/`p = 1`.
+    # The guess must land on the exact smallest lattice point `q` with
+    # `cdf(q) >= p`, the discrete quantile's own definition.
+    using Distributions, Optimization, OptimizationOptimJL
+
+    dd = difference(Poisson(30.0), Poisson(20.0))
+    @test isinf(minimum(dd)) && isinf(maximum(dd))
+
+    # Not `q isa Int`: unlike the exact lattice route, this fallback
+    # path (`quantile_by_optimization`) returns the raw solved `Float64`
+    # with no integer post-processing.
+    for p in (0.05, 0.1, 0.3, 0.5, 0.7, 0.9, 0.95)
+        q = quantile(dd, p)
+        @test isinteger(q)
+        @test cdf(dd, q - 1) < p <= cdf(dd, q)
+    end
+end
+
 @testitem "Difference discrete quantile matches old numeric quantile" begin
     using Distributions, Optimization, OptimizationOptimJL
     using ConvolvedDistributions: Difference
@@ -255,15 +278,18 @@ end
     # `ConvolvedDistributionsOptimizationExt`, which `d`'s
     # `_DiscreteProduct` method now shadows.
     #
-    # Restricted to p in [0.3, 0.5]: `_product_quantile_guess`'s own
-    # docstring notes it overshoots in the tails, and Nelder-Mead's
-    # simplex does not always move off an already-integer guess, so the
-    # numeric answer is unreliable there.
+    # Covers the full p range at a loose tolerance rather than a tight
+    # one over a narrow band: a forced Nelder-Mead comparison against a
+    # piecewise-constant discrete objective is not going to be
+    # pointwise-tight (its simplex can barely move off an already-integer
+    # guess), so this pins "stays in the right ballpark everywhere",
+    # which the guess quality is responsible for, not "matches exactly
+    # somewhere", which is closer to luck.
     dp = product(Binomial(20, 0.4), Binomial(15, 0.6))
-    for p in (0.3, 0.4, 0.5)
+    for p in (0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95)
         q_lattice = quantile(dp, p)
         q_nm = invoke(quantile, Tuple{Product, Real}, dp, p)
-        @test abs(q_lattice - q_nm) <= 2
+        @test abs(q_lattice - q_nm) <= 8
     end
 end
 
@@ -493,13 +519,17 @@ end
     @test quantile_initial_guess(dcv, p) ==
         [sum(c -> float(quantile(c, p)), dcv.components)]
 
+    # Difference/Product use a Normal-approximation guess from `d`'s own
+    # total mean/variance, which tracks the root well for a heavy-tailed
+    # or differently-scaled pair.
     ddf = difference(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
     @test quantile_initial_guess(ddf, p) ==
-        [float(quantile(ddf.x, p)) - float(quantile(ddf.y, 1 - p))]
+        [mean(ddf) + std(ddf) * quantile(Normal(), p)]
 
     dpr = product(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
+    dpr_guess = mean(dpr) + std(dpr) * quantile(Normal(), p)
     @test quantile_initial_guess(dpr, p) ==
-        [float(quantile(dpr.x, p)) * float(quantile(dpr.y, p))]
+        [max(dpr_guess, nextfloat(float(minimum(dpr))))]
 
     drt = ratio(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
     @test quantile_initial_guess(drt, p) ==

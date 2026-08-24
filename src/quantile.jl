@@ -97,6 +97,20 @@ See also: [`quantile_by_optimization`](@ref)
 "
 function quantile_initial_guess end
 
+# Rounds a continuous Normal-approximation guess onto the integer lattice
+# when `d` is integer-lattice discrete. `quantile_by_optimization`'s
+# objective penalises any evaluation point outside `insupport(d, ·)`
+# steeply (`1e10 + q_val^2`, growing away from zero) to guide Nelder-Mead
+# back inside the support; for an integer-lattice `d` a non-integer point
+# is always outside it, so an unrounded continuous guess for an unbounded
+# discrete pair (where the exact lattice quantile route is unreachable,
+# see `quantile(::_DiscreteDifference, p)`/`quantile(::_DiscreteProduct,
+# p)`) gets pulled toward zero by that penalty shape, independent of `p`
+# or how good the guess itself was.
+_discrete_guess(::Distributions.DiscreteUnivariateDistribution, guess::Real) =
+    round(guess)
+_discrete_guess(::UnivariateDistribution, guess::Real) = guess
+
 # `quantile_initial_guess(d, p)` is a call argument, evaluated before
 # `quantile_by_optimization`'s body -- so its own `p`-range check never
 # gets a chance to run first. Each `quantile_initial_guess` method builds
