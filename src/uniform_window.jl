@@ -84,12 +84,16 @@ function partial_expectation end
 
 # Recursion P(k+1, y) = P(k, y) - y^k e^{-y}/Γ(k+1) keeps this to one
 # regularised-incomplete-gamma call per endpoint rather than two.
+# Computed in log space: `gamma(k+1)` overflows before `loggamma(k+1)`
+# does, so this stays finite (and correctly underflows to `0`) for
+# shapes where the linear-space product would hit `Inf * 0`.
 function partial_expectation(component::Gamma)
     k, θ = shape(component), scale(component)
-    inv_g = inv(SpecialFunctions.gamma(k + 1))
+    log_g = SpecialFunctions.loggamma(k + 1)
     return function (t)
         y = t / θ
-        return k * θ * (cdf_ad_safe(component, t) - y^k * exp(-y) * inv_g)
+        rem = exp(k * log(y) - y - log_g)
+        return k * θ * (cdf_ad_safe(component, t) - rem)
     end
 end
 
@@ -133,14 +137,16 @@ function upper_partial_expectation end
 # `ccdf_ad_safe(::Gamma)` is `1 - _gamma_cdf(...)`, which loses accuracy
 # in exactly the far right tail this recursion exists to stay accurate
 # in, while `logccdf_ad_safe(::Gamma)` computes the survival directly and
-# stays accurate there.
+# stays accurate there. The remainder term is the same log-space
+# computation as `partial_expectation(::Gamma)`, for the same reason.
 function upper_partial_expectation(component::Gamma)
     k, θ = shape(component), scale(component)
-    inv_g = inv(SpecialFunctions.gamma(k + 1))
+    log_g = SpecialFunctions.loggamma(k + 1)
     return function (t)
         t <= 0 && return k * θ * one(float(t))
         y = t / θ
-        return k * θ * (exp(logccdf_ad_safe(component, t)) + y^k * exp(-y) * inv_g)
+        rem = exp(k * log(y) - y - log_g)
+        return k * θ * (exp(logccdf_ad_safe(component, t)) + rem)
     end
 end
 
