@@ -821,9 +821,10 @@ end
 @testitem "convolved accepts a duck-typed component" begin
     using Distributions, Random
 
-    # Implements exactly what this testitem exercises -- `logpdf`,
-    # `pdf`, `mean`, `var`, `minimum`, `maximum`, `rand` -- without
-    # subtyping `UnivariateDistribution`.
+    # Implements exactly what this testitem exercises, without subtyping
+    # `UnivariateDistribution`. The CDF quantities, `params` and
+    # `quantile` are what the quadrature's integration slot needs on top
+    # of the densities and moments.
     struct DuckUniform
         a::Float64
         b::Float64
@@ -832,6 +833,13 @@ end
         d.a <= x <= d.b ? -log(d.b - d.a) : -Inf
     Distributions.pdf(d::DuckUniform, x::Real) =
         d.a <= x <= d.b ? 1 / (d.b - d.a) : 0.0
+    Distributions.cdf(d::DuckUniform, x::Real) =
+        clamp((x - d.a) / (d.b - d.a), 0.0, 1.0)
+    Distributions.ccdf(d::DuckUniform, x::Real) = 1 - cdf(d, x)
+    Distributions.logcdf(d::DuckUniform, x::Real) = log(cdf(d, x))
+    Distributions.logccdf(d::DuckUniform, x::Real) = log(ccdf(d, x))
+    Distributions.quantile(d::DuckUniform, p::Real) = d.a + p * (d.b - d.a)
+    Distributions.params(d::DuckUniform) = (d.a, d.b)
     Distributions.minimum(d::DuckUniform) = d.a
     Distributions.maximum(d::DuckUniform) = d.b
     Distributions.mean(d::DuckUniform) = (d.a + d.b) / 2
@@ -875,13 +883,25 @@ end
     # instead, so the guard rejects it up front.
     @test_throws ArgumentError convolved(LogpdfOnlyDuck(), g)
 
-    # The last component is the quadrature's integration variable and
-    # routes through `primal_distribution`, which only accepts a
-    # `UnivariateDistribution`, so a duck-typed leaf is rejected there
-    # rather than failing inside quadrature. Argument order is what
-    # decides this: the same pair the other way round constructs.
-    @test_throws ArgumentError convolved(g, duck)
-    @test convolved(duck, g) isa ConvolvedDistributions.Convolved
+    # A duck-typed component works in any position, including the last
+    # (the quadrature's integration variable, which routes through
+    # `primal_distribution`). The reference is the same convolution with
+    # a real `Uniform`, forced onto the numeric route so both sides
+    # integrate rather than one taking the registered analytic pair.
+    ref = convolved(
+        Uniform(0.0, 1.0), g; method = ConvolvedDistributions.NumericSolver()
+    )
+    d_last = convolved(g, duck)
+    @test d_last isa ConvolvedDistributions.Convolved
+    @test pdf(d_last, 3.0) ≈ pdf(ref, 3.0) rtol = 1.0e-6
+    @test cdf(d_last, 3.0) ≈ cdf(ref, 3.0) rtol = 1.0e-6
+
+    # The CDF quantities reach the duck component too, in the leading
+    # position as well as the integration slot.
+    @test cdf(d_pos, 3.0) ≈ cdf(ref, 3.0) rtol = 1.0e-6
+    @test ccdf(d_pos, 3.0) ≈ ccdf(ref, 3.0) rtol = 1.0e-6
+    @test logcdf(d_pos, 3.0) ≈ logcdf(ref, 3.0) rtol = 1.0e-6
+    @test logccdf(d_pos, 3.0) ≈ logccdf(ref, 3.0) rtol = 1.0e-6
 end
 
 # The AD-safety of the Convolved moments and densities (gradients flowing

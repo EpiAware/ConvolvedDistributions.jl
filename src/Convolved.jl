@@ -132,14 +132,6 @@ end
 # without one already does.
 # Construction-time component validation, shared by both inner
 # constructors.
-#
-# The LAST component is the quadrature's integration variable, and that
-# slot routes through `_window_quantile`/`primal_distribution`
-# (EpiAwareADTools), which is bounded on `UnivariateDistribution`. Every
-# integration-slot component reaches it via the panel breaks, bounded
-# support or not, so a duck-typed leaf there is rejected here with a
-# clear message rather than left to fail as a `MethodError` deep inside
-# quadrature. Drop this arm once EpiAware/EpiAwareADTools.jl#83 lands.
 function _check_components(components::Tuple)
     length(components) >= 1 ||
         throw(ArgumentError("Convolved needs at least one component"))
@@ -151,16 +143,6 @@ function _check_components(components::Tuple)
                 "(logpdf, pdf, minimum, maximum) without subtyping it"
         )
     )
-    if length(components) >= 2 && !(last(components) isa UnivariateDistribution)
-        throw(
-            ArgumentError(
-                "The last component is the quadrature's integration " *
-                    "variable and must be a UnivariateDistribution; a " *
-                    "duck-typed component has to come earlier in the " *
-                    "argument order"
-            )
-        )
-    end
     return nothing
 end
 
@@ -213,12 +195,10 @@ distribution.
   registered [`convolve_pair`](@ref) closed form, so it always routes
   through numeric quadrature rather than an analytic fast path.
 
-  Two limits apply while `cdf_ad_safe`/`primal_distribution` remain
-  bounded on `UnivariateDistribution` upstream
-  (EpiAware/EpiAwareADTools.jl#83): a duck-typed component supports
-  `pdf`/`logpdf` but not `cdf`/`logcdf`/`ccdf`/`logccdf`, and it must
-  not be the LAST component, which is the quadrature's integration
-  slot.
+  A duck-typed component may sit in any position, including last, and
+  supports the CDF quantities as well as the densities. Reaching them
+  through the quadrature's integration slot needs `cdf`, `ccdf`,
+  `logcdf`, `logccdf` and `params` on the component as well.
 
 # Keyword Arguments
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the default)
@@ -507,13 +487,11 @@ end
 # it) but rejected outright by Enzyme's type analysis on the exact
 # discrete lattice fold, the same class of union `_min2`/`_max2` guards
 # against.
-# Untyped for symmetry with the other component-facing helpers, but
-# `primal_distribution` (EpiAwareADTools) is bounded on
-# `UnivariateDistribution`, so this cannot serve a duck-typed component
-# until EpiAware/EpiAwareADTools.jl#83 lands. Every integration-slot
+# Untyped, and `primal_distribution` (EpiAwareADTools) is untyped too, so
+# a duck-typed component is served here as well. Every integration-slot
 # component reaches here through the panel breaks regardless of whether
-# its support is bounded, which is why `convolved` rejects a duck-typed
-# LAST component at construction rather than letting it fail here.
+# its support is bounded, so a duck-typed component in that slot needs
+# `params` for the `primal_distribution` rebuild.
 @noinline function _window_quantile(comp, p::Real)
     q = try
         float(quantile(primal_distribution(comp), p))
@@ -780,12 +758,9 @@ end
 # Recursion bases / steps for the two kernels. For a single (degenerate)
 # component the kernel is just that component's CDF/PDF; for a nested
 # `Convolved` it recurses through its own route, so a nested discrete
-# `rest` folds exactly (lattice) rather than through quadrature. Untyped
-# so a duck-typed component reaches its own `pdf` the same way. The CDF
-# kernel is untyped for symmetry only: `cdf_ad_safe` (EpiAwareADTools)
-# is bounded on `UnivariateDistribution`, so the CDF quantities stay
-# unavailable for a duck-typed component until
-# EpiAware/EpiAwareADTools.jl#83 lands.
+# `rest` folds exactly (lattice) rather than through quadrature. Both are
+# untyped so a duck-typed component reaches its own `pdf`/`cdf` the same
+# way, `cdf_ad_safe` (EpiAwareADTools) being untyped as well.
 _convolution_cdf(d, x::Real) = cdf_ad_safe(d, x)
 _convolution_cdf(d::Convolved, x::Real) = _convolved_cdf_route(d, x)
 
