@@ -579,7 +579,10 @@ end
 @testitem "quantile_by_optimization solver and solve_kwargs" begin
     using ConvolvedDistributions: quantile_by_optimization
     using Distributions, Optimization, OptimizationOptimJL
-    using OptimizationOptimJL: Optim
+    # `NelderMead` is named explicitly, as the Optimization extension does:
+    # OptimizationOptimJL defines it but stopped exporting it in 0.4.19, so
+    # `using OptimizationOptimJL` alone no longer brings it into scope.
+    using OptimizationOptimJL: Optim, NelderMead
 
     d = Normal(2.0, 1.5)
     p = 0.3
