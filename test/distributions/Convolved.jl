@@ -892,10 +892,12 @@ end
     @test_throws MethodError pdf(d_thin, 1.0)
 
     # The opt-in verifier is where a downstream author checks a leaf.
-    # `DuckUniform` implements everything, so it passes in strict mode.
+    # `DuckUniform` implements everything, so it passes in strict mode,
+    # both as an ordinary component and in the integration slot.
     ConvolvedDistributions.TestUtils.test_component_interface(
         duck; x = 0.5, integration_slot = true, strict = true
     )
+    ConvolvedDistributions.TestUtils.test_component_interface(duck; x = 0.5)
 
     # A duck-typed component works in any position, including the last
     # (the quadrature's integration variable, which routes through
@@ -916,6 +918,31 @@ end
     @test ccdf(d_pos, 3.0) ≈ ccdf(ref, 3.0) rtol = 1.0e-6
     @test logcdf(d_pos, 3.0) ≈ logcdf(ref, 3.0) rtol = 1.0e-6
     @test logccdf(d_pos, 3.0) ≈ logccdf(ref, 3.0) rtol = 1.0e-6
+end
+
+@testitem "test_component_interface separates required from optional" begin
+    using Distributions, Random, Test
+    using ConvolvedDistributions.TestUtils: test_component_interface
+
+    # Implements the required tier only: no `mean`, `var`, `rand`,
+    # `quantile` or `params`. Usable until a quantity asks for one.
+    struct BareDuck end
+    Distributions.logpdf(::BareDuck, x::Real) = 0.0 <= x <= 1.0 ? 0.0 : -Inf
+    Distributions.pdf(::BareDuck, x::Real) = 0.0 <= x <= 1.0 ? 1.0 : 0.0
+    Distributions.minimum(::BareDuck) = 0.0
+    Distributions.maximum(::BareDuck) = 1.0
+
+    # The optional tier warns rather than failing, so the testset still
+    # passes while naming what is missing. `strict = true` would promote
+    # these to failures, which is covered by the passing case in the
+    # duck-typed testitem rather than here, since a deliberate failure
+    # cannot be asserted without failing the suite.
+    res = @test_logs(
+        (:warn,), (:warn,), (:warn,), (:warn,), (:warn,),
+        match_mode = :any,
+        test_component_interface(BareDuck(); x = 0.5)
+    )
+    @test res isa Test.AbstractTestSet
 end
 
 # The AD-safety of the Convolved moments and densities (gradients flowing
