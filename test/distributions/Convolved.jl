@@ -19,8 +19,8 @@
 
     # Inner-constructor guards, only reachable via direct construction:
     # the type itself rejects an empty tuple (the degenerate single
-    # component is allowed for the recursive rebuild paths) and any
-    # non-UnivariateDistribution component.
+    # component is allowed for the recursive rebuild paths) and a
+    # `Number` component.
     @test_throws ArgumentError ConvolvedDistributions.Convolved(())
     @test_throws ArgumentError ConvolvedDistributions.Convolved(
         (Gamma(2.0, 1.0), 1.0)
@@ -846,8 +846,8 @@ end
     Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
     Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
 
-    # Implements `logpdf` only: below the interface the density path
-    # needs from every component.
+    # Implements `logpdf` only: constructs, since construction checks no
+    # method list, and fails on the first call that needs more.
     struct LogpdfOnlyDuck end
     Distributions.logpdf(::LogpdfOnlyDuck, x::Real) =
         logpdf(Normal(0.0, 1.0), x)
@@ -874,14 +874,28 @@ end
     # fold's last (integration-variable) component.
     @test pdf(d_pos, 3.0) > 0
 
-    # A component missing the required interface is rejected at
-    # construction, the same as a bare non-distribution value.
+    # A `Number` is rejected at construction. Base and Statistics define
+    # `minimum`/`maximum`/`mean` on numbers, so a scalar passed by
+    # mistake would otherwise fold silently and return a wrong answer
+    # rather than throwing.
     @test_throws ArgumentError convolved(duck, 1.0)
+    @test_throws ArgumentError convolved(g, 2.0)
 
-    # `logpdf` alone is not enough: without `pdf`, `minimum` and
-    # `maximum` the density path would fail deep inside quadrature
-    # instead, so the guard rejects it up front.
-    @test_throws ArgumentError convolved(LogpdfOnlyDuck(), g)
+    # An `Integer` second argument is the power form, not a component, so
+    # the `Number` guard must not catch it.
+    @test convolved(g, 2) == Gamma(4.0, 1.0)
+
+    # Anything else constructs unchecked and fails on the call that needs
+    # the missing method, rather than against a fixed list up front.
+    d_thin = convolved(LogpdfOnlyDuck(), g)
+    @test d_thin isa ConvolvedDistributions.Convolved
+    @test_throws MethodError pdf(d_thin, 1.0)
+
+    # The opt-in verifier is where a downstream author checks a leaf.
+    # `DuckUniform` implements everything, so it passes in strict mode.
+    ConvolvedDistributions.TestUtils.test_component_interface(
+        duck; x = 0.5, integration_slot = true, strict = true
+    )
 
     # A duck-typed component works in any position, including the last
     # (the quadrature's integration variable, which routes through

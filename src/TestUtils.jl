@@ -174,4 +174,75 @@ function test_abstract_membership()
     end
 end
 
+# What a component is called on, split by whether the family can do
+# without it. `Convolved` construction checks none of this: a fixed list
+# in the constructor is both too strict (it rejects a type that dispatches
+# through a supertype, or that gains the method later) and incomplete
+# (which methods are needed depends on the component's position and the
+# quantity asked for). This is the opt-in verifier instead.
+const _COMPONENT_REQUIRED = (:logpdf, :pdf, :minimum, :maximum)
+const _COMPONENT_SLOT_REQUIRED = (:cdf, :ccdf, :logcdf, :logccdf)
+const _COMPONENT_OPTIONAL = (:mean, :var, :rand, :quantile, :params)
+
+@doc "
+
+Check a duck-typed component against what `Convolved` calls on it.
+
+`test_component_interface(c; x)` is for a leaf that implements the
+Distributions.jl univariate interface without subtyping
+`UnivariateDistribution`. `Convolved` accepts any component and lets a
+missing method fail on the call, so this is where a downstream author
+checks their leaf deliberately rather than discovering a gap mid-fold.
+
+Two tiers, because not everything is core. `logpdf`, `pdf`, `minimum`
+and `maximum` are needed by every density evaluation and **fail**.
+`cdf`, `ccdf`, `logcdf` and `logccdf` also fail when
+`integration_slot = true`, meaning the component may sit last, where the
+CDF quantities route through it. Everything else (`mean`, `var`,
+`rand`, `quantile`, `params`) only matters for the quantity that asks
+for it, so a gap **warns**: a leaf with no `mean` is perfectly usable
+until someone calls `mean`.
+
+Pass `strict = true` to promote the warnings to failures. Returns the
+`@testset` object.
+
+# See also
+- [`test_convolved_interface`](@ref): the contract for a family *member*
+  (something subtyping `AbstractConvolvedDistribution`), not a component.
+"
+function test_component_interface(
+        c; name::AbstractString = string(nameof(typeof(c))), x::Real = 1.0,
+        integration_slot::Bool = false, strict::Bool = false
+    )
+    T = typeof(c)
+    required = integration_slot ?
+        (_COMPONENT_REQUIRED..., _COMPONENT_SLOT_REQUIRED...) :
+        _COMPONENT_REQUIRED
+    return @testset "component interface: $name" begin
+        for f in required
+            @test _has_component_method(f, T)
+        end
+        for f in _COMPONENT_OPTIONAL
+            if strict
+                @test _has_component_method(f, T)
+            elseif !_has_component_method(f, T)
+                @warn "$name has no `$f` method; " *
+                    "any quantity needing it will fail on the call" T
+            end
+        end
+        @test isfinite(logpdf(c, x))
+    end
+end
+
+# `minimum`/`maximum`/`params`/`rand` take the component alone; the rest
+# take a point or probability.
+function _has_component_method(f::Symbol, T::Type)
+    f in (:minimum, :maximum) && return hasmethod(getfield(Base, f), Tuple{T})
+    f === :params && return hasmethod(Distributions.params, Tuple{T})
+    f === :rand && return hasmethod(Random.rand, Tuple{Random.AbstractRNG, T})
+    f === :mean && return hasmethod(Distributions.mean, Tuple{T})
+    f === :var && return hasmethod(Distributions.var, Tuple{T})
+    return hasmethod(getfield(Distributions, f), Tuple{T, Real})
+end
+
 end # module TestUtils
