@@ -118,18 +118,6 @@ struct Convolved{
     end
 end
 
-# A component either subtypes `UnivariateDistribution`, or is a
-# duck-typed leaf implementing the part of the Distributions.jl
-# univariate interface the density path calls on every component:
-# `logpdf`, `pdf`, and the two support bounds. `pdf` is checked
-# separately from `logpdf` because Distributions.jl's
-# `pdf(::UnivariateDistribution, x) = exp(logpdf(d, x))` fallback is
-# typed to `UnivariateDistribution` and so does not cover a duck leaf.
-#
-# A construction-time smell test, not an exhaustive contract check: a
-# duck leaf missing `mean`, `var`, or `rand` still constructs and only
-# errors from that specific call, exactly as a `UnivariateDistribution`
-# without one already does.
 # Construction-time component validation, shared by both inner
 # constructors.
 function _check_components(components::Tuple)
@@ -146,6 +134,13 @@ function _check_components(components::Tuple)
     return nothing
 end
 
+# A component either subtypes `UnivariateDistribution`, or is a
+# duck-typed leaf implementing the part of the Distributions.jl
+# univariate interface the density path calls on every component:
+# `logpdf`, `pdf`, and the two support bounds. `pdf` is checked
+# separately from `logpdf` because Distributions.jl's
+# `pdf(::UnivariateDistribution, x) = exp(logpdf(d, x))` fallback is
+# typed to `UnivariateDistribution` and so does not cover a duck leaf.
 function _looks_like_univariate(c)
     c isa UnivariateDistribution && return true
     T = typeof(c)
