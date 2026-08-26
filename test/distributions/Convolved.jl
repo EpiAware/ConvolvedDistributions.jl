@@ -935,10 +935,9 @@ end
     Distributions.maximum(::BareDuck) = 1.0
 
     # The optional tier warns rather than failing, so the testset still
-    # passes while naming what is missing. `strict = true` would promote
-    # these to failures, which is covered by the passing case in the
-    # duck-typed testitem rather than here, since a deliberate failure
-    # cannot be asserted without failing the suite.
+    # passes while naming what is missing. The `strict = true` promotion
+    # is covered by the duck-typed testitem (passing) and the
+    # `Base.eltype` testitem (failing).
     res = @test_logs(
         (:warn,), (:warn,), (:warn,), (:warn,), (:warn,), (:warn,),
         match_mode = :any,
@@ -948,7 +947,7 @@ end
 end
 
 @testitem "a duck-typed component's support comes from Base.eltype" begin
-    using Distributions
+    using Distributions, Test
     const CD = ConvolvedDistributions
 
     # Two identical Poisson leaves, differing only in whether they
@@ -993,6 +992,41 @@ end
         (:warn, r"Base.eltype"), match_mode = :any,
         CD.TestUtils.test_component_interface(SilentDuckPoisson(); x = 3.0)
     )
+
+    # `strict = true` promotes that warning to a failure. Asserting it
+    # needs the failure counted rather than reported, so the verifier
+    # runs inside a testset type that keeps results and reports none. A
+    # plain `@testset` nested inside one of these inherits the type,
+    # which is how the verifier's own testset is captured.
+    struct Recorder <: Test.AbstractTestSet
+        description::String
+        results::Vector{Any}
+    end
+    Recorder(description::AbstractString) = Recorder(description, [])
+    Test.record(ts::Recorder, res) = (push!(ts.results, res); res)
+    function Test.finish(ts::Recorder)
+        parent = Test.get_testset()
+        parent isa Recorder && Test.record(parent, ts)
+        return ts
+    end
+    nfails(::Test.Fail) = 1
+    nfails(::Test.Result) = 0
+    nfails(ts::Recorder) = sum(nfails, ts.results; init = 0)
+
+    function strict_failures(c)
+        return nfails(
+            @testset Recorder "capture" begin
+                CD.TestUtils.test_component_interface(
+                    c; x = 3.0, strict = true
+                )
+            end
+        )
+    end
+
+    # The two leaves are identical apart from `Base.eltype`, so the one
+    # extra failure is the `eltype` check.
+    @test strict_failures(SilentDuckPoisson()) ==
+        strict_failures(LatticeDuckPoisson()) + 1
 end
 
 # The AD-safety of the Convolved moments and densities (gradients flowing

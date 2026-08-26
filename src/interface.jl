@@ -78,15 +78,12 @@ _component_support(::Type{<:Distributions.ValueSupport}, ::Type) = Continuous
 
 # A duck-typed component (implements the interface below `convolved`
 # calls on it, without subtyping `UnivariateDistribution`) has no
-# `Distributions.value_support` to read. Support is derived from
-# `eltype` alone, the same integer-lattice rule the two-argument method
-# above applies once a value support is known. Base's `eltype` fallback
-# is `Any`, so a leaf that does not define it reads as continuous. That
-# is right for a continuous leaf and wrong for a discrete one, which
-# must define `Base.eltype` as an `Integer` type to reach the exact
-# fold. `TestUtils.test_component_interface` warns on an undefined
-# `eltype`.
-_component_support(::Type{D}) where {D} = _duck_component_support(Base.eltype(D))
+# `Distributions.value_support` to read, so support comes from `eltype`
+# alone. Base's `eltype` fallback is `Any`, which lands on the
+# continuous arm.
+function _component_support(::Type{D}) where {D}
+    return _duck_component_support(Base.eltype(D))
+end
 _duck_component_support(::Type{<:Integer}) = Discrete
 _duck_component_support(::Type) = Continuous
 
