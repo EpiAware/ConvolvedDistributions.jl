@@ -1180,6 +1180,7 @@ from an upward summation scan, also with no Optimization.jl dependency.
 See also: [`cdf`](@ref)
 "
 function quantile(d::Convolved, p::Real)
+    _validate_quantile_p(p)
     return convolved_quantile(d, d.components, p, d.method)
 end
 

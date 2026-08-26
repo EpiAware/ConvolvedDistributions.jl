@@ -624,3 +624,21 @@ See also: [`pdf`](@ref), [`logcdf`](@ref)
 function logpdf(d::Ratio, z::Real)
     return ratio_logpdf(d, (d.x, d.y), z, d.method)
 end
+
+@doc "
+
+Compute the quantile (inverse CDF) of the ratio.
+
+Routes through [`ratio_quantile`](@ref). No ratio pair has a registered
+closed form yet, so in practice this reaches the `NumericSolver` arm in
+the `ConvolvedDistributionsOptimizationExt` extension. A downstream
+package that registers a `ratio_pair` is answered exactly, with no
+dependency on Optimization.jl, on the same terms as `Difference` and
+`Product`.
+
+See also: [`cdf`](@ref)
+"
+function quantile(d::Ratio, p::Real)
+    _validate_quantile_p(p)
+    return ratio_quantile(d, (d.x, d.y), p, d.method)
+end

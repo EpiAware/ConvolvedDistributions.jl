@@ -409,7 +409,18 @@ end
     dp = product(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
     dr = ratio(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
 
-    for d in (dc, dd, dp, dr), bad in (-0.1, 1.1, NaN)
+    # Pairs that DO resolve to a closed form, so the analytic arm runs.
+    # The guess helpers are on the numeric arm only, so a member whose
+    # pair resolves never reached them: the analytic arm handed the raw
+    # `p` to the resolved distribution's own `quantile`, which throws
+    # `DomainError` rather than the documented `ArgumentError`, and
+    # hangs outright on `NaN` for some families. Validation therefore
+    # belongs on the way in, before either arm.
+    ac = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
+    ad = difference(Normal(1.0, 2.0), Normal(3.0, 4.0))
+    ap = product(LogNormal(0.5, 0.4), LogNormal(1.0, 0.3))
+
+    for d in (dc, dd, dp, dr, ac, ad, ap), bad in (-0.1, 1.1, NaN)
         err = try
             quantile(d, bad)
             nothing
