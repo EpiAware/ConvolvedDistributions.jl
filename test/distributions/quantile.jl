@@ -409,18 +409,50 @@ end
     dp = product(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
     dr = ratio(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
 
-    # Pairs that DO resolve to a closed form, so the analytic arm runs.
-    # The guess helpers are on the numeric arm only, so a member whose
-    # pair resolves never reached them: the analytic arm handed the raw
-    # `p` to the resolved distribution's own `quantile`, which throws
-    # `DomainError` rather than the documented `ArgumentError`, and
-    # hangs outright on `NaN` for some families. Validation therefore
-    # belongs on the way in, before either arm.
-    ac = convolved(Normal(0.0, 1.0), Normal(1.0, 2.0))
-    ad = difference(Normal(1.0, 2.0), Normal(3.0, 4.0))
-    ap = product(LogNormal(0.5, 0.4), LogNormal(1.0, 0.3))
+    for d in (dc, dd, dp, dr), bad in (-0.1, 1.1, NaN)
+        err = try
+            quantile(d, bad)
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError
+        @test contains(sprint(showerror, err), "p must be in [0, 1]")
+    end
+end
 
-    for d in (dc, dd, dp, dr, ac, ad, ap), bad in (-0.1, 1.1, NaN)
+@testitem "Analytic quantile pairs need no Optimization.jl" begin
+    # No `using Optimization, OptimizationOptimJL`: a pair with a
+    # registered closed form is answered by the analytic arm, which runs
+    # no solve. `==` (not `≈`) is the load-bearing check, since a
+    # Nelder-Mead solve would not land on the exact bit pattern.
+    # TestItemRunner can share a worker process across files, so another
+    # testitem may already have loaded Optimization.jl by the time this
+    # one runs; this tests what holds regardless of load order, not that
+    # the extension is absent.
+    using ConvolvedDistributions: has_closed_form
+    using Distributions
+
+    pairs = (
+        convolved(Normal(0.0, 1.0), Normal(1.0, 2.0)) =>
+            convolve(Normal(0.0, 1.0), Normal(1.0, 2.0)),
+        difference(Normal(1.0, 2.0), Normal(3.0, 4.0)) =>
+            Normal(1.0 - 3.0, sqrt(2.0^2 + 4.0^2)),
+        product(LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)) =>
+            LogNormal(0.5 + 1.0, sqrt(0.4^2 + 0.3^2)),
+    )
+
+    for (d, ref) in pairs
+        @test has_closed_form(d)
+        for p in (0.1, 0.25, 0.5, 0.75, 0.9)
+            @test quantile(d, p) == quantile(ref, p)
+        end
+    end
+
+    # `_validate_quantile_p` runs before either arm, so an out-of-range
+    # or `NaN` `p` gives the documented `ArgumentError` rather than the
+    # resolved distribution's own family-specific error.
+    for (d, _) in pairs, bad in (-0.1, 1.1, NaN)
         err = try
             quantile(d, bad)
             nothing
