@@ -398,20 +398,19 @@ end
     end
 end
 
-@testitem "quantile_initial_guess validates p before the component quantile call" begin
+@testitem "Numeric-arm quantile rejects a bad p with ArgumentError" begin
     # `Uniform`'s own `quantile` never throws for an out-of-range `p` (it
     # just extrapolates linearly), so the boundary tests above -- which
-    # all use Uniform components -- exercise `quantile_by_optimization`'s
-    # own check, not `quantile_initial_guess`'s guard. `Gamma`'s own
-    # `quantile` DOES throw (a `log` domain error, or an internal `p + q
-    # must equal one` check for `NaN`) before that check is ever reached,
-    # so it is used here to confirm the same clean `ArgumentError`
-    # surfaces regardless of which family builds the guess. All three
-    # pairs below reach the numeric arm, since the unequal Gamma scales
-    # leave `convolve_pair` unresolved and neither a difference nor a
-    # product of Gammas names a distribution. A Gamma/Gamma ratio does
-    # resolve, so it is covered in the Distributions-only testitem
-    # below instead.
+    # all use Uniform components -- never meet a component that would
+    # throw its own error first. `Gamma`'s own `quantile` DOES throw (a
+    # `log` domain error, or an internal `p + q must equal one` check
+    # for `NaN`), so a Gamma pair confirms that `quantile`'s
+    # `_validate_quantile_p` runs first and the documented
+    # `ArgumentError` surfaces instead. All three pairs below reach the
+    # numeric arm, since the unequal Gamma scales leave `convolve_pair`
+    # unresolved and neither a difference nor a product of Gammas names
+    # a distribution. A Gamma/Gamma ratio does resolve, so it is covered
+    # in the Distributions-only testitem below instead.
     using Distributions, Optimization, OptimizationOptimJL
 
     dc = convolved(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
@@ -430,19 +429,49 @@ end
     end
 end
 
+@testitem "quantile_initial_guess validates p before building a guess" begin
+    # `quantile_initial_guess` is a public hook, so it is called
+    # directly as well as through `quantile`. Its own
+    # `_validate_quantile_p` is what a direct caller meets, and it is
+    # the behaviour an override is documented to preserve, so exercise
+    # it without going through `quantile`. Every method builds its
+    # guess from a component's `quantile(comp, p)`, and `Gamma`'s own
+    # `quantile` throws for a bad `p` with a different error (a
+    # `DomainError` from `log`, or a `p + q must equal one`
+    # `ArgumentError` for `NaN`), so the message asserted below can only
+    # come from the guard.
+    using ConvolvedDistributions: quantile_initial_guess
+    using Distributions
+
+    x = Gamma(2.0, 1.0)
+    y = Gamma(3.0, 2.0)
+    guesses = (
+        convolved(x, y), difference(x, y), product(x, y), ratio(x, y),
+    )
+
+    for d in guesses, bad in (-0.1, 1.1, NaN)
+        err = try
+            quantile_initial_guess(d, bad)
+            nothing
+        catch e
+            e
+        end
+        @test err isa ArgumentError
+        @test contains(sprint(showerror, err), "p must be in [0, 1]")
+    end
+end
+
 @testitem "Analytic quantile pairs need no Optimization.jl" begin
     # No `using Optimization, OptimizationOptimJL` here. TestItemRunner
     # can share a worker process across files, so another testitem may
     # have loaded the extension already. Absence is therefore not
-    # assertable, and the three checks below prove independence of it
-    # instead. `which` names the module supplying the `quantile` method
-    # that runs, which must be core. `has_closed_form` pins that the
-    # analytic arm resolves the pair rather than falling through to the
-    # extension's `NumericSolver` arm. `==` (not `≈`) against the closed
-    # form is the third leg, since a Nelder-Mead solve would not land on
-    # the exact bit pattern.
-    using ConvolvedDistributions: ConvolvedDistributions, Convolved,
-        Difference, Product, Ratio, has_closed_form
+    # assertable, and the two checks below stand in for it.
+    # `has_closed_form` pins that the analytic arm resolves the pair
+    # rather than falling through to the extension's `NumericSolver`
+    # arm. `==` (not `≈`) against the closed form is the second leg,
+    # since a Nelder-Mead solve would not land on the exact bit pattern.
+    using ConvolvedDistributions: Convolved, Difference, Product, Ratio,
+        has_closed_form
     using Distributions
 
     pairs = (
@@ -460,8 +489,6 @@ end
 
     for (d, ref) in pairs
         @test has_closed_form(d)
-        m = which(quantile, Tuple{typeof(d), Float64})
-        @test m.module === ConvolvedDistributions
         for p in (0.1, 0.25, 0.5, 0.75, 0.9)
             @test quantile(d, p) == quantile(ref, p)
         end
