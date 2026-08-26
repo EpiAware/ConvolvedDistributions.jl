@@ -145,9 +145,10 @@ end
 [`cdf`](@ref) with a Nelder-Mead solve, starting from the numerator
 quantile at `p` over the denominator quantile at `1 - p` (the ratio
 increases in the numerator and decreases in the denominator, so opposing
-tails pair, as the Difference guess does for subtraction). No ratio pair
-has a registered closed form yet, so every `Ratio` reaches this arm
-today.
+tails pair, as the Difference guess does for subtraction). The
+`AnalyticalSolver` arm in core handles a registered pair (currently
+`Normal`/`Normal` with both means zero, `Gamma`/`Gamma` and
+`Chisq`/`Chisq`) without needing this extension at all.
 
 Reaching the quantile through the generic is what lets a `Ratio` compose
 under `truncated`, where `Distributions` derives the truncated quantile

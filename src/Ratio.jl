@@ -629,12 +629,12 @@ end
 
 Compute the quantile (inverse CDF) of the ratio.
 
-Routes through [`ratio_quantile`](@ref). No ratio pair has a registered
-closed form yet, so in practice this reaches the `NumericSolver` arm in
-the `ConvolvedDistributionsOptimizationExt` extension. A downstream
-package that registers a `ratio_pair` is answered exactly, with no
-dependency on Optimization.jl, on the same terms as `Difference` and
-`Product`.
+Routes through [`ratio_quantile`](@ref), so a registered analytic pair
+(currently `Normal`/`Normal` with both means zero, `Gamma`/`Gamma` and
+`Chisq`/`Chisq`) is answered exactly with no dependency on
+Optimization.jl. Any other pair falls through to the `NumericSolver`
+arm, which lives in the `ConvolvedDistributionsOptimizationExt`
+extension.
 
 See also: [`cdf`](@ref)
 "

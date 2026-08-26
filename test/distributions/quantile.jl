@@ -294,6 +294,7 @@ end
 end
 
 @testitem "Ratio quantile inverts cdf" begin
+    using ConvolvedDistributions: evaluation_path, quantile_initial_guess
     using Distributions, Optimization, OptimizationOptimJL
 
     # Analytic path: Gamma / Gamma has the closed form
@@ -313,13 +314,17 @@ end
         @test cdf(dn, q) ≈ p atol = 1.0e-3
     end
 
-    # Sign-crossing denominator: the opposing-tail guess is not finite
-    # (quantile(y, 1 - p) can be 0 or negative), exercising the median
-    # fallback in `quantile_initial_guess(::Ratio, p)`.
-    dc = ratio(Normal(0.0, 2.0), Normal(0.0, 0.5))
-    refc = Cauchy(0.0, 4.0)
-    for p in (0.1, 0.5, 0.9)
-        @test quantile(dc, p) ≈ quantile(refc, p) atol = 1.0e-2
+    # Sign-crossing denominator with no registered `ratio_pair`, so the
+    # numeric arm runs. At p = 0.5 the denominator quantile is exactly
+    # zero, so the opposing-tail guess is not finite and
+    # `quantile_initial_guess(::Ratio, p)` falls back. The median ratio
+    # is 0 / 0 there, so the zero last resort is reached too.
+    dc = ratio(Normal(0.0, 2.0), Logistic(0.0, 1.0))
+    @test evaluation_path(dc) == :numeric
+    @test quantile_initial_guess(dc, 0.5) == [0.0]
+    for p in (0.25, 0.5, 0.75)
+        q = quantile(dc, p)
+        @test cdf(dc, q) ≈ p atol = 1.0e-3
     end
 
     # rand on a truncated Ratio routes through the base quantile.
@@ -401,15 +406,19 @@ end
     # `quantile` DOES throw (a `log` domain error, or an internal `p + q
     # must equal one` check for `NaN`) before that check is ever reached,
     # so it is used here to confirm the same clean `ArgumentError`
-    # surfaces regardless of which family builds the guess.
+    # surfaces regardless of which family builds the guess. All three
+    # pairs below reach the numeric arm, since the unequal Gamma scales
+    # leave `convolve_pair` unresolved and neither a difference nor a
+    # product of Gammas names a distribution. A Gamma/Gamma ratio does
+    # resolve, so it is covered in the Distributions-only testitem
+    # below instead.
     using Distributions, Optimization, OptimizationOptimJL
 
     dc = convolved(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
     dd = difference(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
     dp = product(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
-    dr = ratio(Gamma(2.0, 1.0), Gamma(3.0, 2.0))
 
-    for d in (dc, dd, dp, dr), bad in (-0.1, 1.1, NaN)
+    for d in (dc, dd, dp), bad in (-0.1, 1.1, NaN)
         err = try
             quantile(d, bad)
             nothing
@@ -422,15 +431,18 @@ end
 end
 
 @testitem "Analytic quantile pairs need no Optimization.jl" begin
-    # No `using Optimization, OptimizationOptimJL`: a pair with a
-    # registered closed form is answered by the analytic arm, which runs
-    # no solve. `==` (not `≈`) is the load-bearing check, since a
-    # Nelder-Mead solve would not land on the exact bit pattern.
-    # TestItemRunner can share a worker process across files, so another
-    # testitem may already have loaded Optimization.jl by the time this
-    # one runs; this tests what holds regardless of load order, not that
-    # the extension is absent.
-    using ConvolvedDistributions: has_closed_form
+    # No `using Optimization, OptimizationOptimJL` here. TestItemRunner
+    # can share a worker process across files, so another testitem may
+    # have loaded the extension already. Absence is therefore not
+    # assertable, and the three checks below prove independence of it
+    # instead. `which` names the module supplying the `quantile` method
+    # that runs, which must be core. `has_closed_form` pins that the
+    # analytic arm resolves the pair rather than falling through to the
+    # extension's `NumericSolver` arm. `==` (not `≈`) against the closed
+    # form is the third leg, since a Nelder-Mead solve would not land on
+    # the exact bit pattern.
+    using ConvolvedDistributions: ConvolvedDistributions, Convolved,
+        Difference, Product, Ratio, has_closed_form
     using Distributions
 
     pairs = (
@@ -440,14 +452,29 @@ end
             Normal(1.0 - 3.0, sqrt(2.0^2 + 4.0^2)),
         product(LogNormal(0.5, 0.4), LogNormal(1.0, 0.3)) =>
             LogNormal(0.5 + 1.0, sqrt(0.4^2 + 0.3^2)),
+        ratio(Gamma(2.0, 1.0), Gamma(3.0, 2.0)) =>
+            (1.0 / 2.0) * BetaPrime(2.0, 3.0),
+        ratio(Normal(0.0, 2.0), Normal(0.0, 0.5)) => Cauchy(0.0, 4.0),
+        ratio(Chisq(4.0), Chisq(6.0)) => (4.0 / 6.0) * FDist(4.0, 6.0),
     )
 
     for (d, ref) in pairs
         @test has_closed_form(d)
+        m = which(quantile, Tuple{typeof(d), Float64})
+        @test m.module === ConvolvedDistributions
         for p in (0.1, 0.25, 0.5, 0.75, 0.9)
             @test quantile(d, p) == quantile(ref, p)
         end
     end
+
+    # The core methods make `quantile` applicable to every member, which
+    # is what `truncated` and other applicability checks see. A pair
+    # with no registered closed form still needs the extension to
+    # produce a value.
+    for T in (Convolved, Difference, Product, Ratio)
+        @test hasmethod(quantile, Tuple{T, Float64})
+    end
+    @test !has_closed_form(ratio(Gamma(3.0, 1.0), LogNormal(0.2, 0.3)))
 
     # `_validate_quantile_p` runs before either arm, so an out-of-range
     # or `NaN` `p` gives the documented `ArgumentError` rather than the
