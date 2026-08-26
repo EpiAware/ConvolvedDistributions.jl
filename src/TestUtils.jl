@@ -203,6 +203,13 @@ CDF quantities route through it. Everything else (`mean`, `var`,
 for it, so a gap **warns**: a leaf with no `mean` is perfectly usable
 until someone calls `mean`.
 
+`Base.eltype` sits in the warning tier too. `Convolved` reads a
+duck-typed leaf's value support from it, and Base's fallback of `Any`
+reads as continuous. That is right for a continuous leaf, so an
+undefined `eltype` cannot fail. It is wrong for a discrete leaf on an
+integer lattice, which is quietly routed to quadrature instead of the
+exact fold, so an undefined `eltype` warns.
+
 Pass `strict = true` to promote the warnings to failures. Returns the
 `@testset` object.
 
@@ -230,9 +237,21 @@ function test_component_interface(
                     "any quantity needing it will fail on the call" T
             end
         end
+        if strict
+            @test _declares_eltype(T)
+        elseif !_declares_eltype(T)
+            @warn "$name does not define `Base.eltype`, so it is taken " *
+                "as continuous; a discrete leaf on an integer lattice " *
+                "must define it to reach the exact route" T
+        end
         @test isfinite(logpdf(c, x))
     end
 end
+
+# `hasmethod(Base.eltype, Tuple{Type{T}})` is always true because of
+# Base's generic fallback, so the check is on the answer instead: `Any`
+# means the leaf declared nothing.
+_declares_eltype(T::Type) = Base.eltype(T) !== Any
 
 # `minimum`/`maximum`/`params`/`rand` take the component alone; the rest
 # take a point or probability.

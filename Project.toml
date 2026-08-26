@@ -34,6 +34,9 @@ ChainRulesCore = "1"
 Distributions = "0.25"
 DocStringExtensions = "0.9"
 Enzyme = "0.13"
+# Floored at 0.2.3: the first release whose `primal_distribution` and
+# AD-safe hooks accept a component that does not subtype
+# `UnivariateDistribution`, which the duck-typed integration slot needs.
 EpiAwareADTools = "0.2.3"
 FastGaussQuadrature = "1"
 Integrals = "4, 5.1"

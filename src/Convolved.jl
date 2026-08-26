@@ -25,6 +25,13 @@ points per evaluation (and multiplies across nested components), so
 evaluating at a very large point is correspondingly expensive; no cap is
 imposed.
 
+A duck-typed component carries no `Distributions.value_support`, so its
+support is read from `Base.eltype` alone. Base's fallback returns `Any`,
+which reads as continuous. A discrete duck-typed leaf must therefore
+define `Base.eltype` as an `Integer` type to reach the exact fold.
+Without it the leaf is integrated by quadrature over a comb of point
+masses and the answer is silently wrong.
+
 A two-component `Convolved` with exactly one integer-lattice discrete
 side and one non-integer-lattice side also evaluates exactly, by summing
 the other side's density/CDF over the discrete component's own lattice
@@ -188,7 +195,10 @@ distribution.
   quadrature's integration slot, and supports the CDF quantities as
   well as the densities. It never has a registered
   [`convolve_pair`](@ref) closed form, so it always routes through
-  numeric quadrature rather than an analytic fast path.
+  numeric quadrature rather than an analytic fast path. A discrete
+  duck-typed component must define `Base.eltype` as an `Integer` type
+  to reach the exact lattice route; Base's `eltype` fallback is `Any`,
+  which reads as continuous.
 
 # Keyword Arguments
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the default)

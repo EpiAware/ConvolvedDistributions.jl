@@ -845,6 +845,7 @@ end
     Distributions.mean(d::DuckUniform) = (d.a + d.b) / 2
     Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
     Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
+    Base.eltype(::Type{DuckUniform}) = Float64
 
     # Implements `logpdf` only: constructs, since construction checks no
     # method list, and fails on the first call that needs more.
@@ -925,7 +926,8 @@ end
     using ConvolvedDistributions.TestUtils: test_component_interface
 
     # Implements the required tier only: no `mean`, `var`, `rand`,
-    # `quantile` or `params`. Usable until a quantity asks for one.
+    # `quantile`, `params` or `eltype`. Usable until a quantity asks for
+    # one, and continuous by default without `eltype`.
     struct BareDuck end
     Distributions.logpdf(::BareDuck, x::Real) = 0.0 <= x <= 1.0 ? 0.0 : -Inf
     Distributions.pdf(::BareDuck, x::Real) = 0.0 <= x <= 1.0 ? 1.0 : 0.0
@@ -938,11 +940,59 @@ end
     # duck-typed testitem rather than here, since a deliberate failure
     # cannot be asserted without failing the suite.
     res = @test_logs(
-        (:warn,), (:warn,), (:warn,), (:warn,), (:warn,),
+        (:warn,), (:warn,), (:warn,), (:warn,), (:warn,), (:warn,),
         match_mode = :any,
         test_component_interface(BareDuck(); x = 0.5)
     )
     @test res isa Test.AbstractTestSet
+end
+
+@testitem "a duck-typed component's support comes from Base.eltype" begin
+    using Distributions
+    const CD = ConvolvedDistributions
+
+    # Two identical Poisson leaves, differing only in whether they
+    # declare `Base.eltype`.
+    struct SilentDuckPoisson end
+    Distributions.logpdf(::SilentDuckPoisson, x::Real) =
+        logpdf(Poisson(3.0), x)
+    Distributions.pdf(::SilentDuckPoisson, x::Real) = pdf(Poisson(3.0), x)
+    Distributions.minimum(::SilentDuckPoisson) = 0
+    Distributions.maximum(::SilentDuckPoisson) = Inf
+
+    struct LatticeDuckPoisson end
+    Distributions.logpdf(::LatticeDuckPoisson, x::Real) =
+        logpdf(Poisson(3.0), x)
+    Distributions.pdf(::LatticeDuckPoisson, x::Real) = pdf(Poisson(3.0), x)
+    Distributions.minimum(::LatticeDuckPoisson) = 0
+    Distributions.maximum(::LatticeDuckPoisson) = Inf
+    Base.eltype(::Type{LatticeDuckPoisson}) = Int
+
+    # Base's `eltype` fallback is `Any`, which reads as continuous.
+    @test Base.eltype(SilentDuckPoisson) === Any
+    @test CD._component_support(SilentDuckPoisson) === Continuous
+    @test CD._component_support(LatticeDuckPoisson) === Discrete
+
+    # The declared leaf types the combination `Discrete` and takes the
+    # exact lattice fold, matching the closed-form Poisson sum.
+    d = convolved(LatticeDuckPoisson(), Poisson(2.0))
+    @test Distributions.value_support(typeof(d)) === Discrete
+    @test CD.is_exact(d)
+    for k in 0:8
+        @test pdf(d, k) ≈ pdf(Poisson(5.0), k) rtol = 1.0e-10
+    end
+
+    # The silent leaf types `Continuous` and is integrated by
+    # quadrature, which cannot see a comb of point masses.
+    d_silent = convolved(SilentDuckPoisson(), Poisson(2.0))
+    @test Distributions.value_support(typeof(d_silent)) === Continuous
+
+    # The verifier names the gap rather than leaving it to be found in
+    # the answers.
+    @test_logs(
+        (:warn, r"Base.eltype"), match_mode = :any,
+        CD.TestUtils.test_component_interface(SilentDuckPoisson(); x = 3.0)
+    )
 end
 
 # The AD-safety of the Convolved moments and densities (gradients flowing
