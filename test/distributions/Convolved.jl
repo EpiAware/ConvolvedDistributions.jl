@@ -923,7 +923,8 @@ end
 
 @testitem "test_component_interface separates required from optional" begin
     using Distributions, Random, Test
-    using ConvolvedDistributions.TestUtils: test_component_interface
+    using ConvolvedDistributions.TestUtils: test_component_interface,
+        _has_component_method
 
     # Implements the required tier only: no `mean`, `var`, `rand`,
     # `quantile`, `params` or `eltype`. Usable until a quantity asks for
@@ -938,12 +939,43 @@ end
     # passes while naming what is missing. The `strict = true` promotion
     # is covered by the duck-typed testitem (passing) and the
     # `Base.eltype` testitem (failing).
+    #
+    # Matched in exact mode, so this pins one warning per missing method
+    # and no more. Under `:any` six identical `(:warn,)` patterns would
+    # all match a single record and prove only that something warned.
     res = @test_logs(
-        (:warn,), (:warn,), (:warn,), (:warn,), (:warn,), (:warn,),
-        match_mode = :any,
+        (:warn, r"no `mean` method"),
+        (:warn, r"no `var` method"),
+        (:warn, r"no `rand` method"),
+        (:warn, r"no `quantile` method"),
+        (:warn, r"no `params` method"),
+        (:warn, r"does not define `Base.eltype`"),
         test_component_interface(BareDuck(); x = 0.5)
     )
     @test res isa Test.AbstractTestSet
+
+    # The verifier's own view of the leaf, which is what drives those
+    # warnings. `minimum`, `maximum`, `mean`, `var`, `rand` and
+    # `quantile` all have an `Any`-accepting generic in Base or
+    # Statistics, so a method counts only when it is more specific than
+    # that fallback.
+    bare = f -> _has_component_method(f, BareDuck)
+    @test all(bare, (:logpdf, :pdf, :minimum, :maximum))
+    @test !any(bare, (:mean, :var, :rand, :quantile, :params))
+    @test !any(bare, (:cdf, :ccdf, :logcdf, :logccdf))
+
+    # A struct defining nothing implements nothing, so the required tier
+    # fails on it rather than passing vacuously.
+    struct DefinesNothing end
+    every = (
+        :logpdf, :pdf, :minimum, :maximum, :mean, :var, :rand, :quantile,
+        :params, :cdf, :ccdf, :logcdf, :logccdf,
+    )
+    @test !any(f -> _has_component_method(f, DefinesNothing), every)
+
+    # A real distribution answers true across the same list, so the
+    # check is not merely refusing everything.
+    @test all(f -> _has_component_method(f, Gamma{Float64}), every)
 end
 
 @testitem "a duck-typed component's support comes from Base.eltype" begin

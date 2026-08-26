@@ -127,7 +127,7 @@ end
 
 # A component is not checked against a method list. Which methods it
 # needs depends on where it sits and which quantity is asked for, so any
-# fixed list is both too strict and incomplete; a component missing one
+# fixed list is both too strict and incomplete. A component missing one
 # fails on the call, naming the method. `TestUtils.test_component_interface`
 # is the opt-in verifier.
 #

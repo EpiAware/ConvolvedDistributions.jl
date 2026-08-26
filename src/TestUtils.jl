@@ -210,6 +210,12 @@ undefined `eltype` cannot fail. It is wrong for a discrete leaf on an
 integer lattice, which is quietly routed to quadrature instead of the
 exact fold, so an undefined `eltype` warns.
 
+A method counts as present only when it resolves to something more
+specific than the generic fallback. `hasmethod` is not enough on its own
+because `Base.minimum`, `Base.maximum`, `Statistics.mean`,
+`Statistics.var`, `Statistics.quantile` and `Random.rand` all accept
+`Any`, so a leaf defining nothing would otherwise look complete.
+
 Pass `strict = true` to promote the warnings to failures. Returns the
 `@testset` object.
 
@@ -233,15 +239,15 @@ function test_component_interface(
             if strict
                 @test _has_component_method(f, T)
             elseif !_has_component_method(f, T)
-                @warn "$name has no `$f` method; " *
-                    "any quantity needing it will fail on the call" T
+                @warn "$name has no `$f` method. " *
+                    "Any quantity needing it will fail on the call" T
             end
         end
         if strict
             @test _declares_eltype(T)
         elseif !_declares_eltype(T)
             @warn "$name does not define `Base.eltype`, so it is taken " *
-                "as continuous; a discrete leaf on an integer lattice " *
+                "as continuous. A discrete leaf on an integer lattice " *
                 "must define it to reach the exact route" T
         end
         @test isfinite(logpdf(c, x))
@@ -253,15 +259,42 @@ end
 # means the leaf declared nothing.
 _declares_eltype(T::Type) = Base.eltype(T) !== Any
 
-# `minimum`/`maximum`/`params`/`rand` take the component alone; the rest
-# take a point or probability.
+# The generic function each name is called through. `minimum` and
+# `maximum` are Base's. `rand` is `Random`'s. The rest resolve in
+# `Distributions`, which re-exports `Statistics`' `mean`, `var` and
+# `quantile`.
+function _component_generic(f::Symbol)
+    f in (:minimum, :maximum) && return getfield(Base, f)
+    f === :rand && return Random.rand
+    return getfield(Distributions, f)
+end
+
+# The signature a component is called on, paired with the generic
+# signature that catches anything. `minimum`, `maximum`, `params`, `mean`
+# and `var` take the component alone. `rand` takes an rng first. The rest
+# take a point or a probability.
+function _component_signatures(f::Symbol, T::Type)
+    f === :rand &&
+        return Tuple{Random.AbstractRNG, T}, Tuple{Random.AbstractRNG, Any}
+    f in (:minimum, :maximum, :params, :mean, :var) &&
+        return Tuple{T}, Tuple{Any}
+    return Tuple{T, Real}, Tuple{Any, Real}
+end
+
+_generic_fallback(g, sig) = hasmethod(g, sig) ? which(g, sig) : nothing
+
+# `hasmethod` alone answers the wrong question here. `Base.minimum`,
+# `Base.maximum`, `Statistics.mean`, `Statistics.var`,
+# `Statistics.quantile` and `Random.rand` all accept `Any`, so a type
+# defining no methods at all still satisfies `hasmethod` for most of
+# these names. A method counts as present only when it resolves to
+# something more specific than the generic fallback. That is the test
+# `_more_specific_pair_method` applies to the closed-form pairs.
 function _has_component_method(f::Symbol, T::Type)
-    f in (:minimum, :maximum) && return hasmethod(getfield(Base, f), Tuple{T})
-    f === :params && return hasmethod(Distributions.params, Tuple{T})
-    f === :rand && return hasmethod(Random.rand, Tuple{Random.AbstractRNG, T})
-    f === :mean && return hasmethod(Distributions.mean, Tuple{T})
-    f === :var && return hasmethod(Distributions.var, Tuple{T})
-    return hasmethod(getfield(Distributions, f), Tuple{T, Real})
+    g = _component_generic(f)
+    specific, generic = _component_signatures(f, T)
+    hasmethod(g, specific) || return false
+    return which(g, specific) !== _generic_fallback(g, generic)
 end
 
 end # module TestUtils
