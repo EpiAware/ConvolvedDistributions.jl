@@ -19,8 +19,8 @@
 
     # Inner-constructor guards, only reachable via direct construction:
     # the type itself rejects an empty tuple (the degenerate single
-    # component is allowed for the recursive rebuild paths) and any
-    # non-UnivariateDistribution component.
+    # component is allowed for the recursive rebuild paths) and a
+    # `Number` component.
     @test_throws ArgumentError ConvolvedDistributions.Convolved(())
     @test_throws ArgumentError ConvolvedDistributions.Convolved(
         (Gamma(2.0, 1.0), 1.0)
@@ -816,6 +816,249 @@ end
     # `Convolved` type), verified explicitly rather than merely noted.
     @inferred convolved(LogNormal(0.5, 0.4), Val(3))
     @test_throws ErrorException @inferred convolved(LogNormal(0.5, 0.4), 3)
+end
+
+@testitem "convolved accepts a duck-typed component" begin
+    using Distributions, Random
+
+    # Implements exactly what this testitem exercises, without subtyping
+    # `UnivariateDistribution`. The CDF quantities, `params` and
+    # `quantile` are what the quadrature's integration slot needs on top
+    # of the densities and moments.
+    struct DuckUniform
+        a::Float64
+        b::Float64
+    end
+    Distributions.logpdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? -log(d.b - d.a) : -Inf
+    Distributions.pdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? 1 / (d.b - d.a) : 0.0
+    Distributions.cdf(d::DuckUniform, x::Real) =
+        clamp((x - d.a) / (d.b - d.a), 0.0, 1.0)
+    Distributions.ccdf(d::DuckUniform, x::Real) = 1 - cdf(d, x)
+    Distributions.logcdf(d::DuckUniform, x::Real) = log(cdf(d, x))
+    Distributions.logccdf(d::DuckUniform, x::Real) = log(ccdf(d, x))
+    Distributions.quantile(d::DuckUniform, p::Real) = d.a + p * (d.b - d.a)
+    Distributions.params(d::DuckUniform) = (d.a, d.b)
+    Distributions.minimum(d::DuckUniform) = d.a
+    Distributions.maximum(d::DuckUniform) = d.b
+    Distributions.mean(d::DuckUniform) = (d.a + d.b) / 2
+    Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
+    Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
+    Base.eltype(::Type{DuckUniform}) = Float64
+
+    # Implements `logpdf` only: constructs, since construction checks no
+    # method list, and fails on the first call that needs more.
+    struct LogpdfOnlyDuck end
+    Distributions.logpdf(::LogpdfOnlyDuck, x::Real) =
+        logpdf(Normal(0.0, 1.0), x)
+
+    duck = DuckUniform(0.0, 1.0)
+    g = Gamma(2.0, 1.0)
+
+    # Uses `Any[...]` rather than a narrower inferred element type: a
+    # mixed duck/`UnivariateDistribution` vector infers as `Vector{Any}`.
+    d_vec = convolved(Any[duck, g])
+    @test d_vec isa ConvolvedDistributions.Convolved
+    d_pos = convolved(duck, g)
+    @test d_pos isa ConvolvedDistributions.Convolved
+
+    @test mean(d_vec) == mean(duck) + mean(g)
+    @test var(d_vec) == var(duck) + var(g)
+    @test minimum(d_vec) == minimum(duck) + minimum(g)
+    @test maximum(d_vec) == maximum(duck) + maximum(g)
+
+    rng = MersenneTwister(1)
+    @test rand(rng, d_vec) isa Real
+
+    # `pdf` reaches the duck component's own `pdf` when it is not the
+    # fold's last (integration-variable) component.
+    @test pdf(d_pos, 3.0) > 0
+
+    # A `Number` is rejected at construction. Base and Statistics define
+    # `minimum`/`maximum`/`mean` on numbers, so a scalar passed by
+    # mistake would otherwise fold silently and return a wrong answer
+    # rather than throwing.
+    @test_throws ArgumentError convolved(duck, 1.0)
+    @test_throws ArgumentError convolved(g, 2.0)
+
+    # An `Integer` second argument is the power form, not a component, so
+    # the `Number` guard must not catch it.
+    @test convolved(g, 2) == Gamma(4.0, 1.0)
+
+    # Anything else constructs unchecked and fails on the call that needs
+    # the missing method, rather than against a fixed list up front.
+    d_thin = convolved(LogpdfOnlyDuck(), g)
+    @test d_thin isa ConvolvedDistributions.Convolved
+    @test_throws MethodError pdf(d_thin, 1.0)
+
+    # The opt-in verifier is where a downstream author checks a leaf.
+    # `DuckUniform` implements everything, so it passes in strict mode,
+    # both as an ordinary component and in the integration slot.
+    ConvolvedDistributions.TestUtils.test_component_interface(
+        duck; x = 0.5, integration_slot = true, strict = true
+    )
+    ConvolvedDistributions.TestUtils.test_component_interface(duck; x = 0.5)
+
+    # A duck-typed component works in any position, including the last
+    # (the quadrature's integration variable, which routes through
+    # `primal_distribution`). The reference is the same convolution with
+    # a real `Uniform`, forced onto the numeric route so both sides
+    # integrate rather than one taking the registered analytic pair.
+    ref = convolved(
+        Uniform(0.0, 1.0), g; method = ConvolvedDistributions.NumericSolver()
+    )
+    d_last = convolved(g, duck)
+    @test d_last isa ConvolvedDistributions.Convolved
+    @test pdf(d_last, 3.0) ≈ pdf(ref, 3.0) rtol = 1.0e-6
+    @test cdf(d_last, 3.0) ≈ cdf(ref, 3.0) rtol = 1.0e-6
+
+    # The CDF quantities reach the duck component too, in the leading
+    # position as well as the integration slot.
+    @test cdf(d_pos, 3.0) ≈ cdf(ref, 3.0) rtol = 1.0e-6
+    @test ccdf(d_pos, 3.0) ≈ ccdf(ref, 3.0) rtol = 1.0e-6
+    @test logcdf(d_pos, 3.0) ≈ logcdf(ref, 3.0) rtol = 1.0e-6
+    @test logccdf(d_pos, 3.0) ≈ logccdf(ref, 3.0) rtol = 1.0e-6
+end
+
+@testitem "test_component_interface separates required from optional" begin
+    using Distributions, Random, Test
+    using ConvolvedDistributions.TestUtils: test_component_interface,
+        _has_component_method
+
+    # Implements the required tier only: no `mean`, `var`, `rand`,
+    # `quantile`, `params` or `eltype`. Usable until a quantity asks for
+    # one, and continuous by default without `eltype`.
+    struct BareDuck end
+    Distributions.logpdf(::BareDuck, x::Real) = 0.0 <= x <= 1.0 ? 0.0 : -Inf
+    Distributions.pdf(::BareDuck, x::Real) = 0.0 <= x <= 1.0 ? 1.0 : 0.0
+    Distributions.minimum(::BareDuck) = 0.0
+    Distributions.maximum(::BareDuck) = 1.0
+
+    # The optional tier warns rather than failing, so the testset still
+    # passes while naming what is missing. The `strict = true` promotion
+    # is covered by the duck-typed testitem (passing) and the
+    # `Base.eltype` testitem (failing).
+    #
+    # Matched in exact mode, so this pins one warning per missing method
+    # and no more. Under `:any` six identical `(:warn,)` patterns would
+    # all match a single record and prove only that something warned.
+    res = @test_logs(
+        (:warn, r"no `mean` method"),
+        (:warn, r"no `var` method"),
+        (:warn, r"no `rand` method"),
+        (:warn, r"no `quantile` method"),
+        (:warn, r"no `params` method"),
+        (:warn, r"does not define `Base.eltype`"),
+        test_component_interface(BareDuck(); x = 0.5)
+    )
+    @test res isa Test.AbstractTestSet
+
+    # The verifier's own view of the leaf, which is what drives those
+    # warnings. `minimum`, `maximum`, `mean`, `var`, `rand` and
+    # `quantile` all have an `Any`-accepting generic in Base or
+    # Statistics, so a method counts only when it is more specific than
+    # that fallback.
+    bare = f -> _has_component_method(f, BareDuck)
+    @test all(bare, (:logpdf, :pdf, :minimum, :maximum))
+    @test !any(bare, (:mean, :var, :rand, :quantile, :params))
+    @test !any(bare, (:cdf, :ccdf, :logcdf, :logccdf))
+
+    # A struct defining nothing implements nothing, so the required tier
+    # fails on it rather than passing vacuously.
+    struct DefinesNothing end
+    every = (
+        :logpdf, :pdf, :minimum, :maximum, :mean, :var, :rand, :quantile,
+        :params, :cdf, :ccdf, :logcdf, :logccdf,
+    )
+    @test !any(f -> _has_component_method(f, DefinesNothing), every)
+
+    # A real distribution answers true across the same list, so the
+    # check is not merely refusing everything.
+    @test all(f -> _has_component_method(f, Gamma{Float64}), every)
+end
+
+@testitem "a duck-typed component's support comes from Base.eltype" begin
+    using Distributions, Test
+    const CD = ConvolvedDistributions
+
+    # Two identical Poisson leaves, differing only in whether they
+    # declare `Base.eltype`.
+    struct SilentDuckPoisson end
+    Distributions.logpdf(::SilentDuckPoisson, x::Real) =
+        logpdf(Poisson(3.0), x)
+    Distributions.pdf(::SilentDuckPoisson, x::Real) = pdf(Poisson(3.0), x)
+    Distributions.minimum(::SilentDuckPoisson) = 0
+    Distributions.maximum(::SilentDuckPoisson) = Inf
+
+    struct LatticeDuckPoisson end
+    Distributions.logpdf(::LatticeDuckPoisson, x::Real) =
+        logpdf(Poisson(3.0), x)
+    Distributions.pdf(::LatticeDuckPoisson, x::Real) = pdf(Poisson(3.0), x)
+    Distributions.minimum(::LatticeDuckPoisson) = 0
+    Distributions.maximum(::LatticeDuckPoisson) = Inf
+    Base.eltype(::Type{LatticeDuckPoisson}) = Int
+
+    # Base's `eltype` fallback is `Any`, which reads as continuous.
+    @test Base.eltype(SilentDuckPoisson) === Any
+    @test CD._component_support(SilentDuckPoisson) === Continuous
+    @test CD._component_support(LatticeDuckPoisson) === Discrete
+
+    # The declared leaf types the combination `Discrete` and takes the
+    # exact lattice fold, matching the closed-form Poisson sum.
+    d = convolved(LatticeDuckPoisson(), Poisson(2.0))
+    @test Distributions.value_support(typeof(d)) === Discrete
+    @test CD.is_exact(d)
+    for k in 0:8
+        @test pdf(d, k) ≈ pdf(Poisson(5.0), k) rtol = 1.0e-10
+    end
+
+    # The silent leaf types `Continuous` and is integrated by
+    # quadrature, which cannot see a comb of point masses.
+    d_silent = convolved(SilentDuckPoisson(), Poisson(2.0))
+    @test Distributions.value_support(typeof(d_silent)) === Continuous
+
+    # The verifier names the gap rather than leaving it to be found in
+    # the answers.
+    @test_logs(
+        (:warn, r"Base.eltype"), match_mode = :any,
+        CD.TestUtils.test_component_interface(SilentDuckPoisson(); x = 3.0)
+    )
+
+    # `strict = true` promotes that warning to a failure. Asserting it
+    # needs the failure counted rather than reported, so the verifier
+    # runs inside a testset type that keeps results and reports none. A
+    # plain `@testset` nested inside one of these inherits the type,
+    # which is how the verifier's own testset is captured.
+    struct Recorder <: Test.AbstractTestSet
+        description::String
+        results::Vector{Any}
+    end
+    Recorder(description::AbstractString) = Recorder(description, [])
+    Test.record(ts::Recorder, res) = (push!(ts.results, res); res)
+    function Test.finish(ts::Recorder)
+        parent = Test.get_testset()
+        parent isa Recorder && Test.record(parent, ts)
+        return ts
+    end
+    nfails(::Test.Fail) = 1
+    nfails(::Test.Result) = 0
+    nfails(ts::Recorder) = sum(nfails, ts.results; init = 0)
+
+    function strict_failures(c)
+        return nfails(
+            @testset Recorder "capture" begin
+                CD.TestUtils.test_component_interface(
+                    c; x = 3.0, strict = true
+                )
+            end
+        )
+    end
+
+    # The two leaves are identical apart from `Base.eltype`, so the one
+    # extra failure is the `eltype` check.
+    @test strict_failures(SilentDuckPoisson()) ==
+        strict_failures(LatticeDuckPoisson()) + 1
 end
 
 # The AD-safety of the Convolved moments and densities (gradients flowing

@@ -25,6 +25,13 @@ points per evaluation (and multiplies across nested components), so
 evaluating at a very large point is correspondingly expensive; no cap is
 imposed.
 
+A duck-typed component carries no `Distributions.value_support`, so its
+support is read from `Base.eltype` alone. Base's fallback returns `Any`,
+which reads as continuous. A discrete duck-typed leaf must therefore
+define `Base.eltype` as an `Integer` type to reach the exact fold.
+Without it the leaf is integrated by quadrature over a comb of point
+masses and the answer is silently wrong.
+
 A two-component `Convolved` with exactly one integer-lattice discrete
 side and one non-integer-lattice side also evaluates exactly, by summing
 the other side's density/CDF over the discrete component's own lattice
@@ -98,14 +105,7 @@ struct Convolved{
         ) where {
             C <: Tuple,
         }
-        length(components) >= 1 ||
-            throw(ArgumentError("Convolved needs at least one component"))
-        all(c -> c isa UnivariateDistribution, components) ||
-            throw(
-            ArgumentError(
-                "All components must be UnivariateDistributions"
-            )
-        )
+        _check_components(components)
         S = _components_support(components)
         closed_form = _resolve_closed_form(components, method)
         return new{C, typeof(method), S}(components, method, closed_form)
@@ -114,14 +114,7 @@ struct Convolved{
     function Convolved(components::C, method::M) where {
             C <: Tuple, M <: AbstractSolverMethod,
         }
-        length(components) >= 1 ||
-            throw(ArgumentError("Convolved needs at least one component"))
-        all(c -> c isa UnivariateDistribution, components) ||
-            throw(
-            ArgumentError(
-                "All components must be UnivariateDistributions"
-            )
-        )
+        _check_components(components)
         S = _components_support(components)
         closed_form = NamedTuple{
             (:pdf, :logpdf, :cdf, :logcdf, :ccdf, :logccdf),
@@ -130,6 +123,32 @@ struct Convolved{
         )
         return new{C, M, S}(components, method, closed_form)
     end
+end
+
+# A component is not checked against a method list. Which methods it
+# needs depends on where it sits and which quantity is asked for, so any
+# fixed list is both too strict and incomplete. A component missing one
+# fails on the call, naming the method. `TestUtils.test_component_interface`
+# is the opt-in verifier.
+#
+# `Number` is the exception, and rejected. Base and Statistics define
+# `minimum`, `maximum` and `mean` on numbers, so a scalar passed by
+# mistake satisfies enough of the interface to fold silently: it does not
+# throw, it returns `pdf` 0, `cdf` 0 and a `mean` shifted by its own
+# value. A wrong number is worse than either error, and no real component
+# is a `Number`.
+function _check_components(components::Tuple)
+    length(components) >= 1 ||
+        throw(ArgumentError("Convolved needs at least one component"))
+    any(c -> c isa Number, components) &&
+        throw(
+        ArgumentError(
+            "A component cannot be a Number: it is not a distribution, " *
+                "but satisfies enough of the univariate interface to " *
+                "fold silently and return a wrong answer"
+        )
+    )
+    return nothing
 end
 
 const _DiscreteConvolved = Convolved{<:Tuple, <:AbstractSolverMethod, Discrete}
@@ -164,7 +183,22 @@ distribution.
 
 # Arguments
 - `components`: Two or more `UnivariateDistribution`s, or a vector/tuple
-  of them.
+  of them. A component may instead be duck-typed, implementing the
+  Distributions.jl univariate interface without subtyping
+  `UnivariateDistribution`. Construction does not check which methods a
+  component has: what it needs depends on where it sits and which
+  quantity is asked for, and a missing method fails on the call itself,
+  naming what to define. Verify a leaf up front with
+  `TestUtils.test_component_interface`.
+
+  A duck-typed component may sit in any position, including the
+  quadrature's integration slot, and supports the CDF quantities as
+  well as the densities. It never has a registered
+  [`convolve_pair`](@ref) closed form, so it always routes through
+  numeric quadrature rather than an analytic fast path. A discrete
+  duck-typed component must define `Base.eltype` as an `Integer` type
+  to reach the exact lattice route; Base's `eltype` fallback is `Any`,
+  which reads as continuous.
 
 # Keyword Arguments
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the default)
@@ -201,7 +235,7 @@ cdf_numeric = cdf(dn, 2.0)
 - [`evaluation_path`](@ref): Check the route without asserting it.
 "
 function convolved(
-        components::AbstractVector{<:UnivariateDistribution};
+        components::AbstractVector;
         method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
     )
     length(components) >= 2 ||
@@ -210,8 +244,7 @@ function convolved(
 end
 
 function convolved(
-        c1::UnivariateDistribution, c2::UnivariateDistribution,
-        rest::UnivariateDistribution...;
+        c1, c2, rest...;
         method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
     )
     return _check_strict(
@@ -349,8 +382,8 @@ sampler(d::Convolved) = d
 # Per-component moments via the component's analytic `mean`/`var`. A nested
 # `Convolved` is itself a `UnivariateDistribution`, so it recurses through this
 # same additive sum via its own `mean`/`var`.
-_component_mean(c::UnivariateDistribution) = mean(c)
-_component_var(c::UnivariateDistribution) = var(c)
+_component_mean(c) = mean(c)
+_component_var(c) = var(c)
 
 @doc "
 
@@ -453,7 +486,7 @@ end
 # it) but rejected outright by Enzyme's type analysis on the exact
 # discrete lattice fold, the same class of union `_min2`/`_max2` guards
 # against.
-@noinline function _window_quantile(comp::UnivariateDistribution, p::Real)
+@noinline function _window_quantile(comp, p::Real)
     q = try
         float(quantile(primal_distribution(comp), p))
     catch e
@@ -609,7 +642,11 @@ end
 # remaining convolution `rest`. The "rest" distribution is itself a
 # `Convolved` (or a single distribution) so both the CDF and PDF kernels
 # fold recursively for more than two components.
-_rest_distribution(c::Tuple{<:UnivariateDistribution}) = c[1]
+# The one-element case is unwrapped rather than wrapped in a throwaway
+# `Convolved`: `_convolved_numeric_pdf`/`_convolved_numeric_cdf` assume
+# at least two components remain once quadrature is reached, an
+# invariant a wrapped single component would violate.
+_rest_distribution(c::Tuple{Any}) = c[1]
 _rest_distribution(c::Tuple) = Convolved(c)
 
 # Scalar min/max helpers, promoting to a common type first. Every
@@ -716,10 +753,10 @@ end
 # component the kernel is just that component's CDF/PDF; for a nested
 # `Convolved` it recurses through its own route, so a nested discrete
 # `rest` folds exactly (lattice) rather than through quadrature.
-_convolution_cdf(d::UnivariateDistribution, x::Real) = cdf_ad_safe(d, x)
+_convolution_cdf(d, x::Real) = cdf_ad_safe(d, x)
 _convolution_cdf(d::Convolved, x::Real) = _convolved_cdf_route(d, x)
 
-_convolution_pdf(d::UnivariateDistribution, x::Real) = pdf(d, x)
+_convolution_pdf(d, x::Real) = pdf(d, x)
 _convolution_pdf(d::Convolved, x::Real) = _convolved_pdf_route(d, x)
 
 # The convolution quadrature uses the shared Gauss-Legendre machinery in
