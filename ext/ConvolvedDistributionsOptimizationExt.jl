@@ -17,7 +17,7 @@ module ConvolvedDistributionsOptimizationExt
 # see #116 for a dedicated lattice-scan quantile.
 
 using ConvolvedDistributions: ConvolvedDistributions, Convolved, Difference,
-    Product, Ratio, NumericSolver, _maybe_analytic, _validate_quantile_p
+    Product, Ratio, NumericSolver, _validate_quantile_p
 import ConvolvedDistributions: quantile_by_optimization,
     quantile_initial_guess
 import Distributions
@@ -104,70 +104,59 @@ end
 
 @doc "
 
-Compute the quantile (inverse CDF) of the difference.
+`NumericSolver` arm of [`difference_quantile`](@ref): invert the numeric
+[`cdf`](@ref) with a Nelder-Mead solve, starting from the difference of
+the opposing component quantiles. The `AnalyticalSolver` arm in core
+handles a registered pair (currently `Normal`-`Normal`) without needing
+this extension at all.
 
-Exact where the components' difference names a distribution (currently
-`Normal`-`Normal`); otherwise the quantile is found by numerically
-inverting [`cdf`](@ref) with a Nelder-Mead solve, starting from the
-difference of the opposing component quantiles. Providing this method
-lets a `Difference` compose under `truncated`, where `Distributions`
-derives the truncated quantile and inverse-CDF sampler from the base
-`quantile`.
-
-Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
-method lives in the `ConvolvedDistributionsOptimizationExt` extension).
-
-See also: [`cdf`](@ref)
+Reaching the quantile through the generic is what lets a `Difference`
+compose under `truncated`, where `Distributions` derives the truncated
+quantile and inverse-CDF sampler from the base `quantile`.
 "
-function Distributions.quantile(d::Difference, p::Real)
-    a = _maybe_analytic(d)
-    a === nothing || return quantile(a, p)
+function ConvolvedDistributions.difference_quantile(
+        d::Difference, components::Tuple, p::Real, method::NumericSolver
+    )
     return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
 end
 
 @doc "
 
-Compute the quantile (inverse CDF) of the product.
+`NumericSolver` arm of [`product_quantile`](@ref): invert the numeric
+[`cdf`](@ref) with a Nelder-Mead solve, starting from the product of the
+component quantiles at `p` (the Convolved guess on the log scale, since
+both supports are non-negative). The `AnalyticalSolver` arm in core
+handles a registered pair (currently `LogNormal`*`LogNormal`) without
+needing this extension at all.
 
-Exact where the components' product names a distribution (currently
-`LogNormal`*`LogNormal`); otherwise the quantile is found by numerically
-inverting [`cdf`](@ref) with a Nelder-Mead solve, starting from the
-product of the component quantiles at `p` (the Convolved guess on the
-log scale, since both supports are non-negative). Providing this method
-lets a `Product` compose under `truncated`, where `Distributions`
-derives the truncated quantile and inverse-CDF sampler from the base
-`quantile`.
-
-Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
-method lives in the `ConvolvedDistributionsOptimizationExt` extension).
-
-See also: [`cdf`](@ref)
+Reaching the quantile through the generic is what lets a `Product`
+compose under `truncated`, where `Distributions` derives the truncated
+quantile and inverse-CDF sampler from the base `quantile`.
 "
-function Distributions.quantile(d::Product, p::Real)
-    a = _maybe_analytic(d)
-    a === nothing || return quantile(a, p)
+function ConvolvedDistributions.product_quantile(
+        d::Product, components::Tuple, p::Real, method::NumericSolver
+    )
     return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
 end
 
 @doc "
 
-Compute the quantile (inverse CDF) of the ratio.
+`NumericSolver` arm of [`ratio_quantile`](@ref): invert the numeric
+[`cdf`](@ref) with a Nelder-Mead solve, starting from the numerator
+quantile at `p` over the denominator quantile at `1 - p` (the ratio
+increases in the numerator and decreases in the denominator, so opposing
+tails pair, as the Difference guess does for subtraction). The
+`AnalyticalSolver` arm in core handles a registered pair (currently
+`Normal`/`Normal` with both means zero, `Gamma`/`Gamma` and
+`Chisq`/`Chisq`) without needing this extension at all.
 
-No closed form exists for a generic ratio, so the quantile is found by
-numerically inverting [`cdf`](@ref) with a Nelder-Mead solve, starting
-from the numerator quantile at `p` over the denominator quantile at
-`1 - p` (the ratio increases in the numerator and decreases in the
-denominator, so opposing tails pair, as the Difference guess does for
-subtraction). Providing this method lets a `Ratio` compose under
-`truncated`, where `Distributions` derives the truncated quantile and
-inverse-CDF sampler from the base `quantile`.
-
-Requires Optimization.jl and OptimizationOptimJL.jl to be loaded (this
-method lives in the `ConvolvedDistributionsOptimizationExt` extension).
-
-See also: [`cdf`](@ref)
+Reaching the quantile through the generic is what lets a `Ratio` compose
+under `truncated`, where `Distributions` derives the truncated quantile
+and inverse-CDF sampler from the base `quantile`.
 "
-function Distributions.quantile(d::Ratio, p::Real)
+function ConvolvedDistributions.ratio_quantile(
+        d::Ratio, components::Tuple, p::Real, method::NumericSolver
+    )
     return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
 end
 

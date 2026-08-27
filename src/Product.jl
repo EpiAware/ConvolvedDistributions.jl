@@ -819,10 +819,26 @@ end
 
 Compute the quantile (inverse CDF) of the product.
 
+Routes through [`product_quantile`](@ref), so a registered analytic
+pair (currently `LogNormal`*`LogNormal`) is answered exactly with no
+dependency on Optimization.jl. Any other pair falls through to the
+`NumericSolver` arm, which lives in the
+`ConvolvedDistributionsOptimizationExt` extension.
+
+See also: [`cdf`](@ref)
+"
+function quantile(d::Product, p::Real)
+    _validate_quantile_p(p)
+    return product_quantile(d, (d.x, d.y), p, d.method)
+end
+
+@doc "
+
+Compute the quantile (inverse CDF) of the product.
+
 For a `Discrete`-typed product, returns an exact integer lattice
 point, with `p == 0`/`p == 1` always returning the bounds exactly.
-Any other case needs the `ConvolvedDistributionsOptimizationExt`
-extension loaded.
+Any other case falls through to the method above.
 
 See also: [`cdf`](@ref)
 "
