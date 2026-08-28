@@ -386,6 +386,46 @@ end
 # `strict = true` promises an exact route (#92), and gates on
 # `is_exact`, NOT `evaluation_path`, so the exact discrete fold (which
 # reports `:numeric`) is accepted rather than wrongly rejected.
+# ---------------------------------------------------------------------------
+# Duck-typed component guard
+# ---------------------------------------------------------------------------
+#
+# Every family constructor (`convolved`/`difference`/`product`/`ratio`)
+# accepts duck-typed components -- types implementing the Distributions.jl
+# univariate interface without subtyping `UnivariateDistribution` -- and
+# deliberately checks none of the interface up front: which methods a
+# component needs depends on where it sits and which quantity is asked
+# for, and a missing method fails on the call itself, naming what to
+# define (verify a leaf up front with `TestUtils.test_component_interface`).
+#
+# `Number` is the one exception, and every constructor rejects it. Base
+# and Statistics define `minimum`, `maximum` and `mean` on numbers, so a
+# scalar passed by mistake satisfies enough of the interface to fold
+# silently: it does not throw, it returns `pdf` 0, `cdf` 0 and a moment
+# shifted by its own value. A wrong number is worse than either error,
+# and no real component is a `Number`.
+function _check_component(c)
+    c isa Number &&
+        throw(
+        ArgumentError(
+            "A component cannot be a Number: it is not a distribution, " *
+                "but satisfies enough of the univariate interface to " *
+                "fold silently and return a wrong answer"
+        )
+    )
+    return nothing
+end
+
+# Reject a `Number` among a tuple of components (the whole-argument
+# `Convolved` constructor); the two-component constructors check `x` and
+# `y` individually.
+function _check_components(components::Tuple)
+    length(components) >= 1 ||
+        throw(ArgumentError("Convolved needs at least one component"))
+    foreach(_check_component, components)
+    return nothing
+end
+
 function _check_strict(d::AbstractConvolvedDistribution, strict::Bool)
     strict || return d
     is_exact(d) && return d

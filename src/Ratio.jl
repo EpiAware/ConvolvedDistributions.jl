@@ -86,6 +86,18 @@ nesting throws an `ArgumentError` naming the offending component,
 rather than silently narrowing the outer window. Used as the outermost
 distribution, a `Ratio` has no such restriction.
 
+# Duck-typed components
+
+A component may instead be duck-typed, implementing the
+Distributions.jl univariate interface without subtyping
+`UnivariateDistribution`. Construction does not check which methods a
+component has: what it needs depends on where it sits and which
+quantity is asked for, and a missing method fails on the call itself,
+naming what to define. Verify a leaf up front with
+`TestUtils.test_component_interface`. A duck-typed component has no
+registered [`ratio_pair`](@ref) closed form, so it routes through
+numeric quadrature rather than an analytic fast path.
+
 # See also
 - [`ratio`](@ref): Constructor function
 - [`Convolved`](@ref): The sum ``X + Y``
@@ -93,7 +105,7 @@ distribution, a `Ratio` has no such restriction.
 - [`Product`](@ref): The product ``X Y``
 "
 struct Ratio{
-        X <: UnivariateDistribution, Y <: UnivariateDistribution,
+        X, Y,
         M <: AbstractSolverMethod,
     } <:
     AbstractConvolvedDistribution{Distributions.Univariate, Continuous}
@@ -107,9 +119,9 @@ struct Ratio{
     function Ratio(
             x::X, y::Y;
             method::AbstractSolverMethod = AnalyticalSolver()
-        ) where {
-            X <: UnivariateDistribution, Y <: UnivariateDistribution,
-        }
+        ) where {X, Y}
+        _check_component(x)
+        _check_component(y)
         _check_denominator(y)
         return new{X, Y, typeof(method)}(x, y, method)
     end
@@ -121,9 +133,8 @@ end
 # that event, so this is checked at construction (called from the inner
 # constructor, so `Ratio(...)` cannot bypass it), matching `Product`'s
 # construction-time rejection of sign-crossing supports.
-function _check_denominator(y::UnivariateDistribution)
-    atom = y isa DiscreteUnivariateDistribution && insupport(y, 0) &&
-        pdf(y, 0) > 0
+function _check_denominator(y)
+    atom = _has_atom_at_zero(y)
     degenerate = iszero(minimum(y)) && iszero(maximum(y))
     (atom || degenerate) && throw(
         ArgumentError(
@@ -133,6 +144,35 @@ function _check_denominator(y::UnivariateDistribution)
         )
     )
     return nothing
+end
+
+# A denominator with an actual discrete atom at zero: a genuine
+# `DiscreteUnivariateDistribution`, or a duck-typed leaf whose `eltype`
+# is an `Integer` (the package's definition of discrete, see
+# `_component_support` in `src/interface.jl`). A continuous density at
+# zero is NOT an atom (`pdf(y, 0) > 0` alone means nothing; e.g.
+# `Gamma(1, 1)` has `pdf(0) = 1` but zero mass there), so the check is
+# gated on discreteness. The `isa DiscreteUnivariateDistribution` branch
+# also catches a fractional-grid discrete leaf that `_component_support`
+# reads as continuous (only integer lattices count as `Discrete`), so a
+# stable existing behaviour is preserved, while a duck-typed leaf with
+# no `Base.eltype` is taken as continuous and not gated -- matching how
+# the package treats such a leaf elsewhere.
+#
+# `hasmethod(insupport)` guards the duck-typed branch: a discrete
+# duck (e.g. `LatticeDuckPoisson` in the tests) may not define
+# `Distributions.insupport` at all (it is only defined for
+# `UnivariateDistribution` subtypes in Distributions.jl), and a raw
+# `MethodError` at construction would be a worse failure than the
+# atom-at-zero guard it is serving. A leaf that DOES define it gets the
+# full check; a genuine `DiscreteUnivariateDistribution` always defines
+# it, so the guard never short-circuits the real path.
+function _has_atom_at_zero(y)
+    is_discrete = y isa DiscreteUnivariateDistribution ||
+        _component_support(typeof(y)) === Discrete
+    is_discrete || return false
+    hasmethod(insupport, Tuple{typeof(y), Real}) || return false
+    return insupport(y, 0) && pdf(y, 0) > 0
 end
 
 @doc "
@@ -150,9 +190,14 @@ otherwise); either component may otherwise have two-sided support.
 
 # Arguments
 - `x`: The numerator distribution (the `X` in `Z = X / Y`), a
-  `UnivariateDistribution`.
+  `UnivariateDistribution` or a duck-typed component.
 - `y`: The denominator distribution (the `Y` in `Z = X / Y`), a
-  `UnivariateDistribution` with no probability mass at zero.
+  `UnivariateDistribution` or a duck-typed component, with no
+  probability mass at zero. A discrete duck-typed denominator must
+  define `Distributions.insupport` (in addition to the interface
+  `TestUtils.test_component_interface` checks) for the atom-at-zero
+  check to apply; without it the leaf is admitted and the check is
+  skipped.
 
 # Keyword Arguments
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the
@@ -183,7 +228,7 @@ mean(d)
 - [`evaluation_path`](@ref): Check the route without asserting it.
 "
 function ratio(
-        x::UnivariateDistribution, y::UnivariateDistribution;
+        x, y;
         method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
     )
     return _check_strict(Ratio(x, y; method = method), strict)

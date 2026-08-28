@@ -37,7 +37,7 @@ mean(nested) ≈ mean(flat), cdf(nested, 8.0) ≈ cdf(flat, 8.0), mean(gap)
 
 A `Ratio` nests too, but only when both its numerator and its denominator are non-negative (this includes the `Gamma`/`Gamma` and `Chisq`/`Chisq` analytic pairs, and any non-negative numeric pair, but not the two-sided `Normal`/`Normal` pair): a ratio that can run negative on either side has Cauchy-like tails with no cheap effective-support bound, so nesting one throws rather than silently narrowing the outer window.
 
-The [Getting started](@ref getting-started) walkthrough and the [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), and [The product of two delays](@ref product-distributions) tutorials show nesting in more detail.
+The [Getting started](@ref getting-started) walkthrough and the [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), [The product of two delays](@ref product-distributions), and [The ratio of two delays](@ref ratio-distributions) tutorials exercise each operation in turn (the ratio tutorial also covers the analytic `Gamma`/`Gamma` closed form and its numerical reproduction).
 
 ## Why is the package called ConvolvedDistributions when it also has `difference` and `product`?
 

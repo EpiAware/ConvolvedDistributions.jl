@@ -369,3 +369,124 @@ end
     @test err2 isa ArgumentError
     @test occursin("Uniform", err2.msg)
 end
+
+@testitem "ratio accepts a duck-typed component" begin
+    using Distributions, Random, Test
+
+    # Mirrors the duck-typed `Convolved`/`Difference`/`Product`
+    # testitems.
+    struct DuckUniform
+        a::Float64
+        b::Float64
+    end
+    Distributions.logpdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? -log(d.b - d.a) : -Inf
+    Distributions.pdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? 1 / (d.b - d.a) : 0.0
+    Distributions.cdf(d::DuckUniform, x::Real) =
+        clamp((x - d.a) / (d.b - d.a), 0.0, 1.0)
+    Distributions.ccdf(d::DuckUniform, x::Real) = 1 - cdf(d, x)
+    Distributions.logcdf(d::DuckUniform, x::Real) = log(cdf(d, x))
+    Distributions.logccdf(d::DuckUniform, x::Real) = log(ccdf(d, x))
+    Distributions.quantile(d::DuckUniform, p::Real) = d.a + p * (d.b - d.a)
+    Distributions.params(d::DuckUniform) = (d.a, d.b)
+    Distributions.minimum(d::DuckUniform) = d.a
+    Distributions.maximum(d::DuckUniform) = d.b
+    Distributions.mean(d::DuckUniform) = (d.a + d.b) / 2
+    Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
+    Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
+    Base.eltype(::Type{DuckUniform}) = Float64
+
+    duck_a = DuckUniform(1.0, 2.0)
+    duck_b = DuckUniform(1.0, 3.0)
+
+    d = ratio(duck_a, duck_b)
+    @test d isa ConvolvedDistributions.Ratio
+
+    rng = MersenneTwister(1)
+    @test rand(rng, d) isa Real
+
+    # A `Number` is rejected at construction (see `src/interface.jl`).
+    @test_throws ArgumentError ratio(duck_a, 1.0)
+    @test_throws ArgumentError ratio(2.0, duck_a)
+
+    # The opt-in verifier passes in strict mode, including in the
+    # integration slot (`ratio` integrates over the denominator `y`).
+    ConvolvedDistributions.TestUtils.test_component_interface(
+        duck_a; x = 1.5, integration_slot = true, strict = true
+    )
+
+    # The duck-typed ratio agrees with the real-`Uniform` reference,
+    # both on the numeric route.
+    ref = ratio(
+        Uniform(1.0, 2.0), Uniform(1.0, 3.0);
+        method = ConvolvedDistributions.NumericSolver()
+    )
+    @test pdf(d, 1.0) ≈ pdf(ref, 1.0) rtol = 1.0e-6
+    @test cdf(d, 1.0) ≈ cdf(ref, 1.0) rtol = 1.0e-6
+    @test ccdf(d, 1.0) ≈ ccdf(ref, 1.0) rtol = 1.0e-6
+    @test logcdf(d, 1.0) ≈ logcdf(ref, 1.0) rtol = 1.0e-6
+    @test logccdf(d, 1.0) ≈ logccdf(ref, 1.0) rtol = 1.0e-6
+end
+
+@testitem "ratio's denominator atom check applies to duck-typed leaves" begin
+    using Distributions, Random, Test
+
+    # A discrete duck leaf with mass at zero is rejected as a
+    # denominator, exactly as a real discrete distribution would be.
+    struct DuckPoisson end
+    Distributions.logpdf(::DuckPoisson, x::Real) = logpdf(Poisson(3.0), x)
+    Distributions.pdf(::DuckPoisson, x::Real) = pdf(Poisson(3.0), x)
+    Distributions.minimum(::DuckPoisson) = 0
+    Distributions.maximum(::DuckPoisson) = Inf
+    Distributions.insupport(::DuckPoisson, x::Real) = x >= 0
+    Base.eltype(::Type{DuckPoisson}) = Int
+
+    @test_throws ArgumentError ratio(Gamma(2.0, 1.0), DuckPoisson())
+
+    # A discrete duck WITHOUT `insupport` is admitted: `Distributions`
+    # defines `insupport` only for `UnivariateDistribution` subtypes, so
+    # the atom-at-zero check is guarded with `hasmethod` rather than
+    # throwing a raw `MethodError` at construction.
+    struct NoInsupportDuckPoisson end
+    Distributions.logpdf(::NoInsupportDuckPoisson, x::Real) =
+        logpdf(Poisson(3.0), x)
+    Distributions.pdf(::NoInsupportDuckPoisson, x::Real) =
+        pdf(Poisson(3.0), x)
+    Distributions.minimum(::NoInsupportDuckPoisson) = 0
+    Distributions.maximum(::NoInsupportDuckPoisson) = Inf
+    Base.eltype(::Type{NoInsupportDuckPoisson}) = Int
+
+    d_noins = ratio(Gamma(2.0, 1.0), NoInsupportDuckPoisson())
+    @test d_noins isa ConvolvedDistributions.Ratio
+
+    # A continuous duck reaching zero is NOT an atom (`pdf(0) > 0`
+    # alone carries no mass), so construction is fine.
+    struct DuckUniform
+        a::Float64
+        b::Float64
+    end
+    Distributions.logpdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? -log(d.b - d.a) : -Inf
+    Distributions.pdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? 1 / (d.b - d.a) : 0.0
+    Distributions.cdf(d::DuckUniform, x::Real) =
+        clamp((x - d.a) / (d.b - d.a), 0.0, 1.0)
+    Distributions.ccdf(d::DuckUniform, x::Real) = 1 - cdf(d, x)
+    Distributions.logcdf(d::DuckUniform, x::Real) = log(cdf(d, x))
+    Distributions.logccdf(d::DuckUniform, x::Real) = log(ccdf(d, x))
+    Distributions.quantile(d::DuckUniform, p::Real) = d.a + p * (d.b - d.a)
+    Distributions.params(d::DuckUniform) = (d.a, d.b)
+    Distributions.minimum(d::DuckUniform) = d.a
+    Distributions.maximum(d::DuckUniform) = d.b
+    Distributions.mean(d::DuckUniform) = (d.a + d.b) / 2
+    Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
+    Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
+    Base.eltype(::Type{DuckUniform}) = Float64
+
+    d = ratio(DuckUniform(1.0, 2.0), DuckUniform(0.0, 1.0))
+    @test d isa ConvolvedDistributions.Ratio
+    # An interior point (the lower support bound evaluates to 0 by the
+    # conventional `z <= minimum(d)` edge check).
+    @test pdf(d, 2.0) > 0
+end

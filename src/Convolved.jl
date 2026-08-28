@@ -137,19 +137,6 @@ end
 # throw, it returns `pdf` 0, `cdf` 0 and a `mean` shifted by its own
 # value. A wrong number is worse than either error, and no real component
 # is a `Number`.
-function _check_components(components::Tuple)
-    length(components) >= 1 ||
-        throw(ArgumentError("Convolved needs at least one component"))
-    any(c -> c isa Number, components) &&
-        throw(
-        ArgumentError(
-            "A component cannot be a Number: it is not a distribution, " *
-                "but satisfies enough of the univariate interface to " *
-                "fold silently and return a wrong answer"
-        )
-    )
-    return nothing
-end
 
 const _DiscreteConvolved = Convolved{<:Tuple, <:AbstractSolverMethod, Discrete}
 
