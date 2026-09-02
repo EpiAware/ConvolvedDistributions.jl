@@ -525,3 +525,157 @@ end
 # parameters, on the numeric Mellin quadrature path) is covered by the
 # multi-backend AD suite in `test/ADFixtures`, which has the AD backends
 # as dependencies; the main test env does not.
+
+@testitem "product accepts a duck-typed component" begin
+    using Distributions, Random, Test
+
+    # Mirrors the duck-typed `Convolved`/`Difference` testitems.
+    struct DuckUniform
+        a::Float64
+        b::Float64
+    end
+    Distributions.logpdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? -log(d.b - d.a) : -Inf
+    Distributions.pdf(d::DuckUniform, x::Real) =
+        d.a <= x <= d.b ? 1 / (d.b - d.a) : 0.0
+    Distributions.cdf(d::DuckUniform, x::Real) =
+        clamp((x - d.a) / (d.b - d.a), 0.0, 1.0)
+    Distributions.ccdf(d::DuckUniform, x::Real) = 1 - cdf(d, x)
+    Distributions.logcdf(d::DuckUniform, x::Real) = log(cdf(d, x))
+    Distributions.logccdf(d::DuckUniform, x::Real) = log(ccdf(d, x))
+    Distributions.quantile(d::DuckUniform, p::Real) = d.a + p * (d.b - d.a)
+    Distributions.params(d::DuckUniform) = (d.a, d.b)
+    Distributions.minimum(d::DuckUniform) = d.a
+    Distributions.maximum(d::DuckUniform) = d.b
+    Distributions.mean(d::DuckUniform) = (d.a + d.b) / 2
+    Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
+    Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
+    Base.eltype(::Type{DuckUniform}) = Float64
+
+    duck = DuckUniform(1.0, 2.0)
+    g = Gamma(2.0, 1.0)
+
+    d = product(duck, g)
+    @test d isa ConvolvedDistributions.Product
+
+    @test mean(d) ≈ mean(duck) * mean(g)
+    @test minimum(d) == minimum(duck) * minimum(g)
+    @test maximum(d) == maximum(duck) * maximum(g)
+
+    rng = MersenneTwister(1)
+    @test rand(rng, d) isa Real
+
+    # A `Number` is rejected at construction (see `src/interface.jl`).
+    @test_throws ArgumentError product(duck, 1.0)
+    @test_throws ArgumentError product(g, 2.0)
+
+    # The opt-in verifier passes in strict mode, including in the
+    # integration slot (`product` integrates over the multiplier `y`).
+    ConvolvedDistributions.TestUtils.test_component_interface(
+        duck; x = 1.5, integration_slot = true, strict = true
+    )
+
+    # The duck-typed product agrees with the real-`Uniform` reference,
+    # both on the numeric route.
+    ref = product(
+        Uniform(1.0, 2.0), g; method = ConvolvedDistributions.NumericSolver()
+    )
+    @test pdf(d, 1.0) ≈ pdf(ref, 1.0) rtol = 1.0e-6
+    @test cdf(d, 1.0) ≈ cdf(ref, 1.0) rtol = 1.0e-6
+    @test ccdf(d, 1.0) ≈ ccdf(ref, 1.0) rtol = 1.0e-6
+    @test logcdf(d, 1.0) ≈ logcdf(ref, 1.0) rtol = 1.0e-6
+    @test logccdf(d, 1.0) ≈ logccdf(ref, 1.0) rtol = 1.0e-6
+
+    # A duck in the integration slot (the multiplier `y`, which the
+    # quadrature integrates over): agrees with the real-`Uniform` there
+    # too.
+    d_y = product(g, duck)
+    ref_y = product(
+        g, Uniform(1.0, 2.0); method = ConvolvedDistributions.NumericSolver()
+    )
+    @test pdf(d_y, 1.0) ≈ pdf(ref_y, 1.0) rtol = 1.0e-6
+    @test cdf(d_y, 1.0) ≈ cdf(ref_y, 1.0) rtol = 1.0e-6
+
+    # The verifier's non-strict mode also passes (warn tier unchecked).
+    ConvolvedDistributions.TestUtils.test_component_interface(duck; x = 1.5)
+
+    # A thin leaf (the required tier only: no CDF quantities) constructs
+    # unchecked and fails on the call that needs them — Product's
+    # construction needs `minimum`/`maximum` for the non-negative support
+    # check, so the parallel to `Convolved`'s logpdf-only thin leaf is a
+    # leaf missing the CDF tier instead.
+    struct NoCdfDuck end
+    Distributions.logpdf(::NoCdfDuck, x::Real) =
+        logpdf(Uniform(0.0, 1.0), x)
+    Distributions.pdf(::NoCdfDuck, x::Real) = pdf(Uniform(0.0, 1.0), x)
+    Distributions.minimum(::NoCdfDuck) = 0.0
+    Distributions.maximum(::NoCdfDuck) = 1.0
+    Base.eltype(::Type{NoCdfDuck}) = Float64
+    d_thin = product(NoCdfDuck(), g)
+    @test d_thin isa ConvolvedDistributions.Product
+    @test_throws MethodError cdf(d_thin, 1.0)
+end
+
+@testitem "a duck-typed product: exact divisor fold, mixed stays numeric" begin
+    using Distributions, Test
+    const CD = ConvolvedDistributions
+
+    # A discrete duck leaf types the combination `Discrete` and takes
+    # the exact divisor fold, matching a real `Poisson`-`Poisson`
+    # product.
+    struct LatticeDuckPoisson end
+    Distributions.logpdf(::LatticeDuckPoisson, x::Real) =
+        logpdf(Poisson(3.0), x)
+    Distributions.pdf(::LatticeDuckPoisson, x::Real) = pdf(Poisson(3.0), x)
+    Distributions.minimum(::LatticeDuckPoisson) = 0
+    Distributions.maximum(::LatticeDuckPoisson) = Inf
+    Base.eltype(::Type{LatticeDuckPoisson}) = Int
+
+    dp = product(LatticeDuckPoisson(), Poisson(2.0))
+    @test Distributions.value_support(typeof(dp)) === Discrete
+    @test CD.is_exact(dp)
+    refp = product(Poisson(3.0), Poisson(2.0))
+    for k in 0:15
+        @test pdf(dp, k) ≈ pdf(refp, k) rtol = 1.0e-10
+    end
+
+    # A discrete duck with NO mass at zero pairs with a continuous leaf
+    # as a mixed pair that stays `Continuous` and routes through
+    # quadrature (the mixed fold is restricted to
+    # `UnivariateDistribution` components, mirroring `Convolved`), so
+    # `is_exact` and the executed route cannot drift. Quadrature cannot
+    # see an integer lattice of point masses, so the density evaluates
+    # to ~0 -- the same silent-lattice caveat documented for
+    # `Convolved` -- but evaluating it at all proves the route executes.
+    # (A discrete duck WITH mass at zero is rejected at construction
+    # by `_check_mixed_atom_at_zero`, exactly as a real discrete factor
+    # would be.)
+    # A discrete duck WITH mass at zero is rejected at construction by
+    # `_check_mixed_atom_at_zero`, exactly as a real discrete factor
+    # would be.
+    struct MassAtZeroDuckPoisson end
+    Distributions.logpdf(::MassAtZeroDuckPoisson, x::Real) =
+        logpdf(Poisson(3.0), x)
+    Distributions.pdf(::MassAtZeroDuckPoisson, x::Real) =
+        pdf(Poisson(3.0), x)
+    Distributions.minimum(::MassAtZeroDuckPoisson) = 0
+    Distributions.maximum(::MassAtZeroDuckPoisson) = Inf
+    Base.eltype(::Type{MassAtZeroDuckPoisson}) = Int
+    @test_throws ArgumentError product(
+        MassAtZeroDuckPoisson(), Gamma(2.0, 1.0)
+    )
+
+    struct ZeroFreeDuckPoisson end
+    Distributions.logpdf(::ZeroFreeDuckPoisson, x::Real) =
+        x >= 1 ? logpdf(Poisson(3.0), x) : -Inf
+    Distributions.pdf(::ZeroFreeDuckPoisson, x::Real) =
+        x >= 1 ? pdf(Poisson(3.0), x) : 0.0
+    Distributions.minimum(::ZeroFreeDuckPoisson) = 1
+    Distributions.maximum(::ZeroFreeDuckPoisson) = Inf
+    Base.eltype(::Type{ZeroFreeDuckPoisson}) = Int
+
+    dmix = product(ZeroFreeDuckPoisson(), Gamma(2.0, 1.0))
+    @test Distributions.value_support(typeof(dmix)) === Continuous
+    @test !CD.is_exact(dmix)
+    @test isfinite(pdf(dmix, 1.0))
+end

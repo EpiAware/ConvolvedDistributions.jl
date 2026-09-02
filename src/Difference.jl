@@ -17,6 +17,25 @@ is unbounded. `Z` is therefore not a non-negative delay distribution;
 treat a `Difference` as an observation or derived quantity, not as a delay
 leaf.
 
+# Duck-typed components
+
+A component may instead be duck-typed, implementing the
+Distributions.jl univariate interface without subtyping
+`UnivariateDistribution`. Construction does not check which methods a
+component has: what it needs depends on where it sits and which
+quantity is asked for, and a missing method fails on the call itself,
+naming what to define. Verify a leaf up front with
+`TestUtils.test_component_interface`. A duck-typed component has no
+registered [`difference_pair`](@ref) closed form, so it routes through
+numeric quadrature rather than an analytic fast path; a discrete leaf
+must define `Base.eltype` as an `Integer` type to be typed `Discrete`
+and reach the exact lattice fold. A discrete duck next to a continuous
+`UnivariateDistribution` component is NOT routed through the mixed
+fold (that requires both components to be real
+`UnivariateDistribution`s, #115) — it evaluates by quadrature, which
+cannot see a comb of point masses, so the density is silently ~0
+there; see [`is_exact`](@ref).
+
 # Value support
 
 Derived from the components, not hardcoded: a `Difference` of two
@@ -77,7 +96,7 @@ Gauss-Legendre\".
 - [`Convolved`](@ref): The dual sum ``X + Y``
 "
 struct Difference{
-        X <: UnivariateDistribution, Y <: UnivariateDistribution,
+        X, Y,
         M <: AbstractSolverMethod, S <: Distributions.ValueSupport,
     } <:
     AbstractConvolvedDistribution{Distributions.Univariate, S}
@@ -91,9 +110,9 @@ struct Difference{
     function Difference(
             x::X, y::Y;
             method::AbstractSolverMethod = AnalyticalSolver()
-        ) where {
-            X <: UnivariateDistribution, Y <: UnivariateDistribution,
-        }
+        ) where {X, Y}
+        _check_component(x)
+        _check_component(y)
         S = _components_support((x, y))
         return new{X, Y, typeof(method), S}(x, y, method)
     end
@@ -103,8 +122,7 @@ end
 # integer-lattice discrete distributions (see `_components_support` in
 # `src/interface.jl`). Used to dispatch to the exact lattice fold.
 const _DiscreteDifference = Difference{
-    <:UnivariateDistribution, <:UnivariateDistribution,
-    <:AbstractSolverMethod, Discrete,
+    <:Any, <:Any, <:AbstractSolverMethod, Discrete,
 }
 
 # Continuous-typed alias (#115): matches every `Difference` with no
@@ -122,10 +140,14 @@ const _MixedableDifference = Difference{
 # integer-lattice discrete and the other is not. `Difference` always has
 # exactly two components (unlike `Convolved`), so no arity guard is
 # needed.
-function _has_mixed_fold(d::Difference)
+function _has_mixed_fold(
+        ::Difference{X, Y},
+    ) where {
+        X <: UnivariateDistribution, Y <: UnivariateDistribution,
+    }
     return _mixed_slot(
-        _component_support(typeof(d.x)),
-        _component_support(typeof(d.y))
+        _component_support(X),
+        _component_support(Y)
     ) !== nothing
 end
 
@@ -143,9 +165,9 @@ non-negative delay leaf (see [`Difference`](@ref)).
 
 # Arguments
 - `x`: The minuend distribution (the `X` in `Z = X - Y`), a
-  `UnivariateDistribution`.
+  `UnivariateDistribution` or a duck-typed component.
 - `y`: The subtrahend distribution (the `Y` in `Z = X - Y`), a
-  `UnivariateDistribution`.
+  `UnivariateDistribution` or a duck-typed component.
 
 # Keyword Arguments
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the default)
@@ -174,7 +196,7 @@ mean(d)
 - [`evaluation_path`](@ref): Check the route without asserting it.
 "
 function difference(
-        x::UnivariateDistribution, y::UnivariateDistribution;
+        x, y;
         method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
     )
     return _check_strict(Difference(x, y; method = method), strict)

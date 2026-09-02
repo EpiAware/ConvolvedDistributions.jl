@@ -16,6 +16,25 @@ The support of `Z` runs from ``\\min(X)\\min(Y)`` to
 ``\\max(X)\\max(Y)``, taking the value ``\\infty`` where a component is
 unbounded.
 
+# Duck-typed components
+
+A component may instead be duck-typed, implementing the
+Distributions.jl univariate interface without subtyping
+`UnivariateDistribution`. Construction does not check which methods a
+component has: what it needs depends on where it sits and which
+quantity is asked for, and a missing method fails on the call itself,
+naming what to define. Verify a leaf up front with
+`TestUtils.test_component_interface`. A duck-typed component has no
+registered [`product_pair`](@ref) closed form, so it routes through
+numeric quadrature rather than an analytic fast path; a discrete duck-
+typed component must define `Base.eltype` as an `Integer` type to reach
+the exact divisor fold. A discrete duck next to a continuous
+`UnivariateDistribution` component is NOT routed through the mixed
+fold (that requires both components to be real
+`UnivariateDistribution`s, #115) — it evaluates by quadrature, which
+cannot see a comb of point masses, so the density is silently ~0
+there; see [`is_exact`](@ref).
+
 # Value support
 
 Derived from the components, not hardcoded: a `Product` of two
@@ -89,7 +108,7 @@ the closed form\", not \"run Gauss-Legendre\".
 - [`Difference`](@ref): The signed gap ``X - Y``
 "
 struct Product{
-        X <: UnivariateDistribution, Y <: UnivariateDistribution,
+        X, Y,
         M <: AbstractSolverMethod, S <: Distributions.ValueSupport,
     } <:
     AbstractConvolvedDistribution{Distributions.Univariate, S}
@@ -103,14 +122,14 @@ struct Product{
     function Product(
             x::X, y::Y;
             method::AbstractSolverMethod = AnalyticalSolver()
-        ) where {
-            X <: UnivariateDistribution, Y <: UnivariateDistribution,
-        }
+        ) where {X, Y}
+        _check_component(x)
+        _check_component(y)
         (minimum(x) >= 0 && minimum(y) >= 0) ||
             throw(
             ArgumentError(
                 "product requires components with non-negative support " *
-                    "(minimum(d) >= 0 for both); sign-crossing supports are " *
+                    "(minimum(d) >= 0 for both); negative supports are " *
                     "future work"
             )
         )
@@ -134,8 +153,8 @@ end
 # property of the discrete component's parameters, not a differentiated
 # quantity, so it must resolve identically under every AD backend.
 function _check_mixed_atom_at_zero(
-        x::UnivariateDistribution,
-        y::UnivariateDistribution
+        x,
+        y,
     )
     slot = _mixed_slot(_component_support(typeof(x)), _component_support(typeof(y)))
     discrete_comp = _mixed_discrete_component(slot, x, y)
@@ -158,8 +177,7 @@ end
 # integer-lattice discrete distributions (see `_components_support` in
 # `src/interface.jl`). Used to dispatch to the exact divisor fold.
 const _DiscreteProduct = Product{
-    <:UnivariateDistribution, <:UnivariateDistribution,
-    <:AbstractSolverMethod, Discrete,
+    <:Any, <:Any, <:AbstractSolverMethod, Discrete,
 }
 
 # Continuous-typed alias (#115): matches every `Product` with no closed
@@ -178,10 +196,14 @@ const _MixedableProduct = Product{
 # `_has_mixed_fold` (interface.jl): true exactly when one of `x`/`y` is
 # integer-lattice discrete and the other is not. `Product` always has
 # exactly two components, so no arity guard is needed.
-function _has_mixed_fold(d::Product)
+function _has_mixed_fold(
+        ::Product{X, Y},
+    ) where {
+        X <: UnivariateDistribution, Y <: UnivariateDistribution,
+    }
     return _mixed_slot(
-        _component_support(typeof(d.x)),
-        _component_support(typeof(d.y))
+        _component_support(X),
+        _component_support(Y)
     ) !== nothing
 end
 
@@ -201,9 +223,11 @@ and are future work.
 
 # Arguments
 - `x`: The multiplicand distribution (the `X` in `Z = X * Y`), a
-  `UnivariateDistribution` with non-negative support.
+  `UnivariateDistribution` or a duck-typed component, with
+  non-negative support.
 - `y`: The multiplier distribution (the `Y` in `Z = X * Y`), a
-  `UnivariateDistribution` with non-negative support.
+  `UnivariateDistribution` or a duck-typed component with
+  non-negative support.
 
 # Keyword Arguments
 - `method`: The solver method, an [`AnalyticalSolver`](@ref) (the default)
@@ -234,7 +258,7 @@ mean(d)
 - [`evaluation_path`](@ref): Check the route without asserting it.
 "
 function product(
-        x::UnivariateDistribution, y::UnivariateDistribution;
+        x, y;
         method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
     )
     return _check_strict(Product(x, y; method = method), strict)
