@@ -140,14 +140,13 @@ const _MixedableDifference = Difference{
 # integer-lattice discrete and the other is not. `Difference` always has
 # exactly two components (unlike `Convolved`), so no arity guard is
 # needed.
-function _has_mixed_fold(
-        ::Difference{X, Y},
-    ) where {
-        X <: UnivariateDistribution, Y <: UnivariateDistribution,
-    }
+# Bounded to real `UnivariateDistribution` components (the
+# `_MixedableDifference` alias's own bound) so a duck-typed pair, which
+# quadrature evaluates, never reports the mixed fold.
+function _has_mixed_fold(d::_MixedableDifference)
     return _mixed_slot(
-        _component_support(X),
-        _component_support(Y)
+        _component_support(typeof(d.x)),
+        _component_support(typeof(d.y))
     ) !== nothing
 end
 

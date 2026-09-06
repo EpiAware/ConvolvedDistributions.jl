@@ -647,9 +647,6 @@ end
     # see an integer lattice of point masses, so the density evaluates
     # to ~0 -- the same silent-lattice caveat documented for
     # `Convolved` -- but evaluating it at all proves the route executes.
-    # (A discrete duck WITH mass at zero is rejected at construction
-    # by `_check_mixed_atom_at_zero`, exactly as a real discrete factor
-    # would be.)
     # A discrete duck WITH mass at zero is rejected at construction by
     # `_check_mixed_atom_at_zero`, exactly as a real discrete factor
     # would be.

@@ -196,14 +196,13 @@ const _MixedableProduct = Product{
 # `_has_mixed_fold` (interface.jl): true exactly when one of `x`/`y` is
 # integer-lattice discrete and the other is not. `Product` always has
 # exactly two components, so no arity guard is needed.
-function _has_mixed_fold(
-        ::Product{X, Y},
-    ) where {
-        X <: UnivariateDistribution, Y <: UnivariateDistribution,
-    }
+# Bounded to real `UnivariateDistribution` components (the
+# `_MixedableProduct` alias's own bound) so a duck-typed pair, which
+# quadrature evaluates, never reports the mixed fold.
+function _has_mixed_fold(d::_MixedableProduct)
     return _mixed_slot(
-        _component_support(X),
-        _component_support(Y)
+        _component_support(typeof(d.x)),
+        _component_support(typeof(d.y))
     ) !== nothing
 end
 
