@@ -1,7 +1,7 @@
 module ConvolvedDistributionsChainRulesCoreExt
 
 using ConvolvedDistributions: _window_quantile, _lattice_quantile,
-    _accepts_kwargs
+    _accepts_kwargs, _check_atoms_visible
 using ChainRulesCore: ChainRulesCore
 
 # The quadrature-window endpoint is a non-differentiable hyperparameter
@@ -22,5 +22,9 @@ ChainRulesCore.@non_differentiable _lattice_quantile(::Any, ::Any)
 # `_accepts_kwargs` answers a method-table question about argument TYPES,
 # so it carries no gradient and its reflection lookup cannot be traced.
 ChainRulesCore.@non_differentiable _accepts_kwargs(::Any, ::Any, ::Any)
+
+# `_check_atoms_visible` is a construction-time guard that throws or
+# returns `nothing`; no value flows out of it.
+ChainRulesCore.@non_differentiable _check_atoms_visible(::Any)
 
 end

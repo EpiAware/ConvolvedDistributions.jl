@@ -39,6 +39,27 @@ A `Ratio` nests too, but only when both its numerator and its denominator are no
 
 The [Getting started](@ref getting-started) walkthrough and the [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), and [The product of two delays](@ref product-distributions) tutorials show nesting in more detail.
 
+## Can I combine discretised delays, such as a `DiscreteNonParametric`?
+
+Yes, and exactly.
+A `DiscreteNonParametric` is a finite set of atoms on any grid, so two of them combine into another finite set of atoms, enumerated once at construction and returned as a `DiscreteNonParametric` closed form:
+
+```@example faq
+delay = DiscreteNonParametric([0.0, 1.0, 2.0], [0.2, 0.3, 0.5])
+weekly = DiscreteNonParametric([0.0, 3.5, 7.0], [0.5, 0.3, 0.2])
+both = convolved(delay, weekly)
+
+ConvolvedDistributions.evaluation_path(both), pdf(both, 4.5)
+```
+
+The grids need not match or be regular, and three or more atom sets fold pairwise.
+As on a `DiscreteNonParametric` itself, `pdf` is an exact lookup: evaluate it at values formed the same way as the atoms (`x + y` for atoms `x` and `y`), since a value that differs by one ulp reads as zero mass.
+The same holds for `difference`, `product`, and `ratio` of two atom sets.
+An atom set next to a continuous component is a finite mixture of shifted (or scaled) copies of that component, again a closed form; next to an integer-lattice count such as a `Poisson` it evaluates on the exact mixed fold.
+Note that `Distributions.value_support` still reports such a combination as `Continuous`, because the value-support type parameter is derived from the component types and an atom set's grid is a runtime value; consult [`is_exact`](@ref ConvolvedDistributions.is_exact) instead.
+
+A discrete component that no exact route can take, for example a shifted count such as `Poisson(3.0) + 0.5` next to a `Gamma`, or a `ratio` of two counts, is refused at construction: quadrature integrates densities and cannot see point masses, so the alternative would be a density of zero returned silently.
+
 ## Why is the package called ConvolvedDistributions when it also has `difference` and `product`?
 
 Every member is a convolution in the generalised sense: the distribution of `X op Y` for independent variables is the classical convolution for sums, the reflected convolution for differences, the Mellin convolution for products, and the corresponding generalised convolution for other operations (maxima).

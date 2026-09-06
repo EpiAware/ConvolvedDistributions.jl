@@ -332,6 +332,14 @@ not \"no approximation whatsoever\"; window clamping is a separate,
 documented approximation that applies equally on both routes, so it does
 not flip `is_exact` to `false`.
 
+A finite-support discrete component (`DiscreteNonParametric`) is typed
+`Continuous` by the value-support derivation above, since its grid is a
+runtime value, yet two of them collapse to one atom set in closed form,
+and one next to a continuous component is a finite mixture of shifted
+copies (see `src/discrete_nonparametric.jl`); both report `:analytic`
+and `true` here. A discrete component no exact route can take is
+refused at construction rather than integrated over.
+
 Same-family collapse (`convolve_pair`, e.g. `Gamma`+`Gamma` or
 `Exponential`+`Exponential`) is a third documented approximation this
 predicate also treats as exact. The match test is `≈`, not `==`
@@ -397,6 +405,91 @@ function _check_strict(d::AbstractConvolvedDistribution, strict::Bool)
                 "= false to allow quadrature"
         )
     )
+end
+
+# ---------------------------------------------------------------------------
+# Atoms the numeric route cannot see (#226)
+# ---------------------------------------------------------------------------
+#
+# Gauss-Legendre quadrature integrates densities. A discrete component
+# contributes point masses that no quadrature node lands on, so a route
+# that integrates over one returns a density identically zero, silently
+# (#85, #226). The integer-lattice folds, the mixed fold and the
+# finite-support closed forms exist so a discrete component never
+# reaches quadrature; this guard turns the cases none of them covers (a
+# discrete component off the integer lattice with no closed form, a
+# `Ratio` of discrete components, three or more components with a
+# discrete member the two-component mixed fold cannot take) into a
+# construction-time error naming the components, so a wrong number is
+# never returned. Applied by every outer constructor
+# (`convolved`/`difference`/`product`/`ratio`) together with the
+# `strict` check, via `_check_route`.
+
+# Shared construction check behind the public verbs: the atoms guard
+# above, then the `strict = true` promise.
+function _check_route(d::AbstractConvolvedDistribution, strict::Bool)
+    _check_atoms_visible(d)
+    return _check_strict(d, strict)
+end
+
+# A genuine discrete leaf: the only components whose point masses are
+# known here. A duck-typed leaf declares no value support and is taken at
+# its word, as everywhere else in the package.
+_is_discrete_leaf(c) = c isa DiscreteUnivariateDistribution
+
+# Marked non-differentiable in the ChainRulesCore, Enzyme and Mooncake
+# extensions: it only ever throws or returns, and the residual scan it
+# runs (`_residual_components`) folds pairs into tuples of varying type,
+# which a reverse pass would otherwise have to reconcile.
+function _check_atoms_visible(d::AbstractConvolvedDistribution)
+    residual = _residual_components(d)
+    _quadrature_over_atoms(d, residual) || return nothing
+    atoms = Tuple(nameof(typeof(c)) for c in residual if _is_discrete_leaf(c))
+    throw(
+        ArgumentError(
+            "$(nameof(typeof(d))) of components $(_family_names(d)) would " *
+                "evaluate by quadrature, which cannot see the point masses of " *
+                "the discrete component(s) $atoms and would return a density " *
+                "of zero everywhere; use integer-lattice discrete components " *
+                "(`Base.eltype <: Integer`) for the exact lattice fold, or " *
+                "finite-support `DiscreteNonParametric` components for the " *
+                "exact closed form"
+        )
+    )
+end
+
+# The components the numeric route would actually integrate over once
+# every closed form has been taken: empty when the whole combination
+# resolves analytically. `Convolved` overrides this with the residue of
+# its n-ary pairwise collapse; the fixed-pair members answer through
+# their own `_maybe_analytic`.
+function _residual_components(d::AbstractConvolvedDistribution)
+    return _maybe_analytic(d) === nothing ? (d.x, d.y) : ()
+end
+
+# Whether evaluating `d` would run quadrature over a discrete leaf:
+# something remains to integrate, one of the residual components is a
+# discrete leaf, and no exact fold (lattice or mixed) takes the residual
+# instead. `_exact_fold_route` is per member: `Convolved`, `Difference`
+# and `Product` have the folds, `Ratio` has none.
+function _quadrature_over_atoms(d::AbstractConvolvedDistribution, residual::Tuple)
+    length(residual) <= 1 && return false
+    any(_is_discrete_leaf, residual) || return false
+    return !_exact_fold_route(d, residual)
+end
+
+# The integer-lattice fold takes an all-lattice residual of any arity;
+# the mixed fold takes a two-component residual with exactly one
+# integer-lattice side, both sides genuine `UnivariateDistribution`s
+# (the `_Mixedable*` aliases' own bound).
+function _exact_fold_route(::AbstractConvolvedDistribution, residual::Tuple)
+    all(c -> _component_support(typeof(c)) === Discrete, residual) && return true
+    length(residual) == 2 || return false
+    all(c -> c isa UnivariateDistribution, residual) || return false
+    return _mixed_slot(
+        _component_support(typeof(residual[1])),
+        _component_support(typeof(residual[2]))
+    ) !== nothing
 end
 
 # ---------------------------------------------------------------------------

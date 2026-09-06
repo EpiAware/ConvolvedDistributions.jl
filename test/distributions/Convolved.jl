@@ -1013,10 +1013,13 @@ end
         @test pdf(d, k) ≈ pdf(Poisson(5.0), k) rtol = 1.0e-10
     end
 
-    # The silent leaf types `Continuous` and is integrated by
-    # quadrature, which cannot see a comb of point masses.
-    d_silent = convolved(SilentDuckPoisson(), Poisson(2.0))
+    # The silent leaf types `Continuous`, so the pair would be integrated
+    # by quadrature, which cannot see the real `Poisson`'s comb of point
+    # masses: the public constructor refuses it rather than returning a
+    # density of zero.
+    d_silent = CD.Convolved((SilentDuckPoisson(), Poisson(2.0)))
     @test Distributions.value_support(typeof(d_silent)) === Continuous
+    @test_throws ArgumentError convolved(SilentDuckPoisson(), Poisson(2.0))
 
     # The verifier names the gap rather than leaving it to be found in
     # the answers.

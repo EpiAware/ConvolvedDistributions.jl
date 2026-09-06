@@ -22,8 +22,8 @@ __precompile__(false)
 
 using ConvolvedDistributions
 using ConvolvedDistributions: pgf, GaussLegendre, NumericSolver
-using Distributions: Distributions, Gamma, Geometric, LogNormal,
-    NegativeBinomial, Normal, Poisson, Uniform, Weibull,
+using Distributions: Distributions, DiscreteNonParametric, Gamma, Geometric,
+    LogNormal, NegativeBinomial, Normal, Poisson, Uniform, Weibull,
     mean, var, pdf, logpdf, cdf, logcdf
 using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
     AutoMooncakeForward, AutoEnzyme
@@ -500,6 +500,48 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             x -> logpdf(convolved(Poisson(θ[1]), Normal(θ[2], 1.0)), x), xs
         ),
         [3.0, 0.0], (Constant(obs),)
+    )
+
+    # The mixed fold with a continuous side bounded below: lattice points
+    # that would evaluate the Gamma density below zero are excluded from
+    # the sum, since reverse-mode backends carry a `NaN` shape derivative
+    # through such an evaluation even though its value is zero.
+    _push!(
+        "Convolved Poisson+Gamma mixed fold",
+        (θ, xs) -> sum(
+            x -> logpdf(convolved(Poisson(θ[1]), Gamma(θ[2], 1.0)), x), xs
+        ),
+        [3.0, 2.0], (Constant(obs),)
+    )
+
+    # Finite-support discrete components (`DiscreteNonParametric`). Two
+    # atom sets collapse to one by enumeration, with the grouping of
+    # coincident atoms done on primal values and the weights summed
+    # without mutating any array; an atom set next to a continuous
+    # component is a finite mixture of shifted copies. The atom weights
+    # are the differentiated parameters (normalised inside the function
+    # so every backend sees a valid probability vector), plus the Gamma
+    # shape for the mixture. The atoms sit off the observation grid so no
+    # shifted Gamma is evaluated at its own support end, where the shape
+    # derivative is `0 * log(0)`.
+    _push!(
+        "Convolved DiscreteNonParametric+DiscreteNonParametric collapse",
+        (θ, obs) -> begin
+            w = θ ./ sum(θ)
+            a = DiscreteNonParametric([0.0, 1.0, 2.0], w)
+            d = convolved(a, a)
+            sum(x -> logpdf(d, x), (1.0, 2.0, 3.0))
+        end,
+        [0.2, 0.3, 0.5], (Constant(obs),)
+    )
+    _push!(
+        "Convolved DiscreteNonParametric+Gamma shift mixture",
+        (θ, obs) -> begin
+            w = θ[1:3] ./ sum(θ[1:3])
+            a = DiscreteNonParametric([0.0, 0.25, 0.75], w)
+            sum(x -> logpdf(convolved(a, Gamma(θ[4], 1.0)), x), obs)
+        end,
+        [0.2, 0.3, 0.5, 2.0], (Constant(obs),)
     )
 
     # Ratio (Z = X / Y), the quotient member. The analytic zero-mean

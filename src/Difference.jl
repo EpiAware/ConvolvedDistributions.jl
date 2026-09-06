@@ -177,7 +177,7 @@ function difference(
         x::UnivariateDistribution, y::UnivariateDistribution;
         method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
     )
-    return _check_strict(Difference(x, y; method = method), strict)
+    return _check_route(Difference(x, y; method = method), strict)
 end
 
 # The component-family names for a `strict = true` construction error
@@ -420,9 +420,10 @@ end
 
 function _difference_mixed_pdf(::Val{1}, d::Difference, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
-    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    _mixed_pdf_outside(d, z, d.y) && return zero(float(typeof(z)))
     D = d.x
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t0, t1 = _restrict_to_support(k -> _within_support(d.y, k - z), t0, t1)
     t1 < t0 && return zero(float(typeof(z)))
     return _lattice_sum(
         k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, k - z), t0, t1
@@ -430,9 +431,10 @@ function _difference_mixed_pdf(::Val{1}, d::Difference, z::Real)
 end
 function _difference_mixed_pdf(::Val{2}, d::Difference, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
-    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    _mixed_pdf_outside(d, z, d.x) && return zero(float(typeof(z)))
     D = d.y
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t0, t1 = _restrict_to_support(k -> _within_support(d.x, z + k), t0, t1)
     t1 < t0 && return zero(float(typeof(z)))
     return _lattice_sum(
         k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z + k), t0, t1
@@ -444,7 +446,7 @@ end
 
 function _difference_mixed_cdf(::Val{1}, d::Difference, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
-    z <= minimum(d) && return zero(float(typeof(z)))
+    z < minimum(d) && return zero(float(typeof(z)))
     z >= maximum(d) && return one(float(typeof(z)))
     D = d.x
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
@@ -456,7 +458,7 @@ function _difference_mixed_cdf(::Val{1}, d::Difference, z::Real)
 end
 function _difference_mixed_cdf(::Val{2}, d::Difference, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
-    z <= minimum(d) && return zero(float(typeof(z)))
+    z < minimum(d) && return zero(float(typeof(z)))
     z >= maximum(d) && return one(float(typeof(z)))
     D = d.y
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)

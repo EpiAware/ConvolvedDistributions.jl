@@ -186,12 +186,17 @@ function ratio(
         x::UnivariateDistribution, y::UnivariateDistribution;
         method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
     )
-    return _check_strict(Ratio(x, y; method = method), strict)
+    return _check_route(Ratio(x, y; method = method), strict)
 end
 
 # The component-family names for a `strict = true` construction error
 # (see `_check_strict` in interface.jl).
 _family_names(d::Ratio) = (nameof(typeof(d.x)), nameof(typeof(d.y)))
+
+# A `Ratio` has no lattice or mixed fold: a residual pair with a
+# discrete leaf always means quadrature over its point masses (see
+# `_check_atoms_visible`, interface.jl).
+_exact_fold_route(::Ratio, ::Tuple) = false
 
 # ---------------------------------------------------------------------------
 # Interface: params / support / sampling

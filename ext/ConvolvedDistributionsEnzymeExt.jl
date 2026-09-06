@@ -1,7 +1,7 @@
 module ConvolvedDistributionsEnzymeExt
 
 using ConvolvedDistributions: _window_quantile, _lattice_quantile,
-    _accepts_kwargs
+    _accepts_kwargs, _check_atoms_visible
 using Enzyme: Enzyme
 using Enzyme.EnzymeRules: EnzymeRules
 
@@ -30,5 +30,9 @@ EnzymeRules.inactive(::typeof(_lattice_quantile), args...) = nothing
 # `_accepts_kwargs` is a type-level method-table query, never a numeric
 # quantity, so it is inactive for the same reason.
 EnzymeRules.inactive(::typeof(_accepts_kwargs), args...) = nothing
+
+# `_check_atoms_visible` is a construction-time guard that throws or
+# returns `nothing`; no value flows out of it.
+EnzymeRules.inactive(::typeof(_check_atoms_visible), args...) = nothing
 
 end
