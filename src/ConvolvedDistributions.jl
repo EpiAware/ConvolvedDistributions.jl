@@ -5,8 +5,9 @@ Raw-distribution convolution and the shared numeric quadrature machinery for
 the EpiAware distribution-operations stack. Provides [`Convolved`](@ref) (the
 sum of independent components), [`Difference`](@ref) (the `X - Y` dual),
 [`Product`](@ref) (the `X * Y` Mellin convolution for non-negative
-components), [`Ratio`](@ref) (the `X / Y` quotient), the pluggable
-Gauss-Legendre `integrate`/`gl_integrate` layer, the solver-method types
+components), [`Ratio`](@ref) (the `X / Y` quotient), [`Compound`](@ref)
+(the random-length sum `X_1 + ... + X_N`), the pluggable Gauss-Legendre
+`integrate`/`gl_integrate` layer, the solver-method types
 `AnalyticalSolver`/`NumericSolver` selecting the analytic-vs-numeric
 backend, and, for discrete distributions, the probability generating
 function primitive `pgf`. Operates on any
@@ -34,6 +35,10 @@ mean(w)
 # A rate: an independent count over an independent exposure time
 r = ratio(Gamma(3.0, 1.0), Gamma(2.0, 1.0))
 mean(r)
+
+# A random sum: a Poisson number of clusters, each Poisson-sized
+c = compound(Poisson(3.0), Poisson(2.0))
+mean(c), pdf(c, 4)
 ```
 """
 module ConvolvedDistributions
@@ -81,9 +86,10 @@ include("docstrings.jl")
 # Public convolution constructor, its dual difference constructor, the
 # multiplicative product constructor (`Product` itself is public, not
 # exported, to avoid clashing with Distributions' deprecated `Product`),
-# and the quotient ratio constructor.
+# the quotient ratio constructor, and the random-length compound
+# constructor.
 export convolved, convolve_series, Difference, difference, product,
-    Ratio, ratio
+    Ratio, ratio, Compound, compound
 
 # Solver methods for choosing the analytic-vs-numeric backend.
 export AnalyticalSolver, NumericSolver
@@ -115,18 +121,25 @@ include("Product.jl")
 # `_panel_integrate`, and before solver_dispatch.jl since the `ratio_*`
 # generics there dispatch on the `Ratio` type itself.
 include("Ratio.jl")
+# Compound (Z = X_1 + ... + X_N), the random-length sum. After
+# Convolved.jl for `_window_quantile` / `_CONVOLVED_TAIL`, after Ratio.jl
+# for the `_ratio_bound` support guard, and before solver_dispatch.jl
+# since the `compound_*` generics there dispatch on the `Compound` type
+# itself.
+include("Compound.jl")
 # Solver-method dispatch: the per-quantity generics `Convolved`,
-# `Difference`, `Product`, and `Ratio` call into (any number of
-# components for `Convolved`, a fixed X/Y pair for the other three),
-# and the native uniform-window forms hosted on them. After Convolved.jl,
-# Difference.jl, Product.jl, and Ratio.jl, whose numeric quadrature
+# `Difference`, `Product`, `Ratio`, and `Compound` call into (any number
+# of components for `Convolved`, a fixed pair for the other four), and
+# the native uniform-window forms hosted on them. After Convolved.jl,
+# Difference.jl, Product.jl, Ratio.jl, and Compound.jl, whose numeric
 # helpers and structs the `NumericSolver` arms reuse.
 include("solver_dispatch.jl")
 include("uniform_window.jl")
 # The probability generating function primitive (#90): closed forms for
 # the standard count families, a truncated-series fallback for any other
-# `DiscreteUnivariateDistribution`, and the structural `Convolved` product.
-# After Convolved.jl since the structural method dispatches on `Convolved`.
+# `DiscreteUnivariateDistribution`, the structural `Convolved` product,
+# and the structural `Compound` composition. After Convolved.jl and
+# Compound.jl since the structural methods dispatch on those types.
 include("pgf.jl")
 # The timeseries form `convolve_series`: a numeric series convolved with
 # a delay PMF on the unit lag grid — direct for a discrete delay, via a

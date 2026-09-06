@@ -3,7 +3,7 @@
 This page answers common questions about ConvolvedDistributions.jl.
 If your question is not answered here, ask on the [Julia Discourse](https://discourse.julialang.org) or the [epinowcast community forum](https://community.epinowcast.org).
 
-## How do I build a convolved, difference, product, or ratio distribution?
+## How do I build a convolved, difference, product, ratio, or compound distribution?
 
 Each constructor takes distributions and returns a distribution:
 
@@ -21,6 +21,12 @@ cdf(d, 5.0), cdf(z, 0.0), cdf(w, 5.0), cdf(r, 5.0)
 `convolved` accepts two or more components as varargs, a tuple, or a vector.
 `product` requires both components to have non-negative support (sign-crossing supports are future work).
 `ratio` requires only that the denominator carry no probability mass at zero; either component may otherwise be two-sided.
+`compound` builds the random sum `X_1 + ... + X_N` from a count law on the non-negative integers and a non-negative summand law, and evaluates it exactly (the Panjer recursion for a lattice summand, a mixture of `convolve_power` closed forms for a `Gamma`/`Exponential` summand); a continuous summand outside those families is rejected rather than approximated.
+
+```@example faq
+c = compound(Poisson(3.0), Poisson(2.0))
+mean(c), pdf(c, 4)
+```
 
 ## Can I nest combinations?
 
@@ -37,7 +43,9 @@ mean(nested) ≈ mean(flat), cdf(nested, 8.0) ≈ cdf(flat, 8.0), mean(gap)
 
 A `Ratio` nests too, but only when both its numerator and its denominator are non-negative (this includes the `Gamma`/`Gamma` and `Chisq`/`Chisq` analytic pairs, and any non-negative numeric pair, but not the two-sided `Normal`/`Normal` pair): a ratio that can run negative on either side has Cauchy-like tails with no cheap effective-support bound, so nesting one throws rather than silently narrowing the outer window.
 
-The [Getting started](@ref getting-started) walkthrough and the [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), and [The product of two delays](@ref product-distributions) tutorials show nesting in more detail.
+A `Compound` nests in two ways: a `Discrete`-typed one (lattice summand) is an ordinary lattice component of another combination's exact fold, and it can itself be the count or the summand of another `compound`; a `Continuous`-typed one nests in another combination's quadrature only when its count puts no mass at zero, because with `P(N = 0) > 0` it carries a point mass at zero that the outer quadrature would miss, so that case throws rather than silently dropping the atom.
+
+The [Getting started](@ref getting-started) walkthrough and the [Convolving distributions](@ref convolving-distributions), [The difference of two delays](@ref difference-distributions), [The product of two delays](@ref product-distributions), and [Compound distributions](@ref compound-distributions) tutorials show nesting in more detail.
 
 ## Why is the package called ConvolvedDistributions when it also has `difference` and `product`?
 
@@ -63,14 +71,14 @@ using Optimization, OptimizationOptimJL
 quantile(d, 0.5)
 ```
 
-Loading the extension also enables `rand` on `truncated` wrappers of `Convolved`, `Difference`, `Product`, and `Ratio`, which routes through the base `quantile`.
-`rand` on a bare `Convolved`, `Difference`, `Product`, or `Ratio` samples the components directly and needs no extension.
+Loading the extension also enables `rand` on `truncated` wrappers of `Convolved`, `Difference`, `Product`, `Ratio`, and a `Continuous`-typed `Compound`, which routes through the base `quantile`; a `Discrete`-typed `Compound` has an exact lattice `quantile` in core and needs no extension for it.
+`rand` on a bare `Convolved`, `Difference`, `Product`, `Ratio`, or `Compound` samples the components directly and needs no extension.
 
 ## What is the difference between `AnalyticalSolver` and `NumericSolver`?
 
 Both constructors take a `method` keyword.
-The default `AnalyticalSolver()` uses the closed form when `Distributions.convolve` applies to every component pair (for `difference`, when both components are `Normal`; for `product`, when both are `LogNormal`; for `ratio`, when both are zero-mean `Normal`, both `Gamma`, or both `Chisq`) and falls back to Gauss-Legendre quadrature otherwise.
-`NumericSolver()` forces the quadrature path even when a closed form exists.
+The default `AnalyticalSolver()` uses the closed form when `Distributions.convolve` applies to every component pair (for `difference`, when both components are `Normal`; for `product`, when both are `LogNormal`; for `ratio`, when both are zero-mean `Normal`, both `Gamma`, or both `Chisq`; for `compound`, when the summand is `Bernoulli` and the count `Poisson`, `Binomial`, `NegativeBinomial`, or `Geometric`) and falls back to Gauss-Legendre quadrature otherwise (for `compound`, to its exact recursion).
+`NumericSolver()` forces the quadrature path (or, for `compound`, the exact recursion) even when a closed form exists.
 Results agree to quadrature accuracy, so forcing the numeric path is mainly useful for testing, debugging, and comparing the two:
 
 ```@example faq

@@ -411,7 +411,7 @@ end
     end
 end
 
-@testitem "Convolved/Difference/Product/Ratio consistency at quantile panel-boundary points (#49/#50)" begin
+@testitem "Convolved/Difference/Product/Ratio/Compound consistency at quantile panel-boundary points (#49/#50)" begin
     using Distributions
     using ConvolvedDistributions: _PANEL_PROBS
 
@@ -424,6 +424,13 @@ end
     # single panel instead — so these are targeted at the break points
     # themselves, computed from the actual integration ("panelled")
     # component rather than pinned by hand.
+    #
+    # A continuous Compound has no quadrature panels (its density is an
+    # exact mixture of n-fold closed forms), so for it the summand's
+    # quantiles are just interior points of the half-line; it is swept
+    # here anyway so every member's log family gets the same
+    # mutual-consistency and continuity checks at the same kind of
+    # points.
 
     cases = [
         (
@@ -441,6 +448,10 @@ end
         (
             "Ratio", ratio(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)),
             LogNormal(0.5, 0.4),
+        ),
+        (
+            "Compound", compound(Poisson(3.0), Gamma(2.0, 1.0)),
+            Gamma(2.0, 1.0),
         ),
     ]
 
@@ -487,15 +498,25 @@ end
     end
 end
 
-@testitem "Convolved/Difference/Product/Ratio log methods at out-of-support and extreme values" begin
+@testitem "Convolved/Difference/Product/Ratio/Compound log methods at out-of-support and extreme values" begin
     using Distributions
 
     # Mirrors CensoredDistributions' log-methods extreme-value coverage
     # (test/consistency/log_methods_consistency.jl), adapted for these
     # types: pdf is not bounded by 1 here (continuous, not interval
     # probabilities), so unlike that suite there is no `logpdf <= 0`
-    # assertion — only that nothing returns NaN or errors.
+    # assertion — only that nothing returns NaN or errors. The Compound
+    # cases cover both exact routes: the lattice recursion (where a far
+    # lattice point beyond the tail-clamp cap must answer without
+    # building a vector that long) and the n-fold mixture with its atom.
     cases = [
+        "Compound: Poisson∘Poisson (lattice, half-line support)" => compound(
+            Poisson(3.0), Poisson(2.0)
+        ),
+        "Compound: Poisson∘Gamma (mixture, half-line support, atom)" =>
+            compound(Poisson(3.0), Gamma(2.0, 1.0)),
+        "Compound: Poisson∘Bernoulli (analytic, bounded summand)" =>
+            compound(Poisson(2.0), Bernoulli(0.3)),
         "Convolved: Gamma+LogNormal (numeric, half-line support)" => convolved(
             Gamma(2.0, 1.0), LogNormal(0.5, 0.4)
         ),
@@ -611,6 +632,96 @@ end
 
             integral = cdf(d, lo) + simpson(t -> pdf(d, t), lo, x, 2000)
             @test cdf(d, x) ≈ integral atol = 1.0e-5
+        end
+    end
+end
+
+@testitem "Compound log methods consistency across count/summand families" begin
+    using Distributions
+
+    # A Discrete-typed compound is swept on its own lattice (its CDF is a
+    # step function and off-lattice points carry no mass, so the
+    # continuous members' interior grid would only exercise the
+    # off-lattice zeros); a Continuous-typed one uses the same
+    # half-line interior grid as the other members, plus zero itself so
+    # the atom is included.
+    function consistency_grid(d; n = 12)
+        d isa DiscreteUnivariateDistribution && return collect(0:(n + 3))
+        interior = collect(range(1.0e-6, 15.0; length = n))
+        return vcat(0.0, interior[1], interior, interior[end])
+    end
+
+    cases = [
+        "Poisson∘Bernoulli (analytic thinning)" => compound(
+            Poisson(2.0), Bernoulli(0.3)
+        ),
+        "Poisson∘Poisson (Panjer lattice)" => compound(
+            Poisson(3.0), Poisson(2.0)
+        ),
+        "NegativeBinomial∘Geometric (Panjer lattice)" => compound(
+            NegativeBinomial(3.0, 0.4), Geometric(0.3)
+        ),
+        "DiscreteNonParametric∘Poisson (direct mixture)" => compound(
+            DiscreteNonParametric([0, 1, 3, 5], [0.2, 0.3, 0.3, 0.2]),
+            Poisson(2.0)
+        ),
+        "Poisson∘Gamma (n-fold mixture with atom)" => compound(
+            Poisson(3.0), Gamma(2.0, 1.0)
+        ),
+        "Binomial∘Exponential (n-fold mixture, bounded count)" => compound(
+            Binomial(8, 0.4), Exponential(1.5)
+        ),
+        "Compound of a Compound summand (deeper nesting)" => compound(
+            Poisson(2.0), compound(Poisson(1.5), Poisson(1.0))
+        ),
+    ]
+
+    for (name, d) in cases
+        @testset "$name" begin
+            grid = consistency_grid(d)
+
+            prev_cdf = -Inf
+            for x in grid
+                pdf_val = pdf(d, x)
+                logpdf_val = logpdf(d, x)
+                @test pdf_val >= 0.0
+                if pdf_val > 0
+                    @test logpdf_val ≈ log(pdf_val) rtol = 1.0e-8
+                else
+                    @test logpdf_val == -Inf
+                end
+
+                cdf_val = cdf(d, x)
+                logcdf_val = logcdf(d, x)
+                if cdf_val > 0
+                    @test logcdf_val ≈ log(cdf_val) atol = 1.0e-8
+                else
+                    @test logcdf_val == -Inf
+                end
+
+                ccdf_val = ccdf(d, x)
+                logccdf_val = logccdf(d, x)
+                if ccdf_val > 0
+                    @test logccdf_val ≈ log(ccdf_val) atol = 1.0e-6
+                else
+                    @test logccdf_val == -Inf
+                end
+
+                @test cdf_val + ccdf_val ≈ 1.0 atol = 1.0e-8
+                @test cdf_val >= prev_cdf - 1.0e-9
+                prev_cdf = cdf_val
+            end
+
+            # Broadcast evaluation must agree with the scalar path
+            # point-by-point (Compound has no dedicated batched method,
+            # so this is a broadcast-dispatch regression guard, as for
+            # Difference/Product/Ratio above).
+            @test pdf.(d, grid) ≈ [pdf(d, x) for x in grid] atol = 1.0e-8
+            @test isapprox(
+                logpdf.(d, grid), [logpdf(d, x) for x in grid];
+                atol = 1.0e-6, rtol = 1.0e-4
+            )
+            @test cdf.(d, grid) ≈ [cdf(d, x) for x in grid] atol = 1.0e-8
         end
     end
 end

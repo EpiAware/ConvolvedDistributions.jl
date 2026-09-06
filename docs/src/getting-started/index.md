@@ -1,6 +1,6 @@
 # [Getting started](@id getting-started)
 
-`ConvolvedDistributions` builds the distribution of a sum (`X + Y`, a convolution), a signed gap (`X - Y`), a product (`X * Y`), or a ratio (`X / Y`) of independent random variables, for any pair of `Distributions.jl` univariate distributions.
+`ConvolvedDistributions` builds the distribution of a sum (`X + Y`, a convolution), a signed gap (`X - Y`), a product (`X * Y`), a ratio (`X / Y`), or a random sum (`X_1 + ... + X_N`) of independent random variables, for any pair of `Distributions.jl` univariate distributions.
 Closed forms are used where they exist and an AD-safe Gauss-Legendre quadrature everywhere else, so the results can be scored, truncated, and differentiated inside a fitting loop.
 This page walks through the main entry points; the [Public API](@ref public-api) has the full interface.
 
@@ -117,6 +117,32 @@ cdf(rc, 0.0), cdf(Cauchy(0.0, 4.0), 0.0)
 `mean`/`var`/`std` throw unless an analytic pair applies: `E[X / Y] = E[X] E[1/Y]` needs an inverse moment of the denominator, which this package does not compute and which need not exist.
 
 A `Ratio` can itself be a component of another combination only when both its numerator and its denominator are non-negative: outside that regime the ratio's tails are Cauchy-like, so nesting it throws rather than silently narrowing the outer window (see the [FAQ](@ref faq)).
+
+## Random sums
+
+`compound` builds the random-length member: the distribution of `Z = X_1 + ... + X_N` for a count `N` on the non-negative integers and i.i.d. non-negative summands `X_i` independent of it, as when a Poisson number of clusters each contributes a Poisson number of cases, or a random number of claims each has a `Gamma` size.
+Nothing here is quadrature: a lattice summand is evaluated by the exact Panjer recursion (or a direct mixture for a count outside the `(a, b, 0)` class), and a continuous summand must belong to a family with a `convolve_power` closed form (`Gamma`, `Exponential`), whose n-fold sums are mixed exactly.
+
+```@example getting-started
+c = compound(Poisson(3.0), Poisson(2.0))
+mean(c), pdf(c, 4), ConvolvedDistributions.is_exact(c)
+```
+
+The Bernoulli-thinning identities are the closed forms: a `Bernoulli(q)` summand thins a `Poisson(λ)` count to `Poisson(λ q)` (and `Binomial`, `NegativeBinomial`, `Geometric` counts to their own thinned forms).
+
+```@example getting-started
+ct = compound(Poisson(2.0), Bernoulli(0.3))
+ConvolvedDistributions.evaluation_path(ct), pdf(ct, 1) == pdf(Poisson(0.6), 1)
+```
+
+A continuous summand under a count with mass at zero gives a mixed law with a point mass `P(N = 0)` at zero; the CDF carries it and, by convention, `pdf(d, 0)` returns it (see the [`Compound`](@ref) docstring).
+
+```@example getting-started
+cg = compound(Poisson(3.0), Gamma(2.0, 1.0))
+cdf(cg, 0.0), pdf(cg, 0.0), pdf(Poisson(3.0), 0)
+```
+
+`mean`/`var` are exact by the laws of total expectation and variance. A `Discrete`-typed compound nests in another combination's exact lattice fold; a continuous one carrying the atom cannot be a component of another combination's quadrature (see the [FAQ](@ref faq)).
 
 ## Convolving a timeseries
 

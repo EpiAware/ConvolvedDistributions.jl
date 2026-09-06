@@ -1551,3 +1551,318 @@ function ratio_quantile(
         components, p, method
     )
 end
+
+# ---------------------------------------------------------------------------
+# `Compound`: the same per-quantity dispatch shape as `Ratio` above, for
+# the random sum `Z = X_1 + ... + X_N`. Both of its routes are exact
+# (the lattice recursion for a `Discrete`-typed compound, the mixture of
+# `convolve_power` closed forms for a `Continuous`-typed one; see
+# Compound.jl), so the `NumericSolver` arms call the route wrappers
+# `_compound_cdf_route`/`_compound_pdf_route`, which dispatch on the
+# value-support parameter exactly as `_product_cdf_route` does.
+# ---------------------------------------------------------------------------
+
+@doc "
+
+    compound_pair(count, summand)
+
+The analytic distribution of the random sum `X_1 + ... + X_N` with
+`N ~ count` and i.i.d. `X_i ~ summand`, or `nothing` when no closed
+form is registered for the pair. This is the extension point a
+downstream package adds a method to, to teach `compound` a closed form
+for its own count or summand type: dispatch (not `try`/`catch`) keeps
+the path differentiable under every AD backend, and returning
+`nothing` (rather than throwing) is what tells the caller to fall back
+to the exact recursion instead.
+
+The built-in pairs are the Bernoulli-thinning identities, verified
+through the generating-function composition
+``\\mathrm{pgf}_Z(s) = \\mathrm{pgf}_N(\\mathrm{pgf}_X(s))``: a
+`Bernoulli(q)` summand thins `Poisson(λ)` to `Poisson(λ q)`,
+`Binomial(n, p)` to `Binomial(n, p q)`, and `NegativeBinomial(r, p)`
+or `Geometric(p)` to the same family with success probability
+`p / (1 - (1 - p)(1 - q))`.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+struct MyCount <: DiscreteUnivariateDistribution end
+function ConvolvedDistributions.compound_pair(::MyCount, ::Bernoulli)
+    return Poisson(1.0)
+end
+```
+
+See also: [`convolve_pair`](@ref), [`pgf`](@ref)
+"
+compound_pair(count, summand) = nothing
+
+# Poisson(λ) thinned by Bernoulli(q): pgf exp(λ (1 - q + q s - 1)) =
+# exp(λ q (s - 1)).
+function compound_pair(count::Poisson, summand::Bernoulli)
+    λ, = params(count)
+    q, = params(summand)
+    return Poisson(λ * q)
+end
+
+# Binomial(n, p) thinned by Bernoulli(q): pgf (1 - p + p (1 - q + q s))^n
+# = (1 - p q + p q s)^n.
+function compound_pair(count::Binomial, summand::Bernoulli)
+    n, p = params(count)
+    q, = params(summand)
+    return Binomial(n, p * q)
+end
+
+# NegativeBinomial(r, p) thinned by Bernoulli(q): with
+# c = 1 - (1 - p)(1 - q), the pgf (p / (1 - (1 - p)(1 - q + q s)))^r
+# rearranges to ((p / c) / (1 - ((1 - p) q / c) s))^r, and
+# 1 - p / c = (1 - p) q / c, so the result is NegativeBinomial(r, p / c).
+function compound_pair(count::NegativeBinomial, summand::Bernoulli)
+    r, p = params(count)
+    q, = params(summand)
+    return NegativeBinomial(r, _thinned_succprob(p, q))
+end
+
+# Geometric(p) is NegativeBinomial(1, p): the same identity.
+function compound_pair(count::Geometric, summand::Bernoulli)
+    p, = params(count)
+    q, = params(summand)
+    return Geometric(_thinned_succprob(p, q))
+end
+
+_thinned_succprob(p, q) = p / (1 - (1 - p) * (1 - q))
+
+@doc "
+
+Shared `AnalyticalSolver` arm for a `compound_*` quantity generic: when
+`(count, summand)` resolves via [`compound_pair`](@ref), evaluate
+`direct` on the result; otherwise fall through to `generic`'s
+`NumericSolver` arm.
+"
+function _compound_analytic_arm(
+        generic::F, direct::G,
+        d::Compound, components::Tuple, x, method::AnalyticalSolver
+    ) where {
+        F, G,
+    }
+    resolved = compound_pair(components[1], components[2])
+    resolved === nothing &&
+        return generic(d, components, x, NumericSolver(method.solver))
+    return direct(resolved, x)
+end
+
+@doc "
+    compound_cdf(d, components, z, method)
+
+The CDF of the random sum with count `components[1]` and summand
+`components[2]` at `z`, dispatched on the solver method `method`.
+Mirrors [`ratio_cdf`](@ref): a downstream package adds its own analytic
+pair by defining a method on a two-element tuple TYPE more specific
+than `(Compound, Tuple, Real, AnalyticalSolver)`.
+
+See also: [`Compound`](@ref)
+"
+function compound_cdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("compound_cdf not implemented for method type $(typeof(method))")
+end
+
+function compound_cdf(
+        d::Compound, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _compound_analytic_arm(compound_cdf, cdf, d, components, z, method)
+end
+
+function compound_cdf(
+        d::Compound, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    return _compound_cdf_route(d, z)
+end
+
+@doc "
+    compound_logcdf(d, components, z, method)
+
+The log CDF of the random sum at `z`. See [`compound_cdf`](@ref).
+"
+function compound_logcdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("compound_logcdf not implemented for method type $(typeof(method))")
+end
+
+function compound_logcdf(
+        d::Compound, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _compound_analytic_arm(
+        compound_logcdf, logcdf, d, components, z,
+        method
+    )
+end
+
+function compound_logcdf(
+        d::Compound, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    c = compound_cdf(d, components, z, method)
+    return c <= 0 ? oftype(float(c), -Inf) : log(c)
+end
+
+@doc "
+    compound_ccdf(d, components, z, method)
+
+The complementary CDF of the random sum at `z`. See
+[`compound_cdf`](@ref).
+"
+function compound_ccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("compound_ccdf not implemented for method type $(typeof(method))")
+end
+
+function compound_ccdf(
+        d::Compound, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _compound_analytic_arm(
+        compound_ccdf, ccdf, d, components, z,
+        method
+    )
+end
+
+function compound_ccdf(
+        d::Compound, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    return 1 - compound_cdf(d, components, z, method)
+end
+
+@doc "
+    compound_logccdf(d, components, z, method)
+
+The log complementary CDF of the random sum at `z`. See
+[`compound_cdf`](@ref).
+"
+function compound_logccdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error(
+        "compound_logccdf not implemented for method type $(typeof(method))"
+    )
+end
+
+function compound_logccdf(
+        d::Compound, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _compound_analytic_arm(
+        compound_logccdf, logccdf, d, components, z,
+        method
+    )
+end
+
+function compound_logccdf(
+        d::Compound, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    l = compound_logcdf(d, components, z, method)
+    l == -Inf && return zero(l)
+    l >= 0 && return oftype(l, -Inf)
+    return log1mexp(l)
+end
+
+@doc "
+    compound_pdf(d, components, z, method)
+
+The density (or probability mass) of the random sum at `z`. See
+[`compound_cdf`](@ref).
+"
+function compound_pdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("compound_pdf not implemented for method type $(typeof(method))")
+end
+
+function compound_pdf(
+        d::Compound, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _compound_analytic_arm(compound_pdf, pdf, d, components, z, method)
+end
+
+function compound_pdf(
+        d::Compound, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    return _compound_pdf_route(d, z)
+end
+
+@doc "
+    compound_logpdf(d, components, z, method)
+
+The log density (or log probability mass) of the random sum at `z`.
+See [`compound_cdf`](@ref).
+"
+function compound_logpdf(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, z::Real, method::AbstractSolverMethod
+    )
+    error("compound_logpdf not implemented for method type $(typeof(method))")
+end
+
+function compound_logpdf(
+        d::Compound, components::Tuple,
+        z::Real, method::AnalyticalSolver
+    )
+    return _compound_analytic_arm(
+        compound_logpdf, logpdf, d, components, z,
+        method
+    )
+end
+
+function compound_logpdf(
+        d::Compound, components::Tuple,
+        z::Real, method::NumericSolver
+    )
+    insupport(d, z) || return oftype(float(z), -Inf)
+    p = _compound_pdf_route(d, z)
+    return p <= 0 ? oftype(float(z), -Inf) : log(p)
+end
+
+@doc "
+    compound_quantile(d, components, p, method)
+
+The quantile of the random sum at probability `p`. Skeleton and
+`AnalyticalSolver` arm only, mirroring [`ratio_quantile`](@ref): the
+`NumericSolver` arm needs a nonlinear solve and lives in the
+`ConvolvedDistributionsOptimizationExt` extension (a `Discrete`-typed
+compound never reaches it; its `quantile` is the exact lattice scan).
+
+See also: [`compound_cdf`](@ref)
+"
+function compound_quantile(
+        d::AbstractConvolvedDistribution,
+        components::Tuple, p::Real, method::AbstractSolverMethod
+    )
+    error(
+        "compound_quantile not implemented for method type $(typeof(method))"
+    )
+end
+
+function compound_quantile(
+        d::Compound, components::Tuple,
+        p::Real, method::AnalyticalSolver
+    )
+    return _compound_analytic_arm(
+        compound_quantile, quantile, d,
+        components, p, method
+    )
+end

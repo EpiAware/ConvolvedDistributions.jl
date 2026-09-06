@@ -6,7 +6,7 @@
 # is public, not exported, so it never clashes with Distributions' deprecated
 # exported `Product`; construct via the exported `product` verb. `Ratio` is
 # exported directly (`Distributions` exports no `Ratio`), so it needs no
-# `public` declaration here.
+# `public` declaration here; `Compound` is exported for the same reason.
 public Convolved, Product, AbstractConvolvedDistribution
 
 # Interface-contract verifiers (`TestUtils.test_convolved_interface`,
@@ -62,20 +62,29 @@ public product_cdf, product_logcdf, product_ccdf, product_logccdf,
 # `(Ratio, Tuple, Real, AnalyticalSolver)`.
 public ratio_cdf, ratio_logcdf, ratio_ccdf, ratio_logccdf, ratio_pdf,
     ratio_logpdf, ratio_quantile
+
+# The same per-quantity dispatch extension points as above, for
+# `Compound`: a downstream package adds its own analytic count/summand
+# pair by defining a method on a two-element tuple TYPE more specific
+# than `(Compound, Tuple, Real, AnalyticalSolver)`.
+public compound_cdf, compound_logcdf, compound_ccdf, compound_logccdf,
+    compound_pdf, compound_logpdf, compound_quantile
 # The analytic-closed-form registries each verb consults before falling
-# back to pairwise collapse or numeric quadrature: one `*_pair` hook per
-# operation for a two-component combination, and `convolve_power` /
-# `product_power` for a k-fold repeat of one distribution. A downstream
-# package adds a method to one of these for its own distribution type to
-# register a closed form, rather than overloading a private internal.
+# back to pairwise collapse, the exact recursion, or numeric quadrature:
+# one `*_pair` hook per operation for a two-component combination, and
+# `convolve_power` / `product_power` for a k-fold repeat of one
+# distribution. A downstream package adds a method to one of these for
+# its own distribution type to register a closed form, rather than
+# overloading a private internal.
 public convolve_pair, difference_pair, product_pair, ratio_pair,
-    convolve_power, product_power
+    compound_pair, convolve_power, product_power
 
 # The probability generating function primitive (#90), mirroring
 # Distributions.jl's mgf/cf: E[s^X] for a discrete distribution, with
-# closed forms, a truncated-series fallback, and the structural Convolved
-# product. Not exported so it never shadows a downstream `pgf` (there is
-# no such name in Distributions.jl itself).
+# closed forms, a truncated-series fallback, the structural Convolved
+# product, and the structural Compound composition. Not exported so it
+# never shadows a downstream `pgf` (there is no such name in
+# Distributions.jl itself).
 public pgf
 
 # Shared numeric quantile (inverse-CDF) inversion (#112): the stub lives

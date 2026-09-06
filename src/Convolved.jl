@@ -125,29 +125,12 @@ struct Convolved{
     end
 end
 
-# A component is not checked against a method list. Which methods it
-# needs depends on where it sits and which quantity is asked for, so any
-# fixed list is both too strict and incomplete. A component missing one
-# fails on the call, naming the method. `TestUtils.test_component_interface`
-# is the opt-in verifier.
-#
-# `Number` is the exception, and rejected. Base and Statistics define
-# `minimum`, `maximum` and `mean` on numbers, so a scalar passed by
-# mistake satisfies enough of the interface to fold silently: it does not
-# throw, it returns `pdf` 0, `cdf` 0 and a `mean` shifted by its own
-# value. A wrong number is worse than either error, and no real component
-# is a `Number`.
+# Each component gets the shared `_check_component` (interface.jl): no
+# method-list check, only the `Number` rejection it explains.
 function _check_components(components::Tuple)
     length(components) >= 1 ||
         throw(ArgumentError("Convolved needs at least one component"))
-    any(c -> c isa Number, components) &&
-        throw(
-        ArgumentError(
-            "A component cannot be a Number: it is not a distribution, " *
-                "but satisfies enough of the univariate interface to " *
-                "fold silently and return a wrong answer"
-        )
-    )
+    foreach(_check_component, components)
     return nothing
 end
 

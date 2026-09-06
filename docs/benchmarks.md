@@ -61,6 +61,15 @@ Ratio/
                         logpdf/cdf broadcast, rand -- no mean row:
                         the numeric pair has no closed-form moment)
 
+Compound/
+  analytic/            (construction, logpdf/cdf scalar,
+                        logpdf/cdf broadcast, rand, mean:
+                        the Bernoulli-thinning closed form)
+  lattice/             (same operations, on the exact Panjer
+                        recursion over integer points)
+  mixture/             (same operations, on the exact mixture of
+                        n-fold Gamma closed forms)
+
 Timeseries/
   Gamma delay          (convolve_series(pmf, series), pmf precomputed)
   Convolved delay
@@ -81,6 +90,7 @@ AD gradients/
 ## Analytic vs numeric
 
 `convolved`, `difference`, `product`, and `ratio` use a closed form where one exists (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`; `Normal` - `Normal`; `LogNormal` * `LogNormal`; zero-mean `Normal` / `Normal`, `Gamma` / `Gamma`, `Chisq` / `Chisq`) and AD-safe Gauss-Legendre quadrature otherwise.
+`compound` uses the Bernoulli-thinning closed forms where they apply and is otherwise exact by recursion rather than quadrature: its `lattice` rows cost `O(z^2)` in the evaluation point (the Panjer recursion) and its `mixture` rows one `Gamma` density or CDF per count term up to the count's tail quantile.
 The analytic rows should sit near the `Baseline` floor; the gap between the numeric rows and their analytic counterparts is the cost of the quadrature backend.
 The `batched` rows share the composite quadrature grid across evaluation points; their gap to the `logpdf broadcast` row over the same points is the headline batching win.
 Pass `method = NumericSolver()` to force the numeric path.

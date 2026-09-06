@@ -23,6 +23,9 @@
         :analytic
     @test evaluation_path(ratio(Gamma(2.0, 1.5), Gamma(3.0, 0.5))) === :analytic
     @test evaluation_path(ratio(Chisq(4), Chisq(6))) === :analytic
+    @test evaluation_path(compound(Poisson(2.0), Bernoulli(0.3))) === :analytic
+    @test evaluation_path(compound(Geometric(0.3), Bernoulli(0.5))) ===
+        :analytic
     @test has_closed_form(convolved(Normal(1.0, 2.0), Normal(-0.5, 1.5)))
 
     # No matching closed form.
@@ -36,6 +39,10 @@
         :numeric
     @test evaluation_path(ratio(Normal(1.0, 2.0), Normal(0.0, 0.5))) ===
         :numeric
+    # Both exact Compound routes report :numeric (no single closed-form
+    # object), matching the lattice folds' convention.
+    @test evaluation_path(compound(Poisson(3.0), Poisson(2.0))) === :numeric
+    @test evaluation_path(compound(Poisson(3.0), Gamma(2.0, 1.0))) === :numeric
     @test !has_closed_form(convolved(Gamma(2.0, 1.0), LogNormal(0.5, 0.4)))
 
     # An analytic pair mismatched on parameters (unequal-scale Gamma,
@@ -55,6 +62,9 @@
         ratio(Normal(0.0, 1.0), Normal(0.0, 1.0); method = NumericSolver())
     ) ===
         :numeric
+    @test evaluation_path(
+        compound(Poisson(2.0), Bernoulli(0.3); method = NumericSolver())
+    ) === :numeric
 end
 
 @testitem "evaluation_path recurses through nested combinations" begin
@@ -105,6 +115,15 @@ end
     @test evaluation_path(
         ratio(Normal(0.0, 1.0), Normal(0.0, 1.0); strict = true)
     ) === :analytic
+    @test evaluation_path(
+        compound(Poisson(2.0), Bernoulli(0.3); strict = true)
+    ) === :analytic
+
+    # Every Compound route is exact, so strict = true accepts the
+    # lattice recursion and the n-fold mixture as well as the closed
+    # form (see the is_exact testitem below).
+    @test compound(Poisson(3.0), Poisson(2.0); strict = true) isa Compound
+    @test compound(Poisson(3.0), Gamma(2.0, 1.0); strict = true) isa Compound
 
     # No closed form: errors, naming the families.
     err = @test_throws ArgumentError convolved(
@@ -168,6 +187,12 @@ end
     )
     test_analytic_skips_quadrature(
         ratio(Normal(0.0, 1.0), Normal(0.0, 1.0)); x = 0.5
+    )
+    test_analytic_skips_quadrature(
+        compound(Poisson(2.0), Bernoulli(0.3)); x = 1
+    )
+    test_analytic_skips_quadrature(
+        compound(NegativeBinomial(3.0, 0.4), Bernoulli(0.6)); x = 2
     )
 
     # A no-op (nothing asserted, no failure) for a numeric-only case.
@@ -235,6 +260,22 @@ end
     @test pdf(dmixed, 2.0) ===
         ConvolvedDistributions._convolved_mixed_pdf(Val(1), dmixed, 2.0)
     @test !is_exact(dnum)
+
+    # Compound: both routes are exact, including the Continuous-typed
+    # mixture of n-fold closed forms, and each reports :numeric. The
+    # same route-vs-execution guard as above for each.
+    dlat = compound(Poisson(3.0), Poisson(2.0))
+    @test evaluation_path(dlat) === :numeric
+    @test is_exact(dlat) && !has_closed_form(dlat)
+    @test pdf(dlat, 4) === ConvolvedDistributions._compound_lattice_pdf(dlat, 4)
+    dmix = compound(Poisson(3.0), Gamma(2.0, 1.0))
+    @test evaluation_path(dmix) === :numeric
+    @test is_exact(dmix) && !has_closed_form(dmix)
+    @test pdf(dmix, 2.0) ===
+        ConvolvedDistributions._compound_mixture_pdf(dmix, 2.0)
+    @test is_exact(
+        compound(Poisson(2.0), Bernoulli(0.3); method = NumericSolver())
+    )
 end
 
 @testitem "evaluation_path does not drift from cdf/pdf routing (#92)" begin

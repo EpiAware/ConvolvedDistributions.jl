@@ -5,19 +5,20 @@
 # Mirrors the CensoredDistributions.jl family model: related concrete types
 # share one supertype, and the documented interface contract plus any shared
 # behaviour hang off the abstract. This package has a single family — the
-# algebraic combinations `Convolved`, `Difference`, `Product`, and `Ratio` —
-# so one abstract type carries the contract that a future member (e.g. a
-# min/max order statistic) implements and `TestUtils.test_convolved_interface`
-# verifies.
+# algebraic combinations `Convolved`, `Difference`, `Product`, `Ratio`, and
+# `Compound` — so one abstract type carries the contract that a future
+# member (e.g. a min/max order statistic) implements and
+# `TestUtils.test_convolved_interface` verifies.
 
 @doc "
 
 Supertype of the distributions of `X op Y` for independent components —
 the generalised convolutions. [`Convolved`](@ref) is the classical sum,
 [`Difference`](@ref) the reflected form (`Z = X - Y`), [`Product`](@ref)
-the Mellin form (`Z = X * Y`), and [`Ratio`](@ref) the Mellin-quotient
-form (`Z = X / Y`); further operations (order statistics) fit the same
-family.
+the Mellin form (`Z = X * Y`), [`Ratio`](@ref) the Mellin-quotient form
+(`Z = X / Y`), and [`Compound`](@ref) the random-length sum
+(`Z = X_1 + ... + X_N`); further operations (order statistics) fit the
+same family.
 
 Parametric on variate form and value support (`Distribution{F, S}`), so
 the univariate members stay `UnivariateDistribution`s and existing
@@ -42,7 +43,7 @@ membership with `ConvolvedDistributions.TestUtils.test_abstract_membership`.
 
 # See also
 - [`Convolved`](@ref), [`Difference`](@ref), [`Product`](@ref),
-  [`Ratio`](@ref): the concrete members.
+  [`Ratio`](@ref), [`Compound`](@ref): the concrete members.
 - `ConvolvedDistributions.TestUtils`: the interface verifiers for a new
   subtype.
 "
@@ -154,15 +155,19 @@ _mixed_discrete_component(::Nothing, x, y) = nothing
 _has_mixed_fold(::AbstractConvolvedDistribution) = false
 
 # Whether the exact discrete route (the additive lattice fold in
-# `src/lattice.jl`, the `Product` divisor fold, or the mixed
-# discrete/continuous fold, #115) is available for `d`. `Discrete`-typed
-# `d` (every component integer-lattice discrete, by `_component_support`
-# above) always has one; `Continuous`-typed `d` has one exactly when
-# `_has_mixed_fold(d)` says so (a two-component pair with exactly one
-# integer-lattice discrete side). This is the SAME predicate `is_exact`
-# reads below and the route functions (`_convolved_pdf_route` and its
-# `Difference`/`Product` counterparts) dispatch on, so a reported
-# exactness can never drift from the route actually executed.
+# `src/lattice.jl`, the `Product` divisor fold, the `Compound` lattice
+# recursion, or the mixed discrete/continuous fold, #115) is available
+# for `d`. `Discrete`-typed `d` (every component integer-lattice
+# discrete, by `_component_support` above) always has one;
+# `Continuous`-typed `d` has one exactly when `_has_mixed_fold(d)` says
+# so (a two-component pair with exactly one integer-lattice discrete
+# side), or when the member declares its continuous route exact itself
+# (`Compound`, whose continuous route is a finite mixture of closed
+# forms rather than quadrature; see Compound.jl). This is the SAME
+# predicate `is_exact` reads below and the route functions
+# (`_convolved_pdf_route` and its `Difference`/`Product`/`Compound`
+# counterparts) dispatch on, so a reported exactness can never drift
+# from the route actually executed.
 _exact_discrete_route(::AbstractConvolvedDistribution) = false
 function _exact_discrete_route(
         ::AbstractConvolvedDistribution{<:Distributions.VariateForm, Discrete}
@@ -236,10 +241,10 @@ error at all).
 
 Recurses through nesting: a combination with any non-analytic component
 (including a nested
-[`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref)/[`Ratio`](@ref)
-using [`NumericSolver`](@ref), or one with no matching closed form)
-reports `:numeric`, since evaluating it falls back to quadrature
-somewhere in the recursion.
+[`Convolved`](@ref)/[`Difference`](@ref)/[`Product`](@ref)/[`Ratio`](@ref)/
+[`Compound`](@ref) using [`NumericSolver`](@ref), or one with no
+matching closed form) reports `:numeric`, since evaluating it falls back
+to quadrature (or an exact recursion) somewhere in the recursion.
 
 # Arguments
 - `d`: The combination to report the route for.
@@ -373,11 +378,38 @@ function is_exact(d::AbstractConvolvedDistribution)
     return has_closed_form(d) || _exact_discrete_route(d)
 end
 
+# A component is not checked against a method list. Which methods it
+# needs depends on where it sits and which quantity is asked for, so any
+# fixed list is both too strict and incomplete. A component missing one
+# fails on the call, naming the method. `TestUtils.test_component_interface`
+# is the opt-in verifier.
+#
+# `Number` is the exception, and rejected. Base and Statistics define
+# `minimum`, `maximum` and `mean` on numbers, so a scalar passed by
+# mistake satisfies enough of the interface to fold silently: it does not
+# throw, it returns `pdf` 0, `cdf` 0 and a `mean` shifted by its own
+# value. A wrong number is worse than either error, and no real component
+# is a `Number`. Shared by every member that accepts a duck-typed
+# component (`Convolved`, `Compound`); the members typed on
+# `UnivariateDistribution` never see a `Number`.
+function _check_component(c)
+    c isa Number &&
+        throw(
+        ArgumentError(
+            "A component cannot be a Number: it is not a distribution, " *
+                "but satisfies enough of the univariate interface to " *
+                "fold silently and return a wrong answer"
+        )
+    )
+    return nothing
+end
+
 # The component-family names named in a `strict = true` construction
 # error, one method per concrete type (each knows its own fields):
 # `_family_names(d::Convolved)` in Convolved.jl, `_family_names(d::Difference)`
 # in Difference.jl, `_family_names(d::Product)` in Product.jl,
-# `_family_names(d::Ratio)` in Ratio.jl.
+# `_family_names(d::Ratio)` in Ratio.jl, `_family_names(d::Compound)` in
+# Compound.jl.
 
 # Shared strict-construction check: called by each type's outer
 # constructor function (`convolved`/`difference`/`product`/`ratio`)

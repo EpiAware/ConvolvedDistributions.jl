@@ -3,9 +3,10 @@
 
 Shared AD gradient scenarios and backend metadata for ConvolvedDistributions.
 Used by `test/ad/runtests.jl`. Covers the `Convolved`, `Difference`,
-`Product`, and `Ratio` densities and moments on the analytic, numeric
-(Gauss-Legendre quadrature), and exact discrete lattice/divisor fold
-(#85, #89) paths, plus custom solver payloads (a non-default
+`Product`, `Ratio`, and `Compound` densities and moments on the analytic,
+numeric (Gauss-Legendre quadrature), exact discrete lattice/divisor fold
+(#85, #89), and exact compound recursion/mixture paths, plus custom
+solver payloads (a non-default
 `GaussLegendre` node count and an Integrals.jl-backed solver), across the
 ForwardDiff / ReverseDiff / Enzyme / Mooncake backend matrix.
 
@@ -22,7 +23,7 @@ __precompile__(false)
 
 using ConvolvedDistributions
 using ConvolvedDistributions: pgf, GaussLegendre, NumericSolver
-using Distributions: Distributions, Gamma, Geometric, LogNormal,
+using Distributions: Distributions, Bernoulli, Gamma, Geometric, LogNormal,
     NegativeBinomial, Normal, Poisson, Uniform, Weibull,
     mean, var, pdf, logpdf, cdf, logcdf
 using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
@@ -552,6 +553,50 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             mean(d) + var(d)
         end,
         [2.0, 1.5, 3.0, 0.5], (Constant(obs),)
+    )
+
+    # Compound (Z = X_1 + ... + X_N), the random-length member. Both of
+    # its routes are exact recursions rather than quadrature, so the
+    # gradient flows through the count masses and the summand masses
+    # (Panjer lattice: the `(a, b)` of the count, the pgf seed `g_0`, and
+    # every `f_j`), or through the count masses and the n-fold `Gamma`
+    # closed forms (the power mixture). The only tail hyperparameters
+    # (the count quantile `n_max` and the lattice cap) are computed on
+    # AD-stripped params through `_window_quantile`, so they stay off
+    # the tape as every quadrature window does. The lattice vectors are
+    # plain `Vector`s filled by `setindex!` on freshly allocated storage,
+    # never on tracked storage, so ReverseDiff's `TrackedArray` trap
+    # (#44) cannot arise.
+    _push!(
+        "Compound Poisson∘Poisson Panjer lattice",
+        (θ, ks) -> sum(
+            k -> logpdf(compound(Poisson(θ[1]), Poisson(θ[2])), k), ks
+        ),
+        [3.0, 2.0], (Constant(obs_discrete),)
+    )
+    _push!(
+        "Compound Poisson∘Gamma power mixture",
+        (θ, zs) -> sum(
+            z -> logpdf(compound(Poisson(θ[1]), Gamma(θ[2], θ[3])), z), zs
+        ),
+        [3.0, 2.0, 1.0], (Constant(obs),)
+    )
+    # The thinning closed form: the gradient flows through `Poisson(λ q)`.
+    _push!(
+        "Compound Poisson∘Bernoulli thinning analytical",
+        (θ, ks) -> sum(
+            k -> logpdf(compound(Poisson(θ[1]), Bernoulli(θ[2])), k), ks
+        ),
+        [2.0, 0.3], (Constant(obs_discrete),)
+    )
+    _push!(
+        "Compound Poisson∘Gamma mean+var moments",
+        (θ, _obs) -> let d = compound(
+                Poisson(θ[1]), Gamma(θ[2], θ[3])
+            )
+            mean(d) + var(d)
+        end,
+        [3.0, 2.0, 1.5], (Constant(obs),)
     )
 
     # Timeseries convolution. This package no longer discretises

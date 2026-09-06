@@ -29,7 +29,7 @@ using Distributions: Distributions, Discrete, cdf, insupport, logcdf, logpdf,
     params, pdf
 
 using ..ConvolvedDistributions: AbstractConvolvedDistribution, Convolved,
-    Difference, Product, Ratio, _maybe_analytic,
+    Difference, Product, Ratio, Compound, _maybe_analytic,
     is_exact
 
 @doc "
@@ -41,8 +41,8 @@ Assert a combined distribution satisfies the
 `AbstractConvolvedDistribution` (a multi-base algebraic combination) and
 exposes `params`, a finite `logpdf` at the in-support point `x`, and a
 non-empty `show`. Use for [`Convolved`](@ref), [`Difference`](@ref),
-[`Product`](@ref), and [`Ratio`](@ref) and any new member of the family.
-Returns the `@testset` object.
+[`Product`](@ref), [`Ratio`](@ref), and [`Compound`](@ref) and any new
+member of the family. Returns the `@testset` object.
 "
 function test_convolved_interface(
         d; name::AbstractString = string(nameof(typeof(d))), x::Real = 1.0
@@ -100,7 +100,7 @@ Assert a discrete-typed combination is a well-formed, exact pmf over
 `test_discrete_pmf(d; support)` verifies `d` for any family member typed
 `Discrete` (a [`Convolved`](@ref ConvolvedDistributions.Convolved),
 [`Difference`](@ref), [`Product`](@ref ConvolvedDistributions.Product),
-or a downstream member such as a compound distribution or an order
+[`Compound`](@ref), or a downstream member such as an order
 statistic): `Distributions.value_support(typeof(d)) === Discrete`; every
 mass over `support` is non-negative; the masses over `support` sum to
 `1` to within `atol`; `cdf(d, k)` equals the running sum of masses to the
@@ -159,14 +159,15 @@ Assert the built-in combination types subtype the family supertype.
 
 `test_abstract_membership()` is the meta-test that the abstract hierarchy
 stays consistent: the multi-base combinations `Convolved`, `Difference`,
-`Product`, and `Ratio` subtype [`AbstractConvolvedDistribution`](@ref),
-which itself sits under `Distributions.Distribution` so the univariate
-members remain `UnivariateDistribution`s. A type filed under the wrong
-family fails here. Returns the `@testset` object.
+`Product`, `Ratio`, and `Compound` subtype
+[`AbstractConvolvedDistribution`](@ref), which itself sits under
+`Distributions.Distribution` so the univariate members remain
+`UnivariateDistribution`s. A type filed under the wrong family fails
+here. Returns the `@testset` object.
 "
 function test_abstract_membership()
     return @testset "abstract hierarchy membership" begin
-        for T in (Convolved, Difference, Product, Ratio)
+        for T in (Convolved, Difference, Product, Ratio, Compound)
             @test T <: AbstractConvolvedDistribution
             @test T <: Distributions.UnivariateDistribution
         end

@@ -15,6 +15,7 @@ pages = [
             "Convolving distributions" => "getting-started/tutorials/convolving-distributions.md",
             "The difference of two delays" => "getting-started/tutorials/difference-distributions.md",
             "The product of two delays" => "getting-started/tutorials/product-distributions.md",
+            "Compound distributions" => "getting-started/tutorials/compound-distributions.md",
             "Convolving a timeseries" => "getting-started/tutorials/timeseries-convolution.md",
         ],
         "FAQ" => "getting-started/faq.md",
