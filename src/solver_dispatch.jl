@@ -725,7 +725,7 @@ end
 
 See also: [`convolve_pair`](@ref)
 "
-difference_pair(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
+difference_pair(x, y) = nothing
 
 function difference_pair(x::Normal, y::Normal)
     return Normal(mean(x) - mean(y), sqrt(var(x) + var(y)))
@@ -1010,7 +1010,7 @@ end
 
 See also: [`convolve_pair`](@ref)
 "
-product_pair(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
+product_pair(x, y) = nothing
 
 function product_pair(x::LogNormal, y::LogNormal)
     μx, σx = params(x)
@@ -1286,7 +1286,7 @@ end
 
 See also: [`convolve_pair`](@ref)
 "
-ratio_pair(x::UnivariateDistribution, y::UnivariateDistribution) = nothing
+ratio_pair(x, y) = nothing
 
 # Normal(0, σx) / Normal(0, σy) ~ Cauchy(0, σx / σy). Only the zero-mean
 # case is analytic: the general Marsaglia-Hinkley density has no

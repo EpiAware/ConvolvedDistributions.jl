@@ -22,6 +22,7 @@ const HEAVY_TUTORIALS = [
     "convolving-distributions.jl",
     "difference-distributions.jl",
     "product-distributions.jl",
+    "ratio-distributions.jl",
     "timeseries-convolution.jl",
 ]
 
@@ -37,6 +38,7 @@ const TUTORIAL_STUBS = [
     "convolving-distributions.md" => "# [Convolving distributions](@id convolving-distributions)",
     "difference-distributions.md" => "# [The difference of two delays](@id difference-distributions)",
     "product-distributions.md" => "# [The product of two delays](@id product-distributions)",
+    "ratio-distributions.md" => "# [The ratio of two delays](@id ratio-distributions)",
     "timeseries-convolution.md" => "# [Convolving a timeseries](@id timeseries-convolution)",
 ]
 

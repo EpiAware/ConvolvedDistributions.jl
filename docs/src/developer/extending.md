@@ -161,6 +161,60 @@ test_discrete_pmf(convolved(Poisson(2.0), Poisson(3.0));
 `test_discrete_pmf(d; support)` is the verifier for any `Discrete`-typed family member: it asserts `value_support(typeof(d)) === Discrete`, non-negative masses summing to `≈ 1` over `support`, `cdf` matching the running mass sum, an off-lattice point carrying no mass, and `is_exact(d)`; that last assertion is what catches a `Discrete`-typed member that forgot to ship an exact route (see the checklist item above).
 A downstream package defining its own member calls `test_convolved_interface` (and, when discrete, `test_discrete_pmf`) on its instances directly.
 
+## Verifying a duck-typed component
+
+A component is not required to subtype `Distributions.UnivariateDistribution`. A *duck-typed* leaf implements the univariate interface `convolved` calls on it — the densities, the CDF quantities, the moments, sampling and element type — without any distribution supertype, so a downstream author can use their own `Uniform`-ish type as a component of `convolved`, `difference`, `product`, or `ratio` without filing it in the package's type system. A duck-typed component has no registered closed form, so it always evaluates through numeric quadrature rather than an analytic fast path; it may sit in any position, including the integration slot ("last"), where the CDF quantities route through it.
+
+Construction deliberately checks **no method list**. Which methods a component needs depends on where it sits and which quantity is asked for, so any fixed list is both too strict (it rejects a type that dispatches through a supertype, or gains the method later) and too incomplete. A missing method instead fails on the call itself, naming what to define — so it is only discovered mid-fold, in a `MethodError` the user has to interpret. `TestUtils.test_component_interface(c; x)` is the opt-in verifier that runs a leaf against what `convolved` calls on it before the fold ever happens. It splits the interface into tiers, because not everything is core:
+
+- **fail** — `logpdf`, `pdf`, `minimum`, `maximum`: needed by every density evaluation and support fold, so a gap is fatal.
+- **fail with `integration_slot = true`** — `cdf`, `ccdf`, `logcdf`, `logccdf`. These only bind if the leaf may sit last, in the quadrature's integration slot.
+- **warn** — `mean`, `var`, `rand`, `quantile`, `params`. Each matters only to the quantity that asks, so a gap warns: a leaf with no `mean` is perfectly usable until someone calls `mean`.
+
+`Base.eltype` sits in the warning tier too. `convolved` reads a duck-typed leaf's value support from it alone (there is no `value_support` to ask), and Base's fallback of `Any` reads as continuous — right for a continuous leaf, so an undefined `eltype` cannot fail, but wrong for a discrete leaf on an integer lattice, which is quietly routed to quadrature instead of the exact fold. A discrete leaf must define `Base.eltype` returning an `Integer` to reach that exact route. Pass `strict = true` to promote every warning to a failure, holding leaves that must be exact (or that the author simply wants well-specified) to the full interface.
+
+One check the verifier does NOT make: a discrete leaf used as a [`ratio`](@ref) *denominator* must also define `Distributions.insupport` for the construction-time atom-at-zero check to apply. Without it the leaf is admitted and the check is skipped — deliberate, since `Distributions` defines `insupport` only for `UnivariateDistribution` subtypes and a raw `MethodError` at construction would be worse.
+
+```julia
+using Distributions
+using ConvolvedDistributions.TestUtils: test_component_interface
+
+# A Uniform on [a, b], implementing the univariate interface without
+# subtyping `UnivariateDistribution`.
+struct DuckUniform
+    a::Float64
+    b::Float64
+end
+
+Distributions.logpdf(d::DuckUniform, x::Real) =
+    d.a <= x <= d.b ? -log(d.b - d.a) : -Inf
+Distributions.pdf(d::DuckUniform, x::Real) =
+    d.a <= x <= d.b ? 1 / (d.b - d.a) : 0.0
+Distributions.cdf(d::DuckUniform, x::Real) =
+    clamp((x - d.a) / (d.b - d.a), 0.0, 1.0)
+Distributions.ccdf(d::DuckUniform, x::Real) = 1 - cdf(d, x)
+Distributions.logcdf(d::DuckUniform, x::Real) = log(cdf(d, x))
+Distributions.logccdf(d::DuckUniform, x::Real) = log(ccdf(d, x))
+Distributions.quantile(d::DuckUniform, p::Real) = d.a + p * (d.b - d.a)
+Distributions.params(d::DuckUniform) = (d.a, d.b)
+Distributions.minimum(d::DuckUniform) = d.a
+Distributions.maximum(d::DuckUniform) = d.b
+Distributions.mean(d::DuckUniform) = (d.a + d.b) / 2
+Distributions.var(d::DuckUniform) = (d.b - d.a)^2 / 12
+Base.rand(rng::AbstractRNG, d::DuckUniform) = d.a + rand(rng) * (d.b - d.a)
+Base.eltype(::Type{DuckUniform}) = Float64
+
+duck = DuckUniform(0.0, 1.0)
+
+# A complete leaf passes even in strict mode; `integration_slot = true`
+# is right here because the leaf may be folded last (quadrature's
+# integration variable), which also demands the CDF quantities.
+test_component_interface(duck; x = 0.5, integration_slot = true,
+    strict = true)
+```
+
+Where the family-member verifier `test_convolved_interface` in Verifying the new member above checks a *family member* (something subtyping `AbstractConvolvedDistribution`), `test_component_interface` checks a *component*, the leaf such a member folds over. `test_convolved_interface` verifies the member you build; `test_component_interface` verifies each leaf you pass it, before the first density computation ever runs.
+
 ## Checklist
 
 - [ ] Struct subtyping `AbstractConvolvedDistribution{Univariate, S}` with `S` DERIVED via `_components_support(...)` in the inner constructor (not hardcoded `Continuous`), and a validated inner constructor (throw an `ArgumentError` naming the restriction for out-of-scope components, as `Product` does for sign-crossing supports)
