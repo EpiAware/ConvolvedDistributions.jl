@@ -1,11 +1,11 @@
 module ConvolvedDistributionsOptimizationExt
 
 # Optional inverse-CDF (quantile) support for `Convolved`, `Difference`,
-# `Product`, and `Ratio`.
+# `Product`, `Ratio`, and a `Continuous`-typed `Compound`.
 #
-# No closed form exists for a generic convolution, difference, product, or
-# ratio, so the quantile is found by numerically inverting `cdf` with a
-# Nelder-Mead solve. The solver stack (Optimization.jl +
+# No closed form exists for a generic convolution, difference, product,
+# ratio, or random sum, so the quantile is found by numerically inverting
+# `cdf` with a Nelder-Mead solve. The solver stack (Optimization.jl +
 # OptimizationOptimJL.jl) is deliberately a weak dependency:
 # `cdf`/`pdf`/`logpdf` and `truncated` scoring never need it, so the core
 # package stays dependency-light and only consumers that need inverse-CDF
@@ -17,11 +17,11 @@ module ConvolvedDistributionsOptimizationExt
 # see #116 for a dedicated lattice-scan quantile.
 
 using ConvolvedDistributions: ConvolvedDistributions, Convolved, Difference,
-    Product, Ratio, NumericSolver, _validate_quantile_p
+    Product, Ratio, Compound, NumericSolver, _validate_quantile_p
 import ConvolvedDistributions: quantile_by_optimization,
     quantile_initial_guess
 import Distributions
-using Distributions: UnivariateDistribution, cdf, insupport, quantile
+using Distributions: UnivariateDistribution, cdf, insupport, pdf, quantile
 using Optimization: OptimizationFunction, OptimizationProblem, solve,
     ReturnCode
 using OptimizationOptimJL: NelderMead
@@ -157,6 +157,30 @@ and inverse-CDF sampler from the base `quantile`.
 function ConvolvedDistributions.ratio_quantile(
         d::Ratio, components::Tuple, p::Real, method::NumericSolver
     )
+    return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
+end
+
+@doc "
+
+`NumericSolver` arm of [`compound_quantile`](@ref): invert the exact
+mixture [`cdf`](@ref) of a `Continuous`-typed `Compound` with a
+Nelder-Mead solve, starting from a Normal approximation built on the
+random sum's own exact mean and variance. The atom at zero is answered
+first: for `p <= pdf(count, 0)` the quantile is exactly `0`, the point
+mass's share of the distribution, which no solve on the continuous
+part could locate. A `Discrete`-typed `Compound` never reaches this
+arm (its `quantile` is the exact lattice scan in core), and the
+`AnalyticalSolver` arm in core handles a registered thinning pair
+without needing this extension at all.
+
+Reaching the quantile through the generic is what lets a `Compound`
+compose under `truncated`, where `Distributions` derives the truncated
+quantile and inverse-CDF sampler from the base `quantile`.
+"
+function ConvolvedDistributions.compound_quantile(
+        d::Compound, components::Tuple, p::Real, method::NumericSolver
+    )
+    p <= pdf(d.count, 0) && return zero(float(p))
     return quantile_by_optimization(d, p, quantile_initial_guess(d, p))
 end
 

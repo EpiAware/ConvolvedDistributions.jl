@@ -1,7 +1,7 @@
 # [Adding a new combination](@id extending)
 
 A combined distribution is a type built from two or more base distributions joined by an algebraic operation.
-The package ships four members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`), [`Difference`](@ref) (`Z = X - Y`), [`Product`](@ref ConvolvedDistributions.Product) (`Z = X * Y`, the Mellin convolution), and [`Ratio`](@ref) (`Z = X / Y`, the Mellin-quotient form), and the family is designed to grow (a min or max order statistic is the natural next member).
+The package ships five members, [`Convolved`](@ref ConvolvedDistributions.Convolved) (the sum `X + Y + ...`), [`Difference`](@ref) (`Z = X - Y`), [`Product`](@ref ConvolvedDistributions.Product) (`Z = X * Y`, the Mellin convolution), [`Ratio`](@ref) (`Z = X / Y`, the Mellin-quotient form), and [`Compound`](@ref) (`Z = X_1 + ... + X_N`, the random-length sum, evaluated by exact recursion rather than quadrature), and the family is designed to grow (a min or max order statistic is the natural next member).
 This page documents the contract a new member implements and the conventions the built-in members follow, using them as worked examples.
 
 ## The family supertype
@@ -30,7 +30,7 @@ The documented interface contract on the abstract type requires of a concrete su
 
 ## Conventions the built-ins follow
 
-Beyond the minimal contract, `Convolved`, `Difference`, `Product`, and `Ratio` share conventions a new member should copy so the family behaves uniformly.
+Beyond the minimal contract, `Convolved`, `Difference`, `Product`, `Ratio`, and `Compound` share conventions a new member should copy so the family behaves uniformly.
 
 **A solver-method field.**
 Each type carries a `method::AbstractSolverMethod` field, defaulting to `AnalyticalSolver()`.
@@ -45,7 +45,7 @@ Infinite integration bounds are clamped to extreme quantiles of the integration 
 `cdf` values are clamped to `[0, 1]`, `pdf` values to non-negative, and `logpdf` returns `-Inf` outside the support and for non-positive densities, so quadrature noise never produces an invalid probability.
 
 **Exact moments where they exist.**
-`mean`, `var`, and `std` use the exact algebra of the operation (sums of component moments for `Convolved`, differences and sums for `Difference`), not quadrature.
+`mean`, `var`, and `std` use the exact algebra of the operation (sums of component moments for `Convolved`, differences and sums for `Difference`, the laws of total expectation and total variance for `Compound`), not quadrature.
 A component without an analytic moment errors from its own `mean`/`var`; there is no numeric fallback.
 
 **Support, sampling, and element type.**
@@ -58,6 +58,7 @@ Optional, but worth copying for any member whose numeric path dominates.
 **Quantiles stay in the extension.**
 There is no closed-form inverse CDF for a generic combination, so `quantile` methods live in `ext/ConvolvedDistributionsOptimizationExt.jl` and invert `cdf` numerically.
 A new member adds a `quantile` method and a starting-guess helper there, not in `src/`.
+The exception is a `Discrete`-typed member, whose `quantile` is the exact lattice scan (`_lattice_quantile` in `src/lattice.jl`) in core; `Compound` follows both patterns, one per value support.
 
 ## A worked sketch
 

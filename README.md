@@ -17,6 +17,7 @@ Raw-distribution convolution and shared numeric quadrature for any `Distribution
 - A convolution is usually only available in closed form for a few matching distribution families; `convolved` builds the distribution of a sum of independent delays from any two or more `Distributions.jl` distributions, not just those pairs.
 - Closed-form convolutions (`Normal` + `Normal`, equal-scale `Gamma`, equal-rate `Exponential`) are used where they exist, with an AD-safe Gauss-Legendre quadrature fallback for every other pair.
 - Sums are not the only combination we support: `difference` builds the `X - Y` signed gap between two independent events, `product` the `X * Y` Mellin convolution for a delay scaled by an independent multiplicative factor, and `ratio` the `X / Y` quotient for a rate, a proportion, or a normalised measurement.
+- A sum of a random number of pieces (cluster sizes, aggregate claims, total secondary cases) is a compound distribution; `compound` builds `X_1 + ... + X_N` from a count law and a summand law and evaluates it exactly, by the Panjer recursion on the lattice or a mixture of n-fold closed forms, never by quadrature.
 - Turning expected events into expected downstream counts is usually a hand-rolled discrete convolution; `convolve_series` does it directly from a numeric series and a delay's PMF, including a delay that changes over the series (one distribution or PMF per time point).
 
 ## Getting started
@@ -94,6 +95,7 @@ Distributions.jl ships a `convolve` function, but it only covers pairs with a cl
 | **Differences** | Not supported | `difference` builds the `X - Y` dual |
 | **Products** | Not supported | `product` builds the `X * Y` Mellin convolution |
 | **Ratios** | Not supported | `ratio` builds the `X / Y` Mellin-quotient form |
+| **Random sums** | Not supported | `compound` builds the `X_1 + ... + X_N` compound distribution, exactly |
 
 For example, `Distributions.convolve(Gamma(2, 1), LogNormal(0, 1))` throws a `MethodError` and `Distributions.convolve(Gamma(2, 1), Gamma(3, 2))` throws an `ArgumentError` because the scales differ, whereas `convolved` handles both via quadrature.
 When a closed form does exist, `convolved` uses it.

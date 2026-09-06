@@ -864,3 +864,127 @@ end
         )
     end
 end
+
+@testitem "Compound cdf dispatch" begin
+    using ConvolvedDistributions: compound_cdf, Compound, AnalyticalSolver,
+        NumericSolver, AbstractSolverMethod
+    using Distributions
+
+    # A lattice summand carrying Poisson(2)'s masses, so the forced
+    # numeric route (the Panjer recursion under a Poisson count) has an
+    # exact reference: the same compound built on a real `Poisson(2.0)`.
+    struct DispatchTestSummand <: DiscreteUnivariateDistribution end
+    Base.minimum(::DispatchTestSummand) = 0
+    Base.maximum(::DispatchTestSummand) = Inf
+    Distributions.pdf(::DispatchTestSummand, k::Real) = pdf(Poisson(2.0), k)
+    Distributions.cdf(::DispatchTestSummand, k::Real) = cdf(Poisson(2.0), k)
+    Distributions.params(::DispatchTestSummand) = ()
+    Distributions.quantile(::DispatchTestSummand, p::Real) =
+        quantile(Poisson(2.0), p)
+
+    # A downstream analytic pair is just a method on a two-element tuple
+    # TYPE -- no registration call, plain dispatch picks it up over the
+    # generic `Tuple` fallback. The count and summand slots are not
+    # interchangeable, so there is no mirrored-order method to add.
+    analytic_called = Ref(false)
+    function ConvolvedDistributions.compound_cdf(
+            ::Compound, ::Tuple{Poisson, DispatchTestSummand}, z::Real,
+            ::AnalyticalSolver
+        )
+        analytic_called[] = true
+        return 0.13579
+    end
+
+    @testset "Dispatch to analytical method" begin
+        analytic_called[] = false
+        d = compound(Poisson(3.0), DispatchTestSummand())
+        @test cdf(d, 2.0) == 0.13579
+        @test analytic_called[]
+    end
+
+    @testset "Force numerical method" begin
+        analytic_called[] = false
+        d = compound(
+            Poisson(3.0), DispatchTestSummand(); method = NumericSolver()
+        )
+        ref = compound(Poisson(3.0), Poisson(2.0))
+        result = cdf(d, 2.0)
+        @test !analytic_called[]
+        @test result != 0.13579
+        @test result ≈ cdf(ref, 2.0) atol = 1.0e-12
+    end
+
+    @testset "Fallback for unsupported distributions" begin
+        # No `compound_pair` for a Poisson count over a Poisson summand,
+        # so this falls through the `AnalyticalSolver` generic to the
+        # exact lattice recursion.
+        d = compound(Poisson(3.0), Poisson(2.0))
+        result = cdf(d, 4.0)
+        @test 0 < result < 1
+    end
+
+    @testset "Unknown solver type errors" begin
+        struct BrokenMethod <: AbstractSolverMethod end
+        d = Compound(Poisson(3.0), Poisson(2.0); method = BrokenMethod())
+        @test_throws ErrorException compound_cdf(
+            d, (Poisson(3.0), Poisson(2.0)), 1.0, BrokenMethod()
+        )
+    end
+end
+
+@testitem "Unknown solver type errors for every compound_* generic" begin
+    # "Compound cdf dispatch" above pins this for the scalar cdf arm only.
+    # Every compound_* generic shares the same skeleton (a plain `error`
+    # for a solver type that is neither `AnalyticalSolver` nor
+    # `NumericSolver`), so this exercises all of them, not just `cdf`.
+    using ConvolvedDistributions: compound_cdf, compound_logcdf,
+        compound_ccdf, compound_logccdf,
+        compound_pdf, compound_logpdf,
+        compound_quantile, Compound,
+        AbstractSolverMethod
+    using Distributions
+
+    struct BrokenMethod <: AbstractSolverMethod end
+
+    components = (Poisson(3.0), Gamma(2.0, 1.0))
+    d = Compound(components...; method = BrokenMethod())
+
+    @test_throws ErrorException compound_cdf(
+        d, components, 1.0, BrokenMethod()
+    )
+    @test_throws ErrorException compound_logcdf(
+        d, components, 1.0, BrokenMethod()
+    )
+    @test_throws ErrorException compound_ccdf(
+        d, components, 1.0, BrokenMethod()
+    )
+    @test_throws ErrorException compound_logccdf(
+        d, components, 1.0, BrokenMethod()
+    )
+    @test_throws ErrorException compound_pdf(
+        d, components, 1.0, BrokenMethod()
+    )
+    @test_throws ErrorException compound_logpdf(
+        d, components, 1.0, BrokenMethod()
+    )
+    @test_throws ErrorException compound_quantile(
+        d, components, 0.5, BrokenMethod()
+    )
+end
+
+@testitem "Compound quantile dispatch: analytic without Optimization.jl" begin
+    # Mirrors "Difference quantile dispatch" above: the `AnalyticalSolver`
+    # arm must answer a registered thinning pair with the thinned
+    # family's own `quantile`, without Optimization.jl loaded. `==` (not
+    # `≈`) is the load-bearing check: a lattice scan or a solve would
+    # not be guaranteed to land on the exact bit pattern.
+    using ConvolvedDistributions: compound_quantile, AnalyticalSolver
+    using Distributions
+
+    d = compound(Poisson(2.0), Bernoulli(0.3))
+    ref = Poisson(2.0 * 0.3)
+    for p in (0.1, 0.25, 0.5, 0.75, 0.9)
+        @test compound_quantile(d, (d.count, d.summand), p, AnalyticalSolver()) ==
+            quantile(ref, p)
+    end
+end

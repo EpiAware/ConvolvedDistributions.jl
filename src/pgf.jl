@@ -209,8 +209,9 @@ Checking each component with `applicable` (rather than an explicit
 a nested `Convolved` component is itself checked the same way, so an
 all-discrete combination at any depth works. A continuous component, or
 one with no `pgf` method at all (`Difference`/`Product` do not define
-one; composing a random-length sum is out of scope here, see #91), raises
-a descriptive `ArgumentError` naming the offending component type(s).
+one; a random-length sum composes through [`Compound`](@ref)'s own
+method below instead), raises a descriptive `ArgumentError` naming the
+offending component type(s).
 
 # Examples
 ```@example
@@ -231,4 +232,42 @@ function pgf(d::Convolved, s::Real)
         )
     )
     return prod(c -> pgf(c, s), d.components)
+end
+
+# ---------------------------------------------------------------------------
+# Structural extension: Compound (random-length sum of independents)
+# ---------------------------------------------------------------------------
+
+@doc "
+
+Probability generating function of a [`Compound`](@ref) whose summand
+is discrete: conditioning on the count and using independence gives
+the composition ``\\mathrm{pgf}_Z(s) = \\mathrm{pgf}_N(\\mathrm{pgf}_X(s))``.
+
+The summand is checked with `applicable` (as the `Convolved` method
+does for its components), so a nested discrete `Compound` or
+`Convolved` summand composes for free. A continuous summand, which has
+no `pgf` method, raises a descriptive `ArgumentError` naming it. The
+count always has one: it is integer-lattice discrete by construction,
+and the truncated-series fallback covers any count family without a
+closed form.
+
+# Examples
+```@example
+using ConvolvedDistributions, Distributions
+
+d = compound(Poisson(2.0), Bernoulli(0.3))
+ConvolvedDistributions.pgf(d, 0.5) ≈
+    ConvolvedDistributions.pgf(Poisson(0.6), 0.5)
+```
+"
+function pgf(d::Compound, s::Real)
+    applicable(pgf, d.summand, s) || throw(
+        ArgumentError(
+            "pgf(::Compound, s) requires a summand with a pgf method " *
+                "(a discrete summand); no method for " *
+                "$(nameof(typeof(d.summand)))"
+        )
+    )
+    return pgf(d.count, pgf(d.summand, s))
 end

@@ -59,6 +59,15 @@ Ratio/
                         logpdf/cdf broadcast, rand -- no mean row:
                         the numeric pair has no closed-form moment)
 
+Compound/
+  analytic/            (construction, logpdf/cdf scalar,
+                        logpdf/cdf broadcast, rand, mean:
+                        the Bernoulli-thinning closed form)
+  lattice/             (same operations, on the exact Panjer
+                        recursion over integer points)
+  mixture/             (same operations, on the exact mixture of
+                        n-fold Gamma closed forms)
+
 Timeseries/
   Gamma delay          (convolve_series(pmf, series), pmf precomputed)
   Convolved delay

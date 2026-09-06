@@ -447,6 +447,7 @@ end
     y = Gamma(3.0, 2.0)
     guesses = (
         convolved(x, y), difference(x, y), product(x, y), ratio(x, y),
+        compound(Poisson(2.0), x),
     )
 
     for d in guesses, bad in (-0.1, 1.1, NaN)
@@ -471,7 +472,7 @@ end
     # arm. `==` (not `≈`) against the closed form is the second leg,
     # since a Nelder-Mead solve would not land on the exact bit pattern.
     using ConvolvedDistributions: Convolved, Difference, Product, Ratio,
-        has_closed_form
+        Compound, has_closed_form
     using Distributions
 
     pairs = (
@@ -485,6 +486,11 @@ end
             (1.0 / 2.0) * BetaPrime(2.0, 3.0),
         ratio(Normal(0.0, 2.0), Normal(0.0, 0.5)) => Cauchy(0.0, 4.0),
         ratio(Chisq(4.0), Chisq(6.0)) => (4.0 / 6.0) * FDist(4.0, 6.0),
+        # A Discrete-typed Compound answers through the exact lattice
+        # scan over its closed-form pmf, landing on the same integer as
+        # the thinned family's own quantile.
+        compound(Poisson(2.0), Bernoulli(0.3)) => Poisson(0.6),
+        compound(Binomial(10, 0.4), Bernoulli(0.5)) => Binomial(10, 0.2),
     )
 
     for (d, ref) in pairs
@@ -498,7 +504,7 @@ end
     # is what `truncated` and other applicability checks see. A pair
     # with no registered closed form still needs the extension to
     # produce a value.
-    for T in (Convolved, Difference, Product, Ratio)
+    for T in (Convolved, Difference, Product, Ratio, Compound)
         @test hasmethod(quantile, Tuple{T, Float64})
     end
     @test !has_closed_form(ratio(Gamma(3.0, 1.0), LogNormal(0.2, 0.3)))
@@ -631,6 +637,13 @@ end
     drt = ratio(Gamma(3.0, 1.0), LogNormal(0.2, 0.3))
     @test quantile_initial_guess(drt, p) ==
         [float(quantile(drt.x, p)) / float(quantile(drt.y, 1 - p))]
+
+    # Compound uses the same Normal-approximation guess as
+    # Difference/Product, from its own exact mean/variance, clamped
+    # onto its support.
+    dcp = compound(Poisson(3.0), Gamma(2.0, 1.0))
+    dcp_guess = mean(dcp) + std(dcp) * quantile(Normal(), p)
+    @test quantile_initial_guess(dcp, p) == [max(dcp_guess, 0.0)]
 
     # A downstream override is load-bearing: `quantile(d, p)` picks up a
     # specialised guess method instead of the default. The override

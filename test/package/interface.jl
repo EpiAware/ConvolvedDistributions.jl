@@ -37,13 +37,22 @@
         ratio(Normal(0.0, 1.0), Normal(0.0, 1.0));
         name = "Ratio (analytic)", x = 0.5
     )
+    test_convolved_interface(
+        compound(Poisson(3.0), Gamma(2.0, 1.0));
+        name = "Compound (continuous)", x = 3.0
+    )
+    test_convolved_interface(
+        compound(Poisson(2.0), Bernoulli(0.3));
+        name = "Compound (analytic)", x = 1
+    )
     @test ConvolvedDistributions.Product <:
     ConvolvedDistributions.AbstractConvolvedDistribution
     @test ConvolvedDistributions.Ratio <:
     ConvolvedDistributions.AbstractConvolvedDistribution
+    @test Compound <: ConvolvedDistributions.AbstractConvolvedDistribution
 
-    # Discrete instances of all three types (#85, #89): the contract
-    # holds with an integer `x`.
+    # Discrete instances of the lattice-capable types (#85, #89): the
+    # contract holds with an integer `x`.
     test_convolved_interface(
         convolved(Poisson(2.0), Poisson(3.0));
         name = "Convolved (discrete)", x = 4
@@ -55,6 +64,10 @@
     test_convolved_interface(
         product(Poisson(2.0), Poisson(3.0));
         name = "Product (discrete)", x = 4
+    )
+    test_convolved_interface(
+        compound(Poisson(3.0), Poisson(2.0));
+        name = "Compound (discrete)", x = 4
     )
 end
 
@@ -71,5 +84,11 @@ end
     )
     test_discrete_pmf(
         product(Poisson(2.0), Poisson(3.0)); support = 0:200
+    )
+    test_discrete_pmf(
+        compound(Poisson(3.0), Poisson(2.0)); support = 0:80
+    )
+    test_discrete_pmf(
+        compound(Poisson(2.0), Bernoulli(0.3)); support = 0:40
     )
 end
