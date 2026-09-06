@@ -23,9 +23,9 @@ __precompile__(false)
 
 using ConvolvedDistributions
 using ConvolvedDistributions: pgf, GaussLegendre, NumericSolver
-using Distributions: Distributions, Bernoulli, Gamma, Geometric, LogNormal,
-    NegativeBinomial, Normal, Poisson, Uniform, Weibull,
-    mean, var, pdf, logpdf, cdf, logcdf
+using Distributions: Distributions, Bernoulli, Binomial, Gamma, Geometric,
+    LogNormal, NegativeBinomial, Normal, Poisson, Uniform, Weibull,
+    mean, var, pdf, logpdf, cdf, logcdf, ccdf, logccdf
 using ADTypes: ADTypes, AutoForwardDiff, AutoReverseDiff, AutoMooncake,
     AutoMooncakeForward, AutoEnzyme
 using DifferentiationInterface: DifferentiationInterface, Constant
@@ -597,6 +597,37 @@ function scenarios(; with_reference::Bool = false, category::Symbol = :marginal)
             mean(d) + var(d)
         end,
         [3.0, 2.0, 1.5], (Constant(obs),)
+    )
+    # The thinning identities of the other `(a, b, 0)` counts: the
+    # gradient flows through the thinned family's own parameters.
+    _push!(
+        "Compound Binomial/NegativeBinomial/Geometric∘Bernoulli thinning",
+        (θ, ks) -> begin
+            b = compound(Binomial(5, θ[1]), Bernoulli(θ[2]))
+            nb = compound(NegativeBinomial(θ[3], θ[1]), Bernoulli(θ[2]))
+            g = compound(Geometric(θ[1]), Bernoulli(θ[2]))
+            sum(k -> logpdf(b, k) + logpdf(nb, k) + logpdf(g, k), ks)
+        end,
+        [0.4, 0.3, 2.5], (Constant(obs_discrete),)
+    )
+    # The CDF family on the exact lattice route, for every `(a, b, 0)`
+    # count with a Panjer form and for a count outside that class (a
+    # nested compound, which takes the direct mixture); each call passes
+    # through the `AnalyticalSolver` arm first, finds no closed form, and
+    # falls through to the recursion.
+    _push!(
+        "Compound Binomial/NegativeBinomial/Geometric/nested∘Poisson cdf family",
+        (θ, ks) -> begin
+            b = compound(Binomial(5, θ[1]), Poisson(θ[2]))
+            nb = compound(NegativeBinomial(θ[3], θ[1]), Poisson(θ[2]))
+            g = compound(Geometric(θ[1]), Poisson(θ[2]))
+            nested = compound(compound(Poisson(θ[2]), Poisson(1.0)), Poisson(θ[2]))
+            sum(ks) do k
+                cdf(b, k) + logcdf(nb, k) + ccdf(g, k) + logccdf(b, k) +
+                    pdf(nb, k) + cdf(nested, k)
+            end
+        end,
+        [0.4, 1.5, 2.5], (Constant(obs_discrete),)
     )
 
     # Timeseries convolution. This package no longer discretises

@@ -302,9 +302,7 @@ end
 
 # The component-family names for a `strict = true` construction error
 # (see `_check_strict` in interface.jl).
-function _family_names(d::Compound)
-    return (nameof(typeof(d.count)), nameof(typeof(d.summand)))
-end
+_family_names(d::Compound) = (nameof(typeof(d.count)), nameof(typeof(d.summand)))
 
 # Both routes are exact up to the documented tail clamp: the lattice
 # recursion is the `Discrete` default already, and the `Continuous`
