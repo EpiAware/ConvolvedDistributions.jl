@@ -1,7 +1,8 @@
 module ConvolvedDistributionsMooncakeExt
 
 using ConvolvedDistributions: _window_quantile, _lattice_quantile,
-    _accepts_kwargs, AbstractSolverMethod, _resolve_closed_form
+    _accepts_kwargs, AbstractSolverMethod, _resolve_closed_form,
+    _check_atoms_visible, AbstractConvolvedDistribution
 using Distributions: UnivariateDistribution
 using Mooncake: Mooncake
 
@@ -59,6 +60,15 @@ Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
 # Mark it zero-derivative so construction stays off the tape.
 Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
     typeof(_resolve_closed_form), Tuple, AbstractSolverMethod,
+}
+
+# `_check_atoms_visible(d)` is a construction-time guard that either
+# throws or returns `nothing`; the residual scan behind it folds
+# component pairs into tuples of varying type, which the reverse pass
+# would otherwise have to reconcile across a type-unstable loop. No
+# value flows out of it, so it carries no derivative.
+Mooncake.@zero_derivative Mooncake.DefaultCtx Tuple{
+    typeof(_check_atoms_visible), AbstractConvolvedDistribution,
 }
 
 end

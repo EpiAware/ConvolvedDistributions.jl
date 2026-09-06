@@ -13,7 +13,10 @@ function primitive `pgf`. Operates on any
 `Distributions.UnivariateDistribution`; no censoring. A combination whose
 components are all integer-lattice discrete distributions is itself
 discrete and evaluates exactly (an integer-lattice fold replaces
-quadrature; see [`is_exact`](@ref)).
+quadrature; see [`is_exact`](@ref)), and a finite-support
+`DiscreteNonParametric` component (a discretised delay on any grid)
+combines exactly in closed form with another such component or with a
+continuous one.
 
 # Examples
 ```@example
@@ -47,7 +50,8 @@ import Base: minimum, maximum
 
 # Types, constructors, and helpers used without method extension.
 using Distributions: Distributions, UnivariateDistribution,
-    DiscreteUnivariateDistribution, DiscreteNonParametric,
+    DiscreteUnivariateDistribution, ContinuousUnivariateDistribution,
+    DiscreteNonParametric,
     Continuous, Discrete, BetaPrime, Cauchy, Chisq,
     Exponential, FDist, Gamma, LogNormal, Normal, Poisson,
     Bernoulli, Binomial, Geometric, NegativeBinomial,
@@ -123,6 +127,12 @@ include("Ratio.jl")
 # helpers and structs the `NumericSolver` arms reuse.
 include("solver_dispatch.jl")
 include("uniform_window.jl")
+# Exact closed forms for finite-support discrete components
+# (`DiscreteNonParametric`): two atom sets collapse to one, and an atom
+# set next to a continuous component is a finite mixture of shifted or
+# scaled copies. After solver_dispatch.jl, whose `*_pair` hooks these
+# are methods of.
+include("discrete_nonparametric.jl")
 # The probability generating function primitive (#90): closed forms for
 # the standard count families, a truncated-series fallback for any other
 # `DiscreteUnivariateDistribution`, and the structural `Convolved` product.

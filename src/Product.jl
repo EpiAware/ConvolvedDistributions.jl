@@ -237,7 +237,7 @@ function product(
         x::UnivariateDistribution, y::UnivariateDistribution;
         method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
     )
-    return _check_strict(Product(x, y; method = method), strict)
+    return _check_route(Product(x, y; method = method), strict)
 end
 
 # The component-family names for a `strict = true` construction error
@@ -677,31 +677,43 @@ function _mixed_positive_window(D::UnivariateDistribution)
     return max(t0, 1), t1
 end
 
+# The change of variables `z = k * c` scales a DENSITY of the non-lattice
+# factor `C` by `1 / k`; a probability MASS is not scaled. A discrete `C`
+# off the integer lattice (typed `Continuous` by `_component_support`,
+# e.g. a `DiscreteNonParametric` on a fractional grid) contributes
+# masses, so its Jacobian is one.
+_product_scale_jacobian(::DiscreteUnivariateDistribution, k) = one(k)
+_product_scale_jacobian(::Any, k) = k
+
 function _product_mixed_pdf(::Val{1}, d::Product, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
-    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    _mixed_pdf_outside(d, z, d.y) && return zero(float(typeof(z)))
     D = d.x
     t0, t1 = _mixed_positive_window(D)
+    t0, t1 = _restrict_to_support(k -> _within_support(d.y, z / k), t0, t1)
     t1 < t0 && return zero(float(typeof(z)))
     return _lattice_sum(
-        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, z / k) / k, t0, t1
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.y, z / k) /
+            _product_scale_jacobian(d.y, k), t0, t1
     )
 end
 function _product_mixed_pdf(::Val{2}, d::Product, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
-    (z <= minimum(d) || z >= maximum(d)) && return zero(float(typeof(z)))
+    _mixed_pdf_outside(d, z, d.x) && return zero(float(typeof(z)))
     D = d.y
     t0, t1 = _mixed_positive_window(D)
+    t0, t1 = _restrict_to_support(k -> _within_support(d.x, z / k), t0, t1)
     t1 < t0 && return zero(float(typeof(z)))
     return _lattice_sum(
-        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z / k) / k, t0, t1
+        k -> pdf_ad_safe(D, k) * pdf_ad_safe(d.x, z / k) /
+            _product_scale_jacobian(d.x, k), t0, t1
     )
 end
 _product_mixed_pdf(::Nothing, d::Product, z::Real) = _product_numeric_pdf(d, z)
 
 function _product_mixed_cdf(::Val{1}, d::Product, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
-    z <= minimum(d) && return zero(float(typeof(z)))
+    z < minimum(d) && return zero(float(typeof(z)))
     z >= maximum(d) && return one(float(typeof(z)))
     D = d.x
     t0, t1 = _mixed_positive_window(D)
@@ -713,7 +725,7 @@ function _product_mixed_cdf(::Val{1}, d::Product, z::Real)
 end
 function _product_mixed_cdf(::Val{2}, d::Product, z::Real)
     isnan(z) && return convert(float(typeof(z)), NaN)
-    z <= minimum(d) && return zero(float(typeof(z)))
+    z < minimum(d) && return zero(float(typeof(z)))
     z >= maximum(d) && return one(float(typeof(z)))
     D = d.y
     t0, t1 = _mixed_positive_window(D)

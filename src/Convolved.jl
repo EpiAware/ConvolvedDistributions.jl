@@ -240,14 +240,14 @@ function convolved(
     )
     length(components) >= 2 ||
         throw(ArgumentError("convolved needs at least two components"))
-    return _check_strict(Convolved(Tuple(components); method = method), strict)
+    return _check_route(Convolved(Tuple(components); method = method), strict)
 end
 
 function convolved(
         c1, c2, rest...;
         method::AbstractSolverMethod = AnalyticalSolver(), strict::Bool = false
     )
-    return _check_strict(
+    return _check_route(
         Convolved((c1, c2, rest...); method = method), strict
     )
 end
@@ -258,12 +258,28 @@ function convolved(
     )
     length(components) >= 2 ||
         throw(ArgumentError("convolved needs at least two components"))
-    return _check_strict(Convolved(components; method = method), strict)
+    return _check_route(Convolved(components; method = method), strict)
 end
 
 # The component-family names for a `strict = true` construction error
 # (see `_check_strict` in interface.jl).
 _family_names(d::Convolved) = nameof.(typeof.(d.components))
+
+# What the numeric route integrates over once the pairwise analytic
+# collapse (`_collapse_analytic_pair`, solver_dispatch.jl) has folded
+# every pair it can: the stuck residue, or the components themselves
+# under a `NumericSolver`, which requests no collapse at all. Read by
+# the atoms guard (`_check_atoms_visible`, interface.jl).
+function _residual_components(d::Convolved)
+    d.method isa NumericSolver && return d.components
+    remaining = d.components
+    while length(remaining) > 1
+        reduced = _collapse_analytic_pair(remaining)
+        reduced === nothing && return remaining
+        remaining = reduced
+    end
+    return remaining
+end
 
 # Build the k-fold `Convolved` from `k` copies of `d`; only reached once
 # `convolved(d, k)` has ruled out an analytic closed form
@@ -1059,11 +1075,57 @@ end
 # density/CDF is evaluated pointwise, not integrated, so this is exact
 # in the same sense the all-discrete fold is (see `is_exact`).
 
+# The mixed fold's early return at the support ends. Strictly outside
+# the support the density is zero. AT an endpoint it depends on the
+# non-lattice component `C`: a continuous `C` puts no mass on a point,
+# so its density there is reported as zero exactly as the quadrature
+# routes do; a discrete `C` off the integer lattice (typed `Continuous`
+# by `_component_support` but a genuine `DiscreteUnivariateDistribution`,
+# e.g. a `DiscreteNonParametric` on a fractional grid) carries an atom
+# at each end of its support, which the fold must evaluate rather than
+# drop (#227). The CDF twins below return zero only strictly below the
+# support for the same reason. Shared with the `Difference` and
+# `Product` mixed folds.
+function _mixed_pdf_outside(d, x::Real, C)
+    (x < minimum(d) || x > maximum(d)) && return true
+    C isa DiscreteUnivariateDistribution && return false
+    return x == minimum(d) || x == maximum(d)
+end
+
+# Whether `y` lies inside the support of the non-lattice component `C`,
+# on primal values: the support ends are hyperparameters of the fold,
+# not differentiated quantities.
+function _within_support(C, y)
+    yp = Float64(primal(y))
+    return Float64(primal(minimum(C))) <= yp <= Float64(primal(maximum(C)))
+end
+
+# The sub-range of the lattice window `t0:t1` whose points `inside`
+# admits. Every mixed fold maps the lattice point to `C`'s argument
+# monotonically, so the admitted points are contiguous and the two
+# scans from the ends find them. The fold sums only over these: a
+# density evaluated outside its own support is zero, but reverse-mode
+# backends propagate a `NaN` gradient through it (a `Gamma` shape
+# derivative below zero, say), so those terms must not reach the sum at
+# all rather than contribute a zero.
+function _restrict_to_support(inside::F, t0::Int, t1::Int) where {F}
+    lo = t0
+    while lo <= t1 && !inside(lo)
+        lo += 1
+    end
+    hi = t1
+    while hi >= lo && !inside(hi)
+        hi -= 1
+    end
+    return lo, hi
+end
+
 function _convolved_mixed_pdf(::Val{1}, d::Convolved, x::Real)
     isnan(x) && return convert(float(typeof(x)), NaN)
-    (x <= minimum(d) || x >= maximum(d)) && return zero(float(typeof(x)))
     D, C = d.components
+    _mixed_pdf_outside(d, x, C) && return zero(float(typeof(x)))
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t0, t1 = _restrict_to_support(k -> _within_support(C, x - k), t0, t1)
     t1 < t0 && return zero(float(typeof(x)))
     return _lattice_sum(
         k -> pdf_ad_safe(D, k) * pdf_ad_safe(C, x - k), t0, t1
@@ -1071,9 +1133,10 @@ function _convolved_mixed_pdf(::Val{1}, d::Convolved, x::Real)
 end
 function _convolved_mixed_pdf(::Val{2}, d::Convolved, x::Real)
     isnan(x) && return convert(float(typeof(x)), NaN)
-    (x <= minimum(d) || x >= maximum(d)) && return zero(float(typeof(x)))
     C, D = d.components
+    _mixed_pdf_outside(d, x, C) && return zero(float(typeof(x)))
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
+    t0, t1 = _restrict_to_support(k -> _within_support(C, x - k), t0, t1)
     t1 < t0 && return zero(float(typeof(x)))
     return _lattice_sum(
         k -> pdf_ad_safe(D, k) * pdf_ad_safe(C, x - k), t0, t1
@@ -1083,7 +1146,7 @@ _convolved_mixed_pdf(::Nothing, d::Convolved, x::Real) = _convolved_numeric_pdf(
 
 function _convolved_mixed_cdf(::Val{1}, d::Convolved, x::Real)
     isnan(x) && return convert(float(typeof(x)), NaN)
-    x <= minimum(d) && return zero(float(typeof(x)))
+    x < minimum(d) && return zero(float(typeof(x)))
     x >= maximum(d) && return one(float(typeof(x)))
     D, C = d.components
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
@@ -1095,7 +1158,7 @@ function _convolved_mixed_cdf(::Val{1}, d::Convolved, x::Real)
 end
 function _convolved_mixed_cdf(::Val{2}, d::Convolved, x::Real)
     isnan(x) && return convert(float(typeof(x)), NaN)
-    x <= minimum(d) && return zero(float(typeof(x)))
+    x < minimum(d) && return zero(float(typeof(x)))
     x >= maximum(d) && return one(float(typeof(x)))
     C, D = d.components
     t0, t1 = _lattice_range(_mixed_discrete_window(D)...)
