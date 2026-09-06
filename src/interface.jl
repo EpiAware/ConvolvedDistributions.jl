@@ -153,6 +153,11 @@ _mixed_discrete_component(::Nothing, x, y) = nothing
 # docstring).
 _has_mixed_fold(::AbstractConvolvedDistribution) = false
 
+# Both sides genuine `UnivariateDistribution`s: what the `_Mixedable*`
+# aliases require of a pair before the mixed fold can take it. A
+# compile-time constant per specialisation.
+_real_pair(x, y) = x isa UnivariateDistribution && y isa UnivariateDistribution
+
 # Whether the exact discrete route (the additive lattice fold in
 # `src/lattice.jl`, the `Product` divisor fold, or the mixed
 # discrete/continuous fold, #115) is available for `d`. `Discrete`-typed
