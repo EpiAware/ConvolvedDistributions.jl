@@ -572,3 +572,55 @@ end
         Poisson(2.0), Bernoulli(0.3); method = NumericSolver(), strict = true
     ) isa Compound
 end
+
+@testitem "Compound helpers for duck-typed and power-free summands" begin
+    using ConvolvedDistributions: _summand_power, _family_names,
+        _window_quantile, is_exact
+    using Distributions
+
+    # A duck-typed summand with no registered `convolve_power` reads as
+    # "no n-fold closed form", not as a MethodError.
+    struct NoPowerSummand end
+    Base.minimum(::NoPowerSummand) = 0
+    Base.maximum(::NoPowerSummand) = Inf
+    Base.eltype(::Type{NoPowerSummand}) = Int
+    @test _summand_power(NoPowerSummand(), 2) === nothing
+
+    # One that registers a closed form is asked through it.
+    struct PowerSummand end
+    function ConvolvedDistributions.convolve_power(::PowerSummand, n::Integer)
+        return Gamma(2.0 * n, 1.0)
+    end
+    try
+        @test _summand_power(PowerSummand(), 3) == Gamma(6.0, 1.0)
+    finally
+        # The method lives on the shared generic in ConvolvedDistributions,
+        # so it outlives this testitem's module unless removed.
+        Base.delete_method(
+            only(
+                methods(
+                    ConvolvedDistributions.convolve_power,
+                    Tuple{PowerSummand, Integer}
+                )
+            )
+        )
+    end
+
+    # Both routes are exact, and the strict-construction error names the
+    # component families in count-then-summand order.
+    continuous = compound(Poisson(3.0), Gamma(2.0, 1.0))
+    @test is_exact(continuous)
+    @test is_exact(compound(Poisson(3.0), Poisson(2.0)))
+    @test _family_names(continuous) == (:Poisson, :Gamma)
+
+    # The composite window quantile of a lattice compound whose summand
+    # has no `convolve_power` form falls back to `n` times the summand's
+    # own window quantile, `n` the count's; a count that puts the window
+    # below one summand returns zero.
+    atoms = DiscreteNonParametric([1, 2], [0.5, 0.5])
+    d = compound(Poisson(3.0), atoms)
+    n = round(Int, _window_quantile(Poisson(3.0), 0.9))
+    @test n >= 1
+    @test _window_quantile(d, 0.9) == n * _window_quantile(atoms, 0.9)
+    @test _window_quantile(compound(Poisson(1.0e-3), atoms), 0.5) == 0.0
+end
