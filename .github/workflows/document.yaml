@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   Documenter:
-    uses: EpiAware/.github/.github/workflows/documentation.yml@2c7ce73459772f11dad46ac7f456e35f0d296faf
+    uses: EpiAware/.github/.github/workflows/documentation.yml@59ec75be81cbc2cf83d9cb172bf22e29e1391a91
     # The reusable's own default is 45 minutes. This build runs the
     # AD-backend tutorials and a full linkcheck, and lands at 40-42
     # minutes on a normal run, so the default leaves no headroom for a
